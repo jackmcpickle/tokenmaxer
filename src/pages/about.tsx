@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx';
+import { Button } from '@/pages/components/button';
 import { Layout } from '@/pages/layout';
-import { btnPrimary, hero, heroActions, sub } from '@/pages/ui';
+import { hero, heroActions, sub } from '@/pages/ui';
 
 export const About: FC<{ base: string }> = ({ base }) => (
     <Layout
@@ -84,12 +85,12 @@ export const About: FC<{ base: string }> = ({ base }) => (
             </p>
 
             <div class={heroActions}>
-                <a
-                    class={btnPrimary}
+                <Button
+                    variant="primary"
                     href="/start"
                 >
                     Get started
-                </a>
+                </Button>
             </div>
         </div>
     </Layout>

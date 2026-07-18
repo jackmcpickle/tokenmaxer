@@ -1,4 +1,5 @@
 import type { FC } from 'hono/jsx';
+import { Button } from '@/pages/components/button';
 import { VARIANT_NAMES } from '@/pages/prototype/chart-variants';
 
 const VARIANTS = ['A', 'B', 'C'] as const;
@@ -18,27 +19,29 @@ export const PrototypeSwitcher: FC<{ current: string }> = ({ current }) => {
         <>
             <div
                 id="prototype-switcher"
-                class="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-panel px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55)]"
+                class="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-border bg-panel px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55)]"
             >
-                <button
+                <Button
+                    variant="secondary"
                     type="button"
                     data-proto-nav={prev}
-                    class="cursor-pointer rounded-full border-0 bg-panel2 px-3 py-1.5 text-sm font-bold text-text hover:bg-panel"
+                    class="!min-h-0 px-3 py-1.5 text-sm font-bold"
                     aria-label="Previous variant"
                 >
                     ←
-                </button>
+                </Button>
                 <div class="min-w-[140px] px-2 text-center text-sm font-bold tabular-nums">
                     {current} — {label}
                 </div>
-                <button
+                <Button
+                    variant="secondary"
                     type="button"
                     data-proto-nav={next}
-                    class="cursor-pointer rounded-full border-0 bg-panel2 px-3 py-1.5 text-sm font-bold text-text hover:bg-panel"
+                    class="!min-h-0 px-3 py-1.5 text-sm font-bold"
                     aria-label="Next variant"
                 >
                     →
-                </button>
+                </Button>
             </div>
             <script
                 dangerouslySetInnerHTML={{

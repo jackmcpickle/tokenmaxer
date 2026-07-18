@@ -23,10 +23,10 @@
     --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
     --radius-sm: 4px;
-    --radius-md: 10px;
-    --radius-lg: 15px;
-    --radius-xl: 20px;
-    --radius-2xl: 30px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-2xl: 12px;
 }
 
 @layer base {
@@ -87,24 +87,6 @@
     code,
     pre {
         font-family: var(--font-mono);
-    }
-
-    select,
-    input[type='text'] {
-        background: var(--color-panel);
-        color: var(--color-text);
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        padding: 10px 14px;
-        font-size: 15px;
-        min-width: 130px;
-        outline: none;
-    }
-
-    select:focus,
-    input[type='text']:focus {
-        box-shadow: 0 0 0 1px rgba(0, 153, 255, 0.15);
-        border-color: rgba(0, 153, 255, 0.45);
     }
 
     table {
@@ -170,7 +152,7 @@
         left: 16px;
         top: 12px;
         z-index: 100;
-        border-radius: 100px;
+        border-radius: var(--radius-md);
         background: #fff;
         color: var(--color-on-primary);
         padding: 10px 15px;
@@ -189,83 +171,57 @@
             0 0 0 3px rgba(0, 153, 255, 0.35);
     }
 
-    .btn-primary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        border: 0;
-        border-radius: 100px;
-        background: #fff;
-        color: var(--color-on-primary);
-        padding: 10px 15px;
-        min-height: 44px;
-        font-family: var(--font-display);
-        font-size: 14px;
-        font-weight: 500;
-        letter-spacing: -0.14px;
-        text-decoration: none;
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    .ui-btn {
+        transition:
+            transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+            background 0.2s ease,
+            filter 0.2s ease;
     }
 
-    .btn-primary:hover {
+    .ui-btn:hover {
         text-decoration: none;
+    }
+
+    .ui-btn-primary:hover {
         filter: brightness(0.96);
     }
 
-    .btn-primary:active {
-        transform: scale(0.98);
-    }
-
-    .btn-secondary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        border: 0;
-        border-radius: 100px;
-        background: var(--color-panel);
-        color: var(--color-text);
-        padding: 10px 15px;
-        min-height: 44px;
-        font-family: var(--font-display);
-        font-size: 14px;
-        font-weight: 500;
-        letter-spacing: -0.14px;
-        text-decoration: none;
-        transition:
-            background 0.2s ease,
-            transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    .btn-secondary:hover {
+    .ui-btn-secondary:hover {
         background: var(--color-panel2);
-        text-decoration: none;
     }
 
-    .btn-secondary:active {
+    .ui-btn-ghost:hover {
+        color: var(--color-text);
+        background: var(--color-panel2);
+    }
+
+    .ui-btn:active {
         transform: scale(0.98);
     }
 
-    .btn-primary:focus-visible,
-    .btn-secondary:focus-visible {
+    .ui-btn:focus-visible,
+    .ui-input:focus-visible {
         outline: none;
         box-shadow:
             0 0 0 1px rgba(0, 153, 255, 0.15),
             0 0 0 3px rgba(0, 153, 255, 0.35);
     }
 
+    .ui-input:focus-visible {
+        border-color: rgba(0, 153, 255, 0.45);
+    }
+
     .nav-link:focus-visible {
         outline: none;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         box-shadow:
             0 0 0 1px rgba(0, 153, 255, 0.15),
             0 0 0 3px rgba(0, 153, 255, 0.35);
     }
 
     .spotlight {
-        border-radius: 30px;
-        padding: 32px;
+        border-radius: var(--radius-xl);
+        padding: 28px;
         color: #fff;
         font-family: var(--font-display);
     }

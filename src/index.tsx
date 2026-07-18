@@ -5,10 +5,7 @@ import { About } from '@/pages/about';
 import { Home } from '@/pages/home';
 import { Layout } from '@/pages/layout';
 import { ProfilePage } from '@/pages/profile';
-import {
-    parseChartMetric,
-    parsePeriod,
-} from '@/pages/prototype/chart-mock';
+import { parseChartMetric, parsePeriod } from '@/pages/prototype/chart-mock';
 import { Start } from '@/pages/start';
 import { sub } from '@/pages/ui';
 import { historyRoutes } from '@/routes/history';
@@ -70,6 +67,9 @@ app.get('/tokentally.mjs', (c) =>
         'Cache-Control': 'public, max-age=3600',
     }),
 );
+
+// Browsers still request /favicon.ico by default; SVG lives in public/.
+app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 302));
 
 // ---- HTML pages ----
 app.get('/', async (c) => {

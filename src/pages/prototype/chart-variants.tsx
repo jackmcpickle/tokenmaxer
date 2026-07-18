@@ -7,6 +7,7 @@
  * C — Split rail: period nav + chart beside leaderboard density
  */
 import type { FC } from 'hono/jsx';
+import { Button } from '@/pages/components/button';
 import { PrototypeAxis, PrototypeBars } from '@/pages/prototype/chart-bars';
 import {
     CHART_METRICS,
@@ -38,7 +39,7 @@ export const VARIANT_NAMES: Record<string, string> = {
 export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => {
     const points = mockSeries(period);
     return (
-        <section class="mb-8 overflow-hidden rounded-xl border border-border bg-panel">
+        <section class="mb-8 overflow-hidden rounded-lg border border-border bg-panel">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div>
                     <div class="text-xs uppercase tracking-[0.06em] text-muted">
@@ -51,17 +52,14 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                 </div>
                 <div class="flex rounded-lg border border-border bg-panel2 p-0.5">
                     {CHART_PERIODS.map((p) => (
-                        <a
+                        <Button
                             key={p}
+                            variant={p === period ? 'primary' : 'ghost'}
                             href={chartHref(variant, p, metric)}
-                            class={`rounded-md px-3 py-1.5 text-sm font-bold no-underline ${
-                                p === period
-                                    ? 'bg-text text-bg'
-                                    : 'text-muted hover:text-text'
-                            }`}
+                            class="!min-h-0 rounded-md px-3 py-1.5 text-sm font-bold"
                         >
                             {PERIOD_LABELS[p]}
-                        </a>
+                        </Button>
                     ))}
                 </div>
             </div>
@@ -71,15 +69,15 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                     const total = seriesTotal(points, m);
                     const active = m === metric;
                     return (
-                        <a
+                        <Button
                             key={m}
+                            variant={active ? 'secondary' : 'ghost'}
                             href={chartHref(variant, period, m)}
-                            data-active={active ? 'true' : 'false'}
-                            class={`flex flex-1 flex-col justify-center gap-1 border-t border-border px-5 py-4 no-underline first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0 ${
-                                active ? 'bg-panel2' : 'hover:bg-panel2/60'
+                            class={`!min-h-0 flex-1 flex-col justify-center gap-1 rounded-none border-t border-border px-5 py-4 first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0 ${
+                                active ? 'bg-panel2' : ''
                             }`}
                         >
-                            <span class="text-xs text-muted">
+                            <span class="text-xs font-medium text-muted">
                                 {METRIC_LABELS[m]}
                             </span>
                             <span
@@ -89,7 +87,7 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                             >
                                 {formatMetric(m, total)}
                             </span>
-                        </a>
+                        </Button>
                     );
                 })}
             </div>
@@ -139,37 +137,31 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
 
             <nav class="mb-4 flex flex-wrap gap-2">
                 {CHART_PERIODS.map((p) => (
-                    <a
+                    <Button
                         key={p}
+                        variant={p === period ? 'primary' : 'ghost'}
                         href={chartHref(variant, p, metric)}
-                        class={`rounded-full px-4 py-2 text-sm font-bold no-underline ${
-                            p === period
-                                ? 'bg-text text-bg'
-                                : 'border border-border text-muted hover:text-text'
-                        }`}
+                        class="!min-h-0 px-4 py-2 text-sm font-bold"
                     >
                         {PERIOD_LABELS[p]}
-                    </a>
+                    </Button>
                 ))}
             </nav>
 
             <div class="mb-5 flex flex-wrap gap-2">
                 {CHART_METRICS.map((m) => (
-                    <a
+                    <Button
                         key={m}
+                        variant={m === metric ? 'primary' : 'ghost'}
                         href={chartHref(variant, period, m)}
-                        class={`rounded-md px-3 py-1.5 text-sm no-underline ${
-                            m === metric
-                                ? 'bg-panel2 font-bold text-text'
-                                : 'text-muted hover:text-text'
-                        }`}
+                        class="!min-h-0 px-3 py-1.5 text-sm"
                     >
                         {METRIC_LABELS[m]}
-                    </a>
+                    </Button>
                 ))}
             </div>
 
-            <div class="rounded-2xl border border-border/80 bg-gradient-to-b from-panel2 to-bg px-2 pt-8 pb-4 sm:px-4">
+            <div class="rounded-lg border border-border/80 bg-gradient-to-b from-panel2 to-bg px-2 pt-8 pb-4 sm:px-4">
                 <PrototypeBars
                     points={points}
                     metric={metric}
@@ -186,23 +178,22 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
     const points = mockSeries(period);
     return (
         <section class="mb-8 grid gap-4 md:grid-cols-[160px_1fr]">
-            <aside class="rounded-xl border border-border bg-panel2 p-2">
+            <aside class="rounded-lg border border-border bg-panel2 p-2">
                 <div class="px-2.5 py-2 text-[11px] uppercase tracking-[0.06em] text-muted">
                     Period
                 </div>
                 {CHART_PERIODS.map((p) => (
-                    <a
+                    <Button
                         key={p}
+                        variant={p === period ? 'primary' : 'ghost'}
                         href={chartHref(variant, p, metric)}
-                        class={`mb-1 block rounded-lg px-3 py-3 no-underline ${
-                            p === period
-                                ? 'bg-text font-bold text-bg'
-                                : 'text-muted hover:bg-panel hover:text-text'
-                        }`}
+                        class="!min-h-0 mb-1 w-full flex-col items-start gap-0.5 rounded-md px-3 py-3"
                     >
-                        <div class="text-sm">{PERIOD_LABELS[p]}</div>
-                        <div
-                            class={`text-[11px] leading-snug ${
+                        <span class="text-sm font-bold">
+                            {PERIOD_LABELS[p]}
+                        </span>
+                        <span
+                            class={`text-[11px] font-medium leading-snug ${
                                 p === period ? 'text-bg/80' : 'text-muted'
                             }`}
                         >
@@ -211,12 +202,12 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                                 : p === 'weekly'
                                   ? '12 weeks'
                                   : '12 months'}
-                        </div>
-                    </a>
+                        </span>
+                    </Button>
                 ))}
             </aside>
 
-            <div class="rounded-xl border border-border bg-panel p-4">
+            <div class="rounded-lg border border-border bg-panel p-4">
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h2 class="m-0 text-xl font-extrabold">
@@ -231,39 +222,33 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                     </div>
                     <div class="flex flex-wrap gap-1.5">
                         {CHART_METRICS.map((m) => (
-                            <a
+                            <Button
                                 key={m}
+                                variant={m === metric ? 'primary' : 'ghost'}
                                 href={chartHref(variant, period, m)}
-                                class={`rounded-md border px-2.5 py-1 text-xs font-bold no-underline ${
-                                    m === metric
-                                        ? 'border-text bg-text text-bg'
-                                        : 'border-border text-muted hover:text-text'
-                                }`}
+                                class="!min-h-0 px-2.5 py-1 text-xs font-bold"
                             >
                                 {METRIC_LABELS[m]}
-                            </a>
+                            </Button>
                         ))}
                     </div>
                 </div>
 
                 <div class="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {CHART_METRICS.map((m) => (
-                        <a
+                        <Button
                             key={m}
+                            variant={m === metric ? 'primary' : 'secondary'}
                             href={chartHref(variant, period, m)}
-                            class={`rounded-lg border px-3 py-2 no-underline ${
-                                m === metric
-                                    ? 'border-text bg-panel'
-                                    : 'border-border bg-panel2'
-                            }`}
+                            class="!min-h-0 h-auto w-full flex-col items-start gap-1 rounded-md px-3 py-2"
                         >
-                            <div class="text-[10px] uppercase text-muted">
+                            <span class="text-[10px] font-medium uppercase text-muted">
                                 {METRIC_LABELS[m]}
-                            </div>
-                            <div class="text-sm font-bold tabular-nums text-text">
+                            </span>
+                            <span class="text-sm font-bold tabular-nums">
                                 {formatMetric(m, seriesTotal(points, m))}
-                            </div>
-                        </a>
+                            </span>
+                        </Button>
                     ))}
                 </div>
 

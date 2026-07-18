@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx';
 import type { Profile } from '@/lib/aggregate';
 import { formatDate, formatTokens, formatUsd } from '@/lib/format';
+import { Button } from '@/pages/components/button';
 import { Layout } from '@/pages/layout';
 import {
     empty,
@@ -128,12 +129,12 @@ export const ProfilePage: FC<{ base: string; profile: Profile }> = ({
                     Back to the board, or claim another machine with the same
                     hooks.
                 </p>
-                <a
-                    class="btn-primary"
+                <Button
+                    variant="primary"
                     href="/"
                 >
                     View leaderboard
-                </a>
+                </Button>
             </aside>
         </div>
     </Layout>

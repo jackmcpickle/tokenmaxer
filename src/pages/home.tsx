@@ -1,6 +1,8 @@
 import type { FC } from 'hono/jsx';
 import type { LeaderboardEntry } from '@/lib/aggregate';
 import { formatTokens, formatUsd } from '@/lib/format';
+import { Button } from '@/pages/components/button';
+import { Input } from '@/pages/components/input';
 import { Layout } from '@/pages/layout';
 import {
     type ChartMetric,
@@ -9,7 +11,6 @@ import {
 import { ChartPrototype } from '@/pages/prototype/chart-variants';
 import { PrototypeSwitcher } from '@/pages/prototype/switcher';
 import {
-    btnPrimary,
     empty,
     filterLabel,
     filters,
@@ -72,12 +73,12 @@ export const Home: FC<HomeProps> = (p) => (
                 {WINDOW_LABELS[p.window]}.
             </p>
             <div class={`${heroActions} reveal reveal-delay-2`}>
-                <a
-                    class={btnPrimary}
+                <Button
+                    variant="primary"
                     href="/start"
                 >
                     Claim a username
-                </a>
+                </Button>
             </div>
         </section>
 
@@ -96,7 +97,10 @@ export const Home: FC<HomeProps> = (p) => (
         >
             <label class={filterLabel}>
                 Window
-                <select name="window">
+                <Input
+                    variant="select"
+                    name="window"
+                >
                     {(['today', '7d', '30d', 'all'] as TimeWindow[]).map(
                         (w) => (
                             <option
@@ -108,11 +112,14 @@ export const Home: FC<HomeProps> = (p) => (
                             </option>
                         ),
                     )}
-                </select>
+                </Input>
             </label>
             <label class={filterLabel}>
                 Rank by
-                <select name="metric">
+                <Input
+                    variant="select"
+                    name="metric"
+                >
                     {(['total', 'io', 'output', 'cost'] as Metric[]).map(
                         (m) => (
                             <option
@@ -124,11 +131,14 @@ export const Home: FC<HomeProps> = (p) => (
                             </option>
                         ),
                     )}
-                </select>
+                </Input>
             </label>
             <label class={filterLabel}>
                 Source
-                <select name="source">
+                <Input
+                    variant="select"
+                    name="source"
+                >
                     <option
                         value=""
                         selected={!p.source}
@@ -147,11 +157,14 @@ export const Home: FC<HomeProps> = (p) => (
                     >
                         Codex
                     </option>
-                </select>
+                </Input>
             </label>
             <label class={filterLabel}>
                 Model
-                <select name="model">
+                <Input
+                    variant="select"
+                    name="model"
+                >
                     <option
                         value=""
                         selected={!p.model}
@@ -167,7 +180,7 @@ export const Home: FC<HomeProps> = (p) => (
                             {m}
                         </option>
                     ))}
-                </select>
+                </Input>
             </label>
             <div class={filterLabel}>
                 <span
@@ -176,12 +189,12 @@ export const Home: FC<HomeProps> = (p) => (
                 >
                     &nbsp;
                 </span>
-                <button
-                    class={btnPrimary}
+                <Button
+                    variant="primary"
                     type="submit"
                 >
                     Apply
-                </button>
+                </Button>
             </div>
         </form>
 
@@ -245,12 +258,13 @@ export const Home: FC<HomeProps> = (p) => (
                     Code or Codex.
                 </p>
             </div>
-            <a
-                class="btn-primary shrink-0"
+            <Button
+                variant="primary"
+                class="shrink-0"
                 href="/start"
             >
                 Get started
-            </a>
+            </Button>
         </aside>
 
         {p.chartPrototype ? (
