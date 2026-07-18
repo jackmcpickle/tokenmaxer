@@ -26,7 +26,7 @@ Redo style and layout of the entire public site so every page reads as a dark, p
 - **Ink / ink-muted**: white primary type; gray (#999) secondary. Hierarchy is binary, not mid-tone sprawl.
 - **Accent blue**: hyperlinks, focus rings, selection only — never button fills or section backgrounds.
 - **Primary / inverse**: white pills and light-on-dark CTAs.
-- **Gradient spotlight cards**: magenta, violet, orange, coral — individual cards inside otherwise monochrome grids, not full-section backgrounds. One or two per long page max.
+- **Aurora spotlight cards**: shared navy / cream-horizon / burnt-orange mesh with film grain; four blob compositions (class names violet/magenta/orange/coral kept for markup). Individual cards inside otherwise monochrome grids, not full-section backgrounds. One or two per long page max.
 
 ### Typography
 
@@ -72,14 +72,14 @@ Redo style and layout of the entire public site so every page reads as a dark, p
 1. Poster hero: oversized display line (e.g. “The token leaderboard”) + one lead sentence + white pill to Get started.
 2. Filter row as charcoal controls (not a boxed toolbar).
 3. Leaderboard table in a surface-1 card.
-4. At most one violet gradient spotlight (claim / empty-state nudge) in the first long scroll.
+4. At most one aurora spotlight (claim / empty-state nudge) in the first long scroll.
 5. Chart prototypes: keep functional; restyle lightly or leave nested — not a redesign focus.
 
 ### Start
 
 1. Poster opener (“Claim your name”) + short setup pitch.
 2. Registration form on surface-1 with blue focus rings.
-3. Post-claim result: charcoal step panels; one magenta/orange spotlight for the copy-hook-config moment.
+3. Post-claim result: charcoal step panels; one aurora spotlight for the copy-hook-config moment.
 4. Primary = white pills; Copy = charcoal pills.
 
 ### Profile
@@ -93,7 +93,7 @@ Redo style and layout of the entire public site so every page reads as a dark, p
 
 1. Long-document on canvas: one display opener, then H2 bands with dense Inter body.
 2. No card wrapping every section.
-3. Honor-system callout may use one coral/violet spotlight.
+3. Honor-system callout may use one aurora spotlight.
 4. Footer CTA: white pill to Get started.
 
 ## Motion
