@@ -26,7 +26,7 @@ Redo style and layout of the entire public site so every page reads as a dark, p
 - **Ink / ink-muted**: white primary type; gray (#999) secondary. Hierarchy is binary, not mid-tone sprawl.
 - **Accent blue**: hyperlinks, focus rings, selection only — never button fills or section backgrounds.
 - **Primary / inverse**: white pills and light-on-dark CTAs.
-- **Aurora spotlight cards**: shared navy / cream-horizon / burnt-orange mesh with film grain; four blob compositions (class names violet/magenta/orange/coral kept for markup). Individual cards inside otherwise monochrome grids, not full-section backgrounds. One or two per long page max.
+- **Aurora spotlight cards**: shared indigo / electric blue / magenta / coral / peach mesh with film grain and slow 3D drift (no cream/white); four blob compositions (class names violet/magenta/orange/coral kept for markup). Individual cards inside otherwise monochrome grids, not full-section backgrounds. One or two per long page max.
 
 ### Typography
 
