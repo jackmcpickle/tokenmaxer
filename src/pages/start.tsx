@@ -60,8 +60,8 @@ form.addEventListener('submit', async (e) => {
     document.getElementById('r-claude').textContent = s.claude;
     document.getElementById('r-codex').textContent = s.codex;
     document.getElementById('r-profile').href = '/u/' + data.username;
-    result.style.display = 'block';
-    form.style.display = 'none';
+    result.classList.remove('hidden');
+    form.classList.add('hidden');
     result.scrollIntoView({ behavior: 'smooth' });
   } catch (e2) {
     err.textContent = 'Network error, please retry.';
@@ -122,7 +122,7 @@ export const Start: FC<{ base: string }> = ({ base }) => (
 
             <div
                 id="result"
-                style="display:none"
+                class="hidden"
             >
                 <div class={notice}>
                     <strong>

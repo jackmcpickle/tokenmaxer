@@ -12,7 +12,7 @@ describe('generateToken', () => {
 
 describe('newId', () => {
     it('is 32 hex chars and unique', () => {
-        expect(newId()).toMatch(/^[0-9a-f]{32}$/);
+        expect(newId()).toMatch(/^[0-9a-f]{32}$/u);
         expect(newId()).not.toBe(newId());
     });
 });
@@ -22,7 +22,7 @@ describe('hashToken', () => {
         const h1 = await hashToken('tt_abc');
         const h2 = await hashToken('tt_abc');
         expect(h1).toBe(h2);
-        expect(h1).toMatch(/^[0-9a-f]{64}$/);
+        expect(h1).toMatch(/^[0-9a-f]{64}$/u);
         expect(await hashToken('tt_xyz')).not.toBe(h1);
     });
 });

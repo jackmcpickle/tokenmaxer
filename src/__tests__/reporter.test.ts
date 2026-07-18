@@ -89,8 +89,9 @@ describe('parseClaudeTranscript', () => {
         const parsed = parseClaudeTranscript(CLAUDE);
         expect(parsed.session_id).toBe('sess-abc');
         expect(parsed.started_at).toBe(Date.parse('2026-07-18T10:00:00Z'));
-        const t = parsed.models.get('claude-opus-4-8-20260101')!;
+        const t = parsed.models.get('claude-opus-4-8-20260101');
         expect(t).toBeDefined();
+        if (!t) throw new Error('expected claude-opus model usage');
         expect(t.input_tokens).toBe(110);
         expect(t.output_tokens).toBe(220);
         expect(t.cache_read_tokens).toBe(5000);
@@ -109,8 +110,11 @@ describe('parseCodexRollout', () => {
     it('attributes each turn to the active model', () => {
         const parsed = parseCodexRollout(CODEX);
         expect(parsed.session_id).toBe('codex-xyz');
-        const gpt = parsed.models.get('gpt-5-codex')!;
-        const o3 = parsed.models.get('o3')!;
+        const gpt = parsed.models.get('gpt-5-codex');
+        const o3 = parsed.models.get('o3');
+        expect(gpt).toBeDefined();
+        expect(o3).toBeDefined();
+        if (!gpt || !o3) throw new Error('expected gpt-5-codex and o3 model usage');
         expect(gpt.input_tokens).toBe(120);
         expect(gpt.cache_read_tokens).toBe(20);
         expect(gpt.reasoning_tokens).toBe(10);

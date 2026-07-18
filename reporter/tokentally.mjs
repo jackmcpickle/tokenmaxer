@@ -87,15 +87,58 @@ export function parseClaudeTranscript(text, opts = {}) {
     };
 }
 
+function accumulateCodexTokenCount(models, currentModel, payload) {
+    const last = payload.info?.last_token_usage;
+    if (!last || typeof last !== 'object') return;
+    const t = models.get(currentModel) ?? emptyTotals();
+    t.input_tokens += num(last.input_tokens);
+    t.output_tokens += num(last.output_tokens);
+    t.cache_read_tokens += num(last.cached_input_tokens);
+    t.cache_creation_tokens += num(last.cache_write_input_tokens);
+    t.reasoning_tokens += num(last.reasoning_output_tokens);
+    models.set(currentModel, t);
+}
+
+function applyCodexSessionMeta(payload, state) {
+    if (typeof payload.id === 'string')
+        state.sessionId = state.sessionId ?? payload.id;
+    const m = modelFromContext(payload);
+    if (m) state.currentModel = m;
+}
+
+function applyCodexTurnContext(payload, state) {
+    const m = modelFromContext(payload);
+    if (m) state.currentModel = m;
+}
+
+function processCodexLine(obj, state, models) {
+    if (state.startedAt === null) state.startedAt = toMs(obj.timestamp);
+    const payload = obj.payload ?? {};
+
+    if (obj.type === 'session_meta') {
+        applyCodexSessionMeta(payload, state);
+        return;
+    }
+    if (obj.type === 'turn_context') {
+        applyCodexTurnContext(payload, state);
+        return;
+    }
+    if (obj.type === 'event_msg' && payload.type === 'token_count') {
+        accumulateCodexTokenCount(models, state.currentModel, payload);
+    }
+}
+
 /**
  * Parse a Codex rollout (JSONL). Attributes each turn's `last_token_usage` to the
  * model active at that point (from session_meta / turn_context).
  */
 export function parseCodexRollout(text, opts = {}) {
     const models = new Map();
-    let sessionId = opts.sessionId ?? null;
-    let startedAt = null;
-    let currentModel = 'unknown';
+    const state = {
+        sessionId: opts.sessionId ?? null,
+        startedAt: null,
+        currentModel: 'unknown',
+    };
 
     for (const line of text.split('\n')) {
         const trimmed = line.trim();
@@ -106,37 +149,12 @@ export function parseCodexRollout(text, opts = {}) {
         } catch {
             continue;
         }
-        if (startedAt === null) startedAt = toMs(obj.timestamp);
-        const payload = obj.payload ?? {};
-
-        if (obj.type === 'session_meta') {
-            if (typeof payload.id === 'string')
-                sessionId = sessionId ?? payload.id;
-            const m = modelFromContext(payload);
-            if (m) currentModel = m;
-            continue;
-        }
-        if (obj.type === 'turn_context') {
-            const m = modelFromContext(payload);
-            if (m) currentModel = m;
-            continue;
-        }
-        if (obj.type === 'event_msg' && payload.type === 'token_count') {
-            const last = payload.info?.last_token_usage;
-            if (!last || typeof last !== 'object') continue;
-            const t = models.get(currentModel) ?? emptyTotals();
-            t.input_tokens += num(last.input_tokens);
-            t.output_tokens += num(last.output_tokens);
-            t.cache_read_tokens += num(last.cached_input_tokens);
-            t.cache_creation_tokens += num(last.cache_write_input_tokens);
-            t.reasoning_tokens += num(last.reasoning_output_tokens);
-            models.set(currentModel, t);
-        }
+        processCodexLine(obj, state, models);
     }
 
     return {
-        session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
+        session_id: state.sessionId ?? opts.sessionId ?? null,
+        started_at: state.startedAt ?? opts.fallbackStartedAt ?? null,
         models,
     };
 }
@@ -156,8 +174,8 @@ function num(v) {
 
 /** session id from a filename, stripping known prefixes/suffixes. */
 export function sessionIdFromPath(path) {
-    let name = basename(path).replace(/\.jsonl$/i, '');
-    name = name.replace(/^rollout-/i, '');
+    let name = basename(path).replace(/\.jsonl$/iu, '');
+    name = name.replace(/^rollout-/iu, '');
     return name;
 }
 
@@ -234,7 +252,7 @@ function loadConfig() {
         );
     }
     return {
-        apiBase: String(apiBase).replace(/\/+$/, ''),
+        apiBase: String(apiBase).replace(/\/+$/u, ''),
         token: String(token),
     };
 }
@@ -246,39 +264,42 @@ async function readStdin() {
     return Buffer.concat(chunks).toString('utf8');
 }
 
+async function postBatch(cfg, source, batch) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    try {
+        const res = await fetch(`${cfg.apiBase}/api/ingest`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${cfg.token}`,
+            },
+            body: JSON.stringify({ source, sessions: batch }),
+            signal: controller.signal,
+        });
+        if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            return typeof data.accepted === 'number'
+                ? data.accepted
+                : batch.length;
+        }
+        process.stderr.write(`tokentally: ingest failed (${res.status})\n`);
+        return 0;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function postSessions(cfg, source, rows) {
     if (rows.length === 0) return { accepted: 0 };
-    let accepted = 0;
+    const batches = [];
     for (let i = 0; i < rows.length; i += MAX_SESSIONS_PER_REQUEST) {
-        const batch = rows.slice(i, i + MAX_SESSIONS_PER_REQUEST);
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 10_000);
-        try {
-            const res = await fetch(`${cfg.apiBase}/api/ingest`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${cfg.token}`,
-                },
-                body: JSON.stringify({ source, sessions: batch }),
-                signal: controller.signal,
-            });
-            if (res.ok) {
-                const data = await res.json().catch(() => ({}));
-                accepted +=
-                    typeof data.accepted === 'number'
-                        ? data.accepted
-                        : batch.length;
-            } else {
-                process.stderr.write(
-                    `tokentally: ingest failed (${res.status})\n`,
-                );
-            }
-        } finally {
-            clearTimeout(timer);
-        }
+        batches.push(rows.slice(i, i + MAX_SESSIONS_PER_REQUEST));
     }
-    return { accepted };
+    const acceptedCounts = await Promise.all(
+        batches.map((batch) => postBatch(cfg, source, batch)),
+    );
+    return { accepted: acceptedCounts.reduce((sum, n) => sum + n, 0) };
 }
 
 function parseFile(path, source) {
@@ -307,7 +328,8 @@ async function claudeSessionEnd(cfg) {
         /* no hook payload */
     }
     const path = hook.transcript_path;
-    if (!path) return claudeCatchup(cfg); // fall back to a scan
+    // fall back to a scan when no transcript path is provided
+    if (!path) return claudeCatchup(cfg);
     const text = readFileSync(path, 'utf8');
     const parsed = parseClaudeTranscript(text, { sessionId: hook.session_id });
     const rows = toRows(parsed, path);
@@ -332,7 +354,7 @@ async function claudeCatchup(cfg) {
 async function codexCatchup(cfg) {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const files = codexDirs().flatMap((d) =>
-        walkJsonl(d, since, (n) => /^rollout-.*\.jsonl$/i.test(n)),
+        walkJsonl(d, since, (n) => /^rollout-.*\.jsonl$/iu.test(n)),
     );
     const rows = files.flatMap((f) => safeParse(f, 'codex'));
     const { accepted } = await postSessions(cfg, 'codex', rows);

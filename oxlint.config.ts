@@ -48,6 +48,9 @@ export default defineConfig({
         ],
         'react/react-in-jsx-scope': 'off',
         'react/only-export-components': 'off',
+        'react/jsx-no-literals': 'off',
+        'react/no-unescaped-entities': 'off',
+        'react/no-unknown-property': 'off',
         'react-perf/jsx-no-new-function-as-prop': 'off',
         'react_perf/jsx-no-new-object-as-prop': 'off',
         'react_perf/jsx-no-new-array-as-prop': 'off',
@@ -164,6 +167,19 @@ export default defineConfig({
                         allow: ['__routeComponent'],
                     },
                 ],
+            },
+        },
+        {
+            files: ['src/index.tsx'],
+            rules: {
+                'import/no-default-export': 'off',
+                'import/no-relative-parent-imports': 'off',
+            },
+        },
+        {
+            files: ['src/__tests__/reporter.test.ts'],
+            rules: {
+                'import/no-relative-parent-imports': 'off',
             },
         },
         {

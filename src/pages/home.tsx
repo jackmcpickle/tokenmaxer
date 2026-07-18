@@ -69,6 +69,7 @@ export const Home: FC<HomeProps> = (p) => (
                     {(['today', '7d', '30d', 'all'] as TimeWindow[]).map(
                         (w) => (
                             <option
+                                key={w}
                                 value={w}
                                 selected={w === p.window}
                             >
@@ -84,6 +85,7 @@ export const Home: FC<HomeProps> = (p) => (
                     {(['total', 'io', 'output', 'cost'] as Metric[]).map(
                         (m) => (
                             <option
+                                key={m}
                                 value={m}
                                 selected={m === p.metric}
                             >
@@ -127,6 +129,7 @@ export const Home: FC<HomeProps> = (p) => (
                     </option>
                     {p.models.map((m) => (
                         <option
+                            key={m}
                             value={m}
                             selected={m === p.model}
                         >
@@ -135,15 +138,14 @@ export const Home: FC<HomeProps> = (p) => (
                     ))}
                 </select>
             </label>
-            <label class={filterLabel}>
-                &nbsp;
+            <div class={filterLabel}>
                 <button
                     class={btnPrimary}
                     type="submit"
                 >
                     Apply
                 </button>
-            </label>
+            </div>
         </form>
 
         <div class={panel}>
@@ -167,7 +169,7 @@ export const Home: FC<HomeProps> = (p) => (
                     </thead>
                     <tbody>
                         {p.entries.map((e) => (
-                            <tr>
+                            <tr key={e.username}>
                                 <td class={rankClass(e.rank)}>{e.rank}</td>
                                 <td>
                                     <a href={`/u/${e.username}`}>

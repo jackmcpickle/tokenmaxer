@@ -6,13 +6,16 @@ const DAY_MS = 86_400_000;
 export function windowStart(window: TimeWindow, now: number): number {
     switch (window) {
         case 'today':
-            return now - (now % DAY_MS); // start of current UTC day
+            // start of current UTC day
+            return now - (now % DAY_MS);
         case '7d':
             return now - 7 * DAY_MS;
         case '30d':
             return now - 30 * DAY_MS;
         case 'all':
             return 0;
+        default:
+            break;
     }
 }
 
@@ -29,7 +32,8 @@ export interface LeaderboardEntry extends Totals {
     rank: number;
     username: string;
     sessions: number;
-    grand_total: number; // sum of all token categories
+    // sum of all token categories
+    grand_total: number;
 }
 
 export interface ModelBreakdown extends Totals {
@@ -99,6 +103,8 @@ export function metricValue(t: Totals, metric: Metric): number {
             return t.output_tokens;
         case 'cost':
             return t.cost;
+        default:
+            break;
     }
 }
 

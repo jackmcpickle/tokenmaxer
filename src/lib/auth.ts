@@ -5,7 +5,10 @@ const TOKEN_PREFIX = 'tt_';
 function toBase64Url(bytes: Uint8Array): string {
     let bin = '';
     for (const b of bytes) bin += String.fromCharCode(b);
-    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return btoa(bin)
+        .replace(/\+/gu, '-')
+        .replace(/\//gu, '_')
+        .replace(/=+$/u, '');
 }
 
 function toHex(bytes: Uint8Array): string {
@@ -40,7 +43,7 @@ export function extractBearer(
     header: string | null | undefined,
 ): string | null {
     if (!header) return null;
-    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    const match = /^Bearer\s+(.+)$/iu.exec(header.trim());
     return match?.[1]?.trim() ?? null;
 }
 

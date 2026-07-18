@@ -79,7 +79,7 @@ export const ProfilePage: FC<{ base: string; profile: Profile }> = ({
                     </thead>
                     <tbody>
                         {p.breakdown.map((b) => (
-                            <tr>
+                            <tr key={`${b.source}:${b.model}`}>
                                 <td>
                                     <span class={pill}>
                                         {SOURCE_LABELS[b.source] ?? b.source}

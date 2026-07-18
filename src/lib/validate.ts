@@ -1,6 +1,6 @@
 import { isSource, type SessionUsageInput, type Source } from '@/types';
 
-export const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
+export const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/u;
 
 const RESERVED = new Set([
     'api',
@@ -19,7 +19,8 @@ const RESERVED = new Set([
 ]);
 
 // Guardrails: reject physically implausible reports.
-const MAX_TOKENS_PER_CATEGORY = 2_000_000_000; // 2e9 tokens in a single session category
+// 2e9 tokens in a single session category
+const MAX_TOKENS_PER_CATEGORY = 2_000_000_000;
 const MAX_SESSIONS_PER_REQUEST = 500;
 const MAX_MODEL_LEN = 128;
 const MAX_SESSION_ID_LEN = 200;
@@ -53,6 +54,56 @@ export interface IngestPayload {
     sessions: SessionUsageInput[];
 }
 
+function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
+    if (typeof raw !== 'object' || raw === null) {
+        return { ok: false, error: 'each session must be an object' };
+    }
+    const s = raw as Record<string, unknown>;
+    if (typeof s.session_id !== 'string' || s.session_id.length === 0) {
+        return { ok: false, error: 'session_id is required' };
+    }
+    if (s.session_id.length > MAX_SESSION_ID_LEN) {
+        return { ok: false, error: 'session_id too long' };
+    }
+    if (typeof s.model !== 'string' || s.model.length === 0) {
+        return { ok: false, error: 'model is required' };
+    }
+    if (s.model.length > MAX_MODEL_LEN) {
+        return { ok: false, error: 'model too long' };
+    }
+
+    const started_at =
+        typeof s.started_at === 'number' &&
+        Number.isFinite(s.started_at) &&
+        s.started_at > 0
+            ? Math.floor(s.started_at)
+            : Date.now();
+
+    const row: SessionUsageInput = {
+        session_id: s.session_id,
+        model: s.model,
+        started_at,
+        input_tokens: coerceCount(s.input_tokens),
+        output_tokens: coerceCount(s.output_tokens),
+        cache_read_tokens: coerceCount(s.cache_read_tokens),
+        cache_creation_tokens: coerceCount(s.cache_creation_tokens),
+        reasoning_tokens: coerceCount(s.reasoning_tokens),
+    };
+
+    for (const n of [
+        row.input_tokens,
+        row.output_tokens,
+        row.cache_read_tokens,
+        row.cache_creation_tokens,
+        row.reasoning_tokens,
+    ]) {
+        if (n > MAX_TOKENS_PER_CATEGORY) {
+            return { ok: false, error: 'implausible token count rejected' };
+        }
+    }
+    return { ok: true, value: row };
+}
+
 export function parseIngestBody(body: unknown): Result<IngestPayload> {
     if (typeof body !== 'object' || body === null) {
         return { ok: false, error: 'body must be a JSON object' };
@@ -77,53 +128,9 @@ export function parseIngestBody(body: unknown): Result<IngestPayload> {
 
     const sessions: SessionUsageInput[] = [];
     for (const raw of b.sessions) {
-        if (typeof raw !== 'object' || raw === null) {
-            return { ok: false, error: 'each session must be an object' };
-        }
-        const s = raw as Record<string, unknown>;
-        if (typeof s.session_id !== 'string' || s.session_id.length === 0) {
-            return { ok: false, error: 'session_id is required' };
-        }
-        if (s.session_id.length > MAX_SESSION_ID_LEN) {
-            return { ok: false, error: 'session_id too long' };
-        }
-        if (typeof s.model !== 'string' || s.model.length === 0) {
-            return { ok: false, error: 'model is required' };
-        }
-        if (s.model.length > MAX_MODEL_LEN) {
-            return { ok: false, error: 'model too long' };
-        }
-
-        const started_at =
-            typeof s.started_at === 'number' &&
-            Number.isFinite(s.started_at) &&
-            s.started_at > 0
-                ? Math.floor(s.started_at)
-                : Date.now();
-
-        const row: SessionUsageInput = {
-            session_id: s.session_id,
-            model: s.model,
-            started_at,
-            input_tokens: coerceCount(s.input_tokens),
-            output_tokens: coerceCount(s.output_tokens),
-            cache_read_tokens: coerceCount(s.cache_read_tokens),
-            cache_creation_tokens: coerceCount(s.cache_creation_tokens),
-            reasoning_tokens: coerceCount(s.reasoning_tokens),
-        };
-
-        for (const n of [
-            row.input_tokens,
-            row.output_tokens,
-            row.cache_read_tokens,
-            row.cache_creation_tokens,
-            row.reasoning_tokens,
-        ]) {
-            if (n > MAX_TOKENS_PER_CATEGORY) {
-                return { ok: false, error: 'implausible token count rejected' };
-            }
-        }
-        sessions.push(row);
+        const parsed = parseSessionEntry(raw);
+        if (!parsed.ok) return parsed;
+        sessions.push(parsed.value);
     }
 
     return { ok: true, value: { source: b.source, sessions } };
