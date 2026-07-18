@@ -87,14 +87,20 @@ mkdir -p ~/.tokentally && \
 
 ```json
 {
-  "hooks": {
-    "SessionStart": [
-      { "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionstart" }
-    ],
-    "SessionEnd": [
-      { "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionend" }
-    ]
-  }
+    "hooks": {
+        "SessionStart": [
+            {
+                "type": "shell",
+                "command": "node ~/.tokentally/tokentally.mjs claude-sessionstart"
+            }
+        ],
+        "SessionEnd": [
+            {
+                "type": "shell",
+                "command": "node ~/.tokentally/tokentally.mjs claude-sessionend"
+            }
+        ]
+    }
 }
 ```
 
