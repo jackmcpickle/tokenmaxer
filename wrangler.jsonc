@@ -8,15 +8,15 @@
     "ENVIRONMENT": "production",
     // Public base URL of the deployed worker; used to render onboarding snippets.
     // Override per-deploy. Falls back to the request origin when unset.
-    "PUBLIC_BASE_URL": ""
+    "PUBLIC_BASE_URL": "",
   },
   // Serve the reporter script as raw text (only matches our uniquely-named file).
   "rules": [
     {
       "type": "Text",
       "globs": ["**/tokentally.mjs"],
-      "fallthrough": true
-    }
+      "fallthrough": true,
+    },
   ],
   "observability": {
     "enabled": false,
@@ -25,26 +25,26 @@
       "enabled": true,
       "head_sampling_rate": 1,
       "persist": true,
-      "invocation_logs": true
+      "invocation_logs": true,
     },
     "traces": {
       "enabled": false,
       "persist": true,
-      "head_sampling_rate": 1
-    }
+      "head_sampling_rate": 1,
+    },
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "tokentally",
       "database_id": "ea3bef1d-eca0-4762-9e67-945f0b04737f",
-      "migrations_dir": "drizzle"
-    }
+      "migrations_dir": "drizzle",
+    },
   ],
   "kv_namespaces": [
     {
       "binding": "RATE_LIMIT",
-      "id": "879e8f2aeadd42488048bef1f3bf27ba"
-    }
-  ]
+      "id": "879e8f2aeadd42488048bef1f3bf27ba",
+    },
+  ],
 }

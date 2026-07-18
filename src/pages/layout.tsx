@@ -1,4 +1,4 @@
-import type { Child, FC } from 'hono/jsx';
+import type { Child, FC } from "hono/jsx";
 
 const CSS = `
 :root {
@@ -66,38 +66,38 @@ label.field .lbl { display: block; font-size: 12px; color: var(--muted); margin-
 `;
 
 export const Layout: FC<{ title: string; base: string; children?: Child }> = (props) => (
-    <html lang="en">
-        <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>{props.title}</title>
-            <meta
-                name="description"
-                content="TokenTally — a public leaderboard of tokens burned by AI builders on Claude Code and Codex."
-            />
-            {/* eslint-disable-next-line */}
-            <style dangerouslySetInnerHTML={{ __html: CSS }} />
-        </head>
-        <body>
-            <div class="wrap">
-                <header class="site">
-                    <a class="brand" href="/">
-                        Token<span>Tally</span>
-                    </a>
-                    <nav class="site">
-                        <a href="/">Leaderboard</a>
-                        <a href="/start">Get started</a>
-                        <a href="/about">About</a>
-                    </nav>
-                </header>
-                {props.children}
-                <footer class="site">
-                    <p>
-                        TokenTally · self-reported, honor-system token counts from Claude Code &amp;
-                        Codex · no PII stored · <a href="/about">how it works</a>
-                    </p>
-                </footer>
-            </div>
-        </body>
-    </html>
+  <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>{props.title}</title>
+      <meta
+        name="description"
+        content="TokenTally — a public leaderboard of tokens burned by AI builders on Claude Code and Codex."
+      />
+      {/* eslint-disable-next-line */}
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+    </head>
+    <body>
+      <div class="wrap">
+        <header class="site">
+          <a class="brand" href="/">
+            Token<span>Tally</span>
+          </a>
+          <nav class="site">
+            <a href="/">Leaderboard</a>
+            <a href="/start">Get started</a>
+            <a href="/about">About</a>
+          </nav>
+        </header>
+        {props.children}
+        <footer class="site">
+          <p>
+            TokenTally · self-reported, honor-system token counts from Claude Code &amp; Codex · no
+            PII stored · <a href="/about">how it works</a>
+          </p>
+        </footer>
+      </div>
+    </body>
+  </html>
 );

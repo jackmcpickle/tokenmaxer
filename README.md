@@ -42,14 +42,14 @@ reporter/tokentally.mjs   # the copy-paste reporter (served at /tokentally.mjs)
 
 ## API
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/api/register` | — | `{username}` → `{id, username, token}` |
-| POST | `/api/token/rotate` | Bearer | rotate your token |
-| POST | `/api/ingest` | Bearer | upsert `{source, sessions[]}` |
-| GET | `/api/leaderboard` | — | `?window=&metric=&source=&model=&limit=` |
-| GET | `/api/u/:username` | — | profile totals + breakdown |
-| GET | `/api/health` | — | `{name, version}` |
+| Method | Path                | Auth   | Purpose                                  |
+| ------ | ------------------- | ------ | ---------------------------------------- |
+| POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`   |
+| POST   | `/api/token/rotate` | Bearer | rotate your token                        |
+| POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[]}`            |
+| GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=` |
+| GET    | `/api/u/:username`  | —      | profile totals + breakdown               |
+| GET    | `/api/health`       | —      | `{name, version}`                        |
 
 `window` ∈ `today|7d|30d|all`, `metric` ∈ `total|io|output|cost`, `source` ∈ `claude_code|codex`.
 
@@ -86,10 +86,16 @@ mkdir -p ~/.tokentally && \
 **Claude Code** — merge into `~/.claude/settings.json`:
 
 ```json
-{ "hooks": {
-  "SessionStart": [{ "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionstart" }],
-  "SessionEnd":   [{ "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionend" }]
-} }
+{
+  "hooks": {
+    "SessionStart": [
+      { "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionstart" }
+    ],
+    "SessionEnd": [
+      { "type": "shell", "command": "node ~/.tokentally/tokentally.mjs claude-sessionend" }
+    ]
+  }
+}
 ```
 
 **Codex** — add to `~/.codex/config.toml` (Codex has no SessionEnd hook, so the latest
