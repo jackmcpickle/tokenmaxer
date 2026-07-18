@@ -18,7 +18,7 @@ export const PrototypeSwitcher: FC<{ current: string }> = ({ current }) => {
         <>
             <div
                 id="prototype-switcher"
-                class="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border-2 border-gold bg-bg px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55)]"
+                class="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-panel px-2 py-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.55)]"
             >
                 <button
                     type="button"

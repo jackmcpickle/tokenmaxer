@@ -122,7 +122,7 @@ app.get('/u/:username', async (c) => {
     if (!profile) {
         return c.html(
             <Layout
-                title="Not found · TokenTally"
+                title="Not found · tokenmaxer.quest"
                 base={base}
             >
                 <h1>Builder not found</h1>

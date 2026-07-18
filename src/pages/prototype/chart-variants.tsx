@@ -56,7 +56,7 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                             href={chartHref(variant, p, metric)}
                             class={`rounded-md px-3 py-1.5 text-sm font-bold no-underline ${
                                 p === period
-                                    ? 'bg-accent text-bg'
+                                    ? 'bg-text text-bg'
                                     : 'text-muted hover:text-text'
                             }`}
                         >
@@ -102,7 +102,7 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                 <PrototypeAxis points={points} />
                 <p class="mt-3 text-[12px] text-muted">
                     Hot link:{' '}
-                    <code class="text-accent">
+                    <code class="text-text">
                         /charts/{period}?metric={metric}
                     </code>
                 </p>
@@ -119,7 +119,7 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
         <section class="mb-8">
             <div class="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
                 <div>
-                    <p class="mb-1 text-xs uppercase tracking-[0.08em] text-accent">
+                    <p class="mb-1 text-xs uppercase tracking-[0.08em] text-muted">
                         /charts/{period}
                     </p>
                     <h2 class="m-0 text-[40px] leading-none font-extrabold tracking-[-0.04em]">
@@ -131,7 +131,7 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                     <div class="text-xs uppercase tracking-[0.04em] text-muted">
                         {METRIC_LABELS[metric]} total
                     </div>
-                    <div class="text-4xl font-extrabold tabular-nums tracking-[-0.03em] text-accent2">
+                    <div class="text-4xl font-extrabold tabular-nums tracking-[-0.03em] text-text">
                         {formatMetric(metric, total)}
                     </div>
                 </div>
@@ -160,7 +160,7 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                         href={chartHref(variant, period, m)}
                         class={`rounded-md px-3 py-1.5 text-sm no-underline ${
                             m === metric
-                                ? 'bg-accent/20 font-bold text-accent'
+                                ? 'bg-panel2 font-bold text-text'
                                 : 'text-muted hover:text-text'
                         }`}
                     >
@@ -196,7 +196,7 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                         href={chartHref(variant, p, metric)}
                         class={`mb-1 block rounded-lg px-3 py-3 no-underline ${
                             p === period
-                                ? 'bg-accent font-bold text-bg'
+                                ? 'bg-text font-bold text-bg'
                                 : 'text-muted hover:bg-panel hover:text-text'
                         }`}
                     >
@@ -236,7 +236,7 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                                 href={chartHref(variant, period, m)}
                                 class={`rounded-md border px-2.5 py-1 text-xs font-bold no-underline ${
                                     m === metric
-                                        ? 'border-accent bg-accent text-bg'
+                                        ? 'border-text bg-text text-bg'
                                         : 'border-border text-muted hover:text-text'
                                 }`}
                             >
@@ -253,7 +253,7 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                             href={chartHref(variant, period, m)}
                             class={`rounded-lg border px-3 py-2 no-underline ${
                                 m === metric
-                                    ? 'border-accent bg-accent/10'
+                                    ? 'border-text bg-panel'
                                     : 'border-border bg-panel2'
                             }`}
                         >

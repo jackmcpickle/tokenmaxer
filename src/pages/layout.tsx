@@ -4,6 +4,50 @@ import type { Child, FC } from 'hono/jsx';
 // eslint-disable-next-line import/default
 import CSS from '../styles/app.css';
 
+const Mark: FC<{ class?: string }> = ({ class: className }) => (
+    <svg
+        class={className ?? 'h-7 w-7'}
+        viewBox="0 0 100 100"
+        fill="none"
+        aria-hidden="true"
+    >
+        <g fill="currentColor">
+            <rect
+                x="22"
+                y="68"
+                width="36"
+                height="12"
+                rx="6"
+                opacity="0.4"
+            />
+            <rect
+                x="32"
+                y="48"
+                width="36"
+                height="12"
+                rx="6"
+                opacity="0.7"
+            />
+            <rect
+                x="42"
+                y="28"
+                width="36"
+                height="12"
+                rx="6"
+            />
+        </g>
+    </svg>
+);
+
+const Wordmark: FC<{ class?: string }> = ({ class: className }) => (
+    <span
+        class={`wm font-display font-medium tracking-[-0.05em] ${className ?? ''}`}
+    >
+        token<span class="max">maxer</span>
+        <span class="tld">.quest</span>
+    </span>
+);
+
 export const Layout: FC<{ title: string; base: string; children?: Child }> = (
     props,
 ) => (
@@ -17,48 +61,124 @@ export const Layout: FC<{ title: string; base: string; children?: Child }> = (
             <title>{props.title}</title>
             <meta
                 name="description"
-                content="TokenTally — a public leaderboard of tokens burned by AI builders on Claude Code and Codex."
+                content="tokenmaxer.quest — a public leaderboard of tokens burned by AI builders on Claude Code and Codex."
+            />
+            <link
+                rel="preconnect"
+                href="https://fonts.googleapis.com"
+            />
+            <link
+                rel="preconnect"
+                href="https://fonts.gstatic.com"
+                crossorigin="anonymous"
+            />
+            <link
+                href="https://fonts.googleapis.com/css2?family=Mona+Sans:wght@500;600;700;800;900&family=Inter:opsz,wght@14..32,400;14..32,500&display=swap"
+                rel="stylesheet"
             />
             {/* eslint-disable-next-line */}
             <style dangerouslySetInnerHTML={{ __html: CSS }} />
         </head>
         <body>
-            <div class="mx-auto max-w-[960px] px-5 pt-6 pb-16">
-                <header class="mb-7 flex flex-wrap items-center justify-between gap-4 border-b border-border py-4">
+            <a
+                class="skip-link"
+                href="#main"
+            >
+                Skip to content
+            </a>
+            <div class="mx-auto max-w-[1199px] px-5 pb-20 sm:px-8">
+                <header class="sticky top-0 z-50 -mx-5 mb-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:-mx-8 sm:px-8">
                     <a
-                        class="text-xl font-extrabold tracking-[-0.02em] text-text"
+                        class="nav-link flex items-center gap-2.5 text-text no-underline hover:no-underline"
                         href="/"
                     >
-                        Token<span class="text-accent">Tally</span>
+                        <Mark />
+                        <Wordmark class="text-sm tracking-[-0.02em] sm:text-[15px]" />
                     </a>
-                    <nav>
+                    <nav class="order-3 flex w-full flex-wrap items-center gap-x-6 gap-y-2 text-[14px] font-medium text-muted sm:order-none sm:w-auto sm:justify-center">
                         <a
-                            class="ml-[18px] font-medium text-muted hover:text-text"
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
                             href="/"
                         >
                             Leaderboard
                         </a>
                         <a
-                            class="ml-[18px] font-medium text-muted hover:text-text"
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
                             href="/start"
                         >
                             Get started
                         </a>
                         <a
-                            class="ml-[18px] font-medium text-muted hover:text-text"
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
                             href="/about"
                         >
                             About
                         </a>
                     </nav>
+                    <a
+                        class="btn-primary"
+                        href="/start"
+                    >
+                        Get started
+                    </a>
                 </header>
-                {props.children}
-                <footer class="mt-12 border-t border-border pt-5 text-[13px] text-muted">
-                    <p>
-                        TokenTally · self-reported, honor-system token counts
-                        from Claude Code &amp; Codex · no PII stored ·{' '}
-                        <a href="/about">how it works</a>
-                    </p>
+
+                <main id="main">{props.children}</main>
+
+                <footer class="mt-24 grid gap-10 border-t border-border pt-12 text-[13px] text-muted md:grid-cols-[1.4fr_1fr_1fr]">
+                    <div>
+                        <a
+                            class="nav-link mb-4 flex items-center gap-2.5 text-text no-underline hover:no-underline"
+                            href="/"
+                        >
+                            <Mark class="h-6 w-6" />
+                            <Wordmark class="text-sm" />
+                        </a>
+                        <p class="max-w-[36ch] leading-snug">
+                            Self-reported, honor-system token counts from Claude
+                            Code &amp; Codex. No prompts, no PII.
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-2.5">
+                        <span class="mb-1 font-display text-[13px] font-semibold tracking-[-0.13px] text-text">
+                            Product
+                        </span>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text"
+                            href="/"
+                        >
+                            Leaderboard
+                        </a>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text"
+                            href="/start"
+                        >
+                            Get started
+                        </a>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text"
+                            href="/about"
+                        >
+                            About
+                        </a>
+                    </div>
+                    <div class="flex flex-col gap-2.5">
+                        <span class="mb-1 font-display text-[13px] font-semibold tracking-[-0.13px] text-text">
+                            How it works
+                        </span>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text"
+                            href="/about"
+                        >
+                            Privacy &amp; honor system
+                        </a>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text"
+                            href="/start"
+                        >
+                            Install hooks
+                        </a>
+                    </div>
                 </footer>
             </div>
         </body>

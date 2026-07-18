@@ -31,7 +31,7 @@ export const PrototypeBars: FC<{
                         title={`${p.label}: ${formatMetric(metric, v)}`}
                     >
                         <div
-                            class="w-full rounded-t-sm bg-accent transition-[filter] group-hover:brightness-125"
+                            class="w-full rounded-t-sm bg-text transition-[filter] group-hover:brightness-125"
                             style={`height:${pct}%`}
                         />
                     </div>
