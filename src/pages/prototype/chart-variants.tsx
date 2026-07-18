@@ -36,13 +36,17 @@ export const VARIANT_NAMES: Record<string, string> = {
 };
 
 /** A — shadcn-style: period pills + metric header tabs drive a single series. */
-export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => {
+export const VariantA: FC<ChartVariantProps> = ({
+    variant,
+    period,
+    metric,
+}) => {
     const points = mockSeries(period);
     return (
         <section class="mb-8 overflow-hidden rounded-lg border border-border bg-panel">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div>
-                    <div class="text-xs uppercase tracking-[0.06em] text-muted">
+                    <div class="text-xs tracking-[0.06em] text-muted uppercase">
                         Site tally
                     </div>
                     <div class="text-lg font-extrabold tracking-[-0.02em]">
@@ -81,7 +85,7 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                                 {METRIC_LABELS[m]}
                             </span>
                             <span
-                                class={`text-xl font-extrabold tabular-nums leading-none sm:text-2xl ${
+                                class={`text-xl leading-none font-extrabold tabular-nums sm:text-2xl ${
                                     active ? 'text-text' : 'text-muted'
                                 }`}
                             >
@@ -110,14 +114,18 @@ export const VariantA: FC<ChartVariantProps> = ({ variant, period, metric }) => 
 };
 
 /** B — Period is the page: huge period title, metric chips, airy chart. */
-export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => {
+export const VariantB: FC<ChartVariantProps> = ({
+    variant,
+    period,
+    metric,
+}) => {
     const points = mockSeries(period);
     const total = seriesTotal(points, metric);
     return (
         <section class="mb-8">
             <div class="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
                 <div>
-                    <p class="mb-1 text-xs uppercase tracking-[0.08em] text-muted">
+                    <p class="mb-1 text-xs tracking-[0.08em] text-muted uppercase">
                         /charts/{period}
                     </p>
                     <h2 class="m-0 text-[40px] leading-none font-extrabold tracking-[-0.04em]">
@@ -126,10 +134,10 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                     <p class="mt-2 mb-0 text-muted">{PERIOD_HINTS[period]}</p>
                 </div>
                 <div class="text-right">
-                    <div class="text-xs uppercase tracking-[0.04em] text-muted">
+                    <div class="text-xs tracking-[0.04em] text-muted uppercase">
                         {METRIC_LABELS[metric]} total
                     </div>
-                    <div class="text-4xl font-extrabold tabular-nums tracking-[-0.03em] text-text">
+                    <div class="text-4xl font-extrabold tracking-[-0.03em] text-text tabular-nums">
                         {formatMetric(metric, total)}
                     </div>
                 </div>
@@ -174,12 +182,16 @@ export const VariantB: FC<ChartVariantProps> = ({ variant, period, metric }) => 
 };
 
 /** C — Split rail: vertical period nav, chart column, denser controls. */
-export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => {
+export const VariantC: FC<ChartVariantProps> = ({
+    variant,
+    period,
+    metric,
+}) => {
     const points = mockSeries(period);
     return (
         <section class="mb-8 grid gap-4 md:grid-cols-[160px_1fr]">
             <aside class="rounded-lg border border-border bg-panel2 p-2">
-                <div class="px-2.5 py-2 text-[11px] uppercase tracking-[0.06em] text-muted">
+                <div class="px-2.5 py-2 text-[11px] tracking-[0.06em] text-muted uppercase">
                     Period
                 </div>
                 {CHART_PERIODS.map((p) => (
@@ -187,13 +199,13 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                         key={p}
                         variant={p === period ? 'primary' : 'ghost'}
                         href={chartHref(variant, p, metric)}
-                        class="!min-h-0 mb-1 w-full flex-col items-start gap-0.5 rounded-md px-3 py-3"
+                        class="mb-1 !min-h-0 w-full flex-col items-start gap-0.5 rounded-md px-3 py-3"
                     >
                         <span class="text-sm font-bold">
                             {PERIOD_LABELS[p]}
                         </span>
                         <span
-                            class={`text-[11px] font-medium leading-snug ${
+                            class={`text-[11px] leading-snug font-medium ${
                                 p === period ? 'text-bg/80' : 'text-muted'
                             }`}
                         >
@@ -240,9 +252,9 @@ export const VariantC: FC<ChartVariantProps> = ({ variant, period, metric }) => 
                             key={m}
                             variant={m === metric ? 'primary' : 'secondary'}
                             href={chartHref(variant, period, m)}
-                            class="!min-h-0 h-auto w-full flex-col items-start gap-1 rounded-md px-3 py-2"
+                            class="h-auto !min-h-0 w-full flex-col items-start gap-1 rounded-md px-3 py-2"
                         >
-                            <span class="text-[10px] font-medium uppercase text-muted">
+                            <span class="text-[10px] font-medium text-muted uppercase">
                                 {METRIC_LABELS[m]}
                             </span>
                             <span class="text-sm font-bold tabular-nums">

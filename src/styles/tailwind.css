@@ -457,8 +457,8 @@
         }
 
         .spotlight {
-            animation: tmq-spotlight-tilt 14s cubic-bezier(0.45, 0.05, 0.55, 0.95)
-                infinite alternate;
+            animation: tmq-spotlight-tilt 14s
+                cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
         }
 
         .spotlight::before {

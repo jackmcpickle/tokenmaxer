@@ -47,15 +47,15 @@ Body type is **Inter Variable**, with Framer leaning hard into Inter's character
 
 Spotlight cards share one aurora family. Class names (`spotlight-violet`, `spotlight-magenta`, `spotlight-orange`, `spotlight-coral`) remain for markup compatibility; each variant is a different blob composition of the same colors, not a different hue family.
 
-| Token | Hex | Role |
-| ----- | --- | ---- |
-| `{colors.aurora-deep}` | `#241f55` | Deep indigo base / fallback |
-| `{colors.aurora-indigo}` | `#3b3582` | Cool mass (left edge) |
-| `{colors.aurora-blue}` | `#3d31fd` | Electric blue accent blob |
-| `{colors.aurora-magenta}` | `#a827e1` | Violet/magenta (lower-left) |
-| `{colors.aurora-lavender}` | `#7a5fa0` | Dusty lavender (upper-right falloff) |
-| `{colors.aurora-coral}` | `#e85d6a` | Coral-pink transition |
-| `{colors.aurora-peach}` | `#e89970` | Warm peach mass (center/right; slightly deepened for type) |
+| Token                      | Hex       | Role                                                       |
+| -------------------------- | --------- | ---------------------------------------------------------- |
+| `{colors.aurora-deep}`     | `#241f55` | Deep indigo base / fallback                                |
+| `{colors.aurora-indigo}`   | `#3b3582` | Cool mass (left edge)                                      |
+| `{colors.aurora-blue}`     | `#3d31fd` | Electric blue accent blob                                  |
+| `{colors.aurora-magenta}`  | `#a827e1` | Violet/magenta (lower-left)                                |
+| `{colors.aurora-lavender}` | `#7a5fa0` | Dusty lavender (upper-right falloff)                       |
+| `{colors.aurora-coral}`    | `#e85d6a` | Coral-pink transition                                      |
+| `{colors.aurora-peach}`    | `#e89970` | Warm peach mass (center/right; slightly deepened for type) |
 
 **Construction:** mesh lives on `::before` as layered `radial-gradient` ellipses (cool left → warm right) over a deep linear fallback; film-grain on `::after` (`feTurbulence`, `mix-blend-mode: overlay`). No near-white bands. Soft text-shadow keeps white copy readable on peach.
 

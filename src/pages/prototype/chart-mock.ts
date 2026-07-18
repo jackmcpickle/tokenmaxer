@@ -57,7 +57,9 @@ export function mockSeries(period: ChartPeriod): ChartPoint[] {
         const input = Math.round(base * 0.55);
         const output = Math.round(base * 0.28);
         const cached = Math.round(base * 0.17);
-        const cost = Math.round(((input * 3 + output * 15 + cached * 0.3) / 1e6) * 100) / 100;
+        const cost =
+            Math.round(((input * 3 + output * 15 + cached * 0.3) / 1e6) * 100) /
+            100;
         const label =
             period === 'daily'
                 ? `D${String(i + 1).padStart(2, '0')}`
@@ -92,7 +94,8 @@ export function parsePeriod(v: string | undefined): ChartPeriod {
 }
 
 export function parseChartMetric(v: string | undefined): ChartMetric {
-    if (v === 'output' || v === 'cached' || v === 'cost' || v === 'input') return v;
+    if (v === 'output' || v === 'cached' || v === 'cost' || v === 'input')
+        return v;
     return 'input';
 }
 

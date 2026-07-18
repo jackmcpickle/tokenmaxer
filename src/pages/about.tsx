@@ -22,10 +22,10 @@ export const About: FC<{ base: string }> = ({ base }) => (
                 For each coding session, tokenmaxer.quest stores only token
                 counts — input, output, cache read, cache write, and (for Codex)
                 reasoning tokens — broken down by model and by tool (Claude Code
-                or Codex). That&apos;s it. No prompts, no code, no file paths, no
-                email, no IP beyond transient rate-limiting. The leaderboard can
-                rank by total tokens, input+output, output only, or estimated
-                cost.
+                or Codex). That&apos;s it. No prompts, no code, no file paths,
+                no email, no IP beyond transient rate-limiting. The leaderboard
+                can rank by total tokens, input+output, output only, or
+                estimated cost.
             </p>
 
             <h2>Where the numbers come from</h2>
@@ -66,22 +66,22 @@ export const About: FC<{ base: string }> = ({ base }) => (
             <p class="text-[22px] leading-snug tracking-[-0.01px]">
                 Token counts are self-reported. There&apos;s no way to
                 cryptographically prove numbers generated on someone&apos;s own
-                machine, so this is an honor system. We apply light
-                guardrails — token-gated writes, rate limits, and sanity caps —
-                and keep raw session ids so blatant anomalies are auditable.
-                Treat the ranking as fun, not audited fact.
+                machine, so this is an honor system. We apply light guardrails —
+                token-gated writes, rate limits, and sanity caps — and keep raw
+                session ids so blatant anomalies are auditable. Treat the
+                ranking as fun, not audited fact.
             </p>
         </aside>
 
         <div class="mx-auto max-w-[65ch]">
             <h2>Accounts &amp; privacy</h2>
             <p class="mb-6 text-muted">
-                You pick a username and get a secret token. The token is the only
-                credential; we store just a SHA-256 hash of it, never the token
-                itself. There&apos;s no email and no recovery — if you lose the
-                token, that username is stranded (you can rotate the token while
-                you still hold it). We keep no personally identifying
-                information.
+                You pick a username and get a secret token. The token is the
+                only credential; we store just a SHA-256 hash of it, never the
+                token itself. There&apos;s no email and no recovery — if you
+                lose the token, that username is stranded (you can rotate the
+                token while you still hold it). We keep no personally
+                identifying information.
             </p>
 
             <div class={heroActions}>

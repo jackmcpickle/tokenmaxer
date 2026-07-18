@@ -8,14 +8,14 @@ Redo style and layout of the entire public site so every page reads as a dark, p
 
 ## Decisions
 
-| Decision | Choice |
-|---|---|
-| Depth | **B** — full Framer-style layout on every page |
-| Implementation order | **2** — rewrite page markup/layout first; backfill tokens after |
-| Display font | Mona Sans (open substitute for GT Walsheim Medium) |
-| Body font | Inter (Variable preferred) with documented OpenType variants where available |
-| Brand name | tokenmaxer quest (replace TokenTally in UI copy, titles, wordmark) |
-| Color mode | Dark only — no light mode |
+| Decision             | Choice                                                                       |
+| -------------------- | ---------------------------------------------------------------------------- |
+| Depth                | **B** — full Framer-style layout on every page                               |
+| Implementation order | **2** — rewrite page markup/layout first; backfill tokens after              |
+| Display font         | Mona Sans (open substitute for GT Walsheim Medium)                           |
+| Body font            | Inter (Variable preferred) with documented OpenType variants where available |
+| Brand name           | tokenmaxer quest (replace TokenTally in UI copy, titles, wordmark)           |
+| Color mode           | Dark only — no light mode                                                    |
 
 ## Visual system (from DESIGN.md)
 

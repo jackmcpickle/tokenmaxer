@@ -57,9 +57,7 @@ export const ProfilePage: FC<{ base: string; profile: Profile }> = ({
             </div>
             <div class={stat}>
                 <div class={statK}>Cache write</div>
-                <div class={statV}>
-                    {formatTokens(p.cache_creation_tokens)}
-                </div>
+                <div class={statV}>{formatTokens(p.cache_creation_tokens)}</div>
             </div>
             <div class={stat}>
                 <div class={statK}>Est. cost</div>
