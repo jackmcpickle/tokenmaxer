@@ -791,7 +791,7 @@ async function setProfileUrl(cfg, argv) {
         );
         return;
     }
-    const res = await fetch(endpoint, {
+    const res = await fetch(`${cfg.apiBase}/api/profile`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
