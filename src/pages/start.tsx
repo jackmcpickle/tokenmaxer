@@ -24,39 +24,40 @@ const result = document.getElementById('result');
 
 function snippets(username, token) {
   const setup =
-    'mkdir -p ~/.tokentally && \\\\\\n' +
-    '  curl -fsSL ' + BASE + '/tokentally.mjs -o ~/.tokentally/tokentally.mjs && \\\\\\n' +
+    'npm install -g tokenmaxer && \\\\\\n' +
+    '  mkdir -p ~/.tokentally && \\\\\\n' +
     "  printf '%s' '" + JSON.stringify({ apiBase: BASE, token }) + "' > ~/.tokentally/config.json";
   const claude = JSON.stringify({
     hooks: {
-      SessionStart: [{ type: 'shell', command: 'node ~/.tokentally/tokentally.mjs claude-sessionstart' }],
-      SessionEnd: [{ type: 'shell', command: 'node ~/.tokentally/tokentally.mjs claude-sessionend' }]
+      SessionStart: [{ type: 'shell', command: 'tokenmaxer claude-sessionstart' }],
+      SessionEnd: [{ type: 'shell', command: 'tokenmaxer claude-sessionend' }]
     }
   }, null, 2);
   const codex =
     '[[hooks.SessionStart.hooks]]\\n' +
     'type = "command"\\n' +
-    'command = "node ~/.tokentally/tokentally.mjs codex-sessionstart"';
+    'command = "tokenmaxer codex-sessionstart"';
   const opencode =
     '# add to ~/.bashrc or ~/.zshrc\\n' +
-    'opencode() { command opencode "$@"; node ~/.tokentally/tokentally.mjs opencode-sessionstart; }';
+    'opencode() { command opencode "$@"; tokenmaxer opencode-sessionstart; }';
   const pi =
     '# add to ~/.bashrc or ~/.zshrc\\n' +
-    'pi() { command pi "$@"; node ~/.tokentally/tokentally.mjs pi-sessionstart; }';
+    'pi() { command pi "$@"; tokenmaxer pi-sessionstart; }';
   const cursor = JSON.stringify({
     version: 1,
     hooks: {
-      sessionStart: [{ command: 'node ~/.tokentally/tokentally.mjs cursor-sync' }]
+      sessionStart: [{ command: 'tokenmaxer cursor-sync' }]
     }
   }, null, 2);
   const agent =
-    'Go to ' + BASE + '/start and help me set up tokentally (token usage leaderboard).\\n' +
-    'My username: ' + username + '\\n' +
-    'My token: ' + token + '\\n' +
-    'Do this for me:\\n' +
-    '1. Run the one-time setup command from that page (downloads ~/.tokentally/tokentally.mjs and writes config).\\n' +
-    '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from the page.\\n' +
-    '3. Run: node ~/.tokentally/tokentally.mjs backfill\\n' +
+    'Help me finish setting up tokenmaxer.quest, an open-source token-usage leaderboard.\\n' +
+    'It uploads only per-session token counts, model names, session ids and timestamps -\\n' +
+    'never prompts, code, or credentials. Source: https://github.com/jackmcpickle/tokentally\\n' +
+    'I already ran the one-time setup, so ~/.tokentally/config.json holds my API token.\\n' +
+    'Read ' + BASE + '/start.md for the exact hook snippets, then:\\n' +
+    '1. Install the reporter: npm install -g tokenmaxer (a single zero-dependency script - review it first if you like).\\n' +
+    '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from start.md.\\n' +
+    '3. Run "tokenmaxer backfill --dry-run" and show me a sample of what would be uploaded, then run "tokenmaxer backfill".\\n' +
     '4. Confirm my sessions appear at ' + BASE + '/u/' + username;
   return { setup, claude, codex, opencode, pi, cursor, agent };
 }
@@ -278,8 +279,17 @@ export const Start: FC<{
             <div class={`${panel} min-w-0`}>
                 <h2 class="mt-0">One-time setup</h2>
                 <p class={muted}>
-                    Downloads the reporter and writes your config (the token
-                    lives here, never in shared settings). Run in a terminal:
+                    Installs the open-source{' '}
+                    <a href="https://www.npmjs.com/package/tokenmaxer">
+                        <code>tokenmaxer</code>
+                    </a>{' '}
+                    reporter from npm and writes your config (the token lives
+                    only in <code>~/.tokentally/config.json</code>, never in
+                    shared settings). It uploads only per-session token counts,
+                    model names, session ids and timestamps — never prompts,
+                    code, or credentials; run any command with{' '}
+                    <code>--dry-run</code> to see the exact payload. Run in a
+                    terminal:
                 </p>
                 <div class={copyrow}>
                     <pre id="r-setup" />
@@ -310,8 +320,9 @@ export const Start: FC<{
                     class="tab-panel"
                 >
                     <p class={muted}>
-                        Paste this into your coding agent — it will read the
-                        start page and do the setup for you.
+                        Run the one-time setup above yourself (so your token
+                        never enters the chat), then paste this into your coding
+                        agent — it will do the rest.
                     </p>
                     <div class={copyrow}>
                         <pre id="r-agent" />
@@ -418,9 +429,12 @@ export const Start: FC<{
                     <h2>Cursor</h2>
                     <p class={muted}>
                         Cursor doesn&apos;t expose token usage to hooks, so the
-                        reporter pulls your usage from Cursor&apos;s dashboard
-                        API. It auto-reads your Cursor login from local storage
-                        — no extra auth in the common case. Add this to{' '}
+                        reporter reads your own usage from Cursor&apos;s
+                        dashboard API using the Cursor login already on this
+                        machine. That login is sent{' '}
+                        <strong>only to cursor.com</strong> — it never reaches
+                        tokenmaxer servers, and only the resulting token counts
+                        are uploaded. Add this to{' '}
                         <code>~/.cursor/hooks.json</code> so every session
                         triggers a sync:
                     </p>
@@ -436,29 +450,28 @@ export const Start: FC<{
                     </div>
                     <p class={`${muted} mt-3 text-[13px]`}>
                         If auto-auth fails (Cursor not logged in on this
-                        machine), copy the <code>WorkosCursorSessionToken</code>{' '}
-                        cookie from cursor.com (DevTools → Application →
-                        Cookies) into <code>~/.tokentally/config.json</code> as{' '}
-                        <code>&quot;cursorCookie&quot;</code>. This uses an
-                        unofficial Cursor endpoint, so the cookie may
-                        occasionally need refreshing.
+                        machine), see the{' '}
+                        <a href="https://github.com/jackmcpickle/tokentally/tree/main/reporter">
+                            reporter README
+                        </a>{' '}
+                        for the manual <code>cursorCookie</code> fallback.
                     </p>
                 </div>
 
                 <h2>Backfill past history (optional)</h2>
                 <p class={muted}>
-                    The hooks only report new sessions. To load everything you
-                    ran before installing tokenmaxer.quest, run this once — it
-                    scans all your local Claude Code, Codex, opencode, pi and
-                    Cursor history and uploads it (idempotent, so it&apos;s safe
-                    to re-run). Add <code>claude</code>, <code>codex</code>,{' '}
+                    The hooks only report new sessions. To include sessions from
+                    before you installed tokenmaxer.quest, run this once — it
+                    computes token-count summaries from your local Claude Code,
+                    Codex, opencode, pi and Cursor transcripts and uploads only
+                    those summaries (idempotent, so it&apos;s safe to re-run).
+                    Use <code>--dry-run</code> first to inspect the payload, and
+                    add <code>claude</code>, <code>codex</code>,{' '}
                     <code>opencode</code>, <code>pi</code> or{' '}
                     <code>cursor</code> to limit it to one tool:
                 </p>
                 <div class={copyrow}>
-                    <pre id="r-backfill">
-                        node ~/.tokentally/tokentally.mjs backfill
-                    </pre>
+                    <pre id="r-backfill">tokenmaxer backfill</pre>
                     <Button
                         variant="copy"
                         data-target="r-backfill"

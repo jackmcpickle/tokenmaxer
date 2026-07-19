@@ -6,6 +6,11 @@
 // idempotent (keyed by session id), so running it on SessionStart and SessionEnd
 // can never double-count.
 //
+// What leaves the machine: per-session token counts, model names, session ids,
+// and timestamps — never prompts, code, file paths, or credentials. Append
+// --dry-run to any command to print the exact payloads instead of sending them.
+// The Cursor session cookie (when used) is sent only to cursor.com.
+//
 // Config: ~/.tokentally/config.json  =>  { "apiBase": "https://...", "token": "tt_..." }
 // (env TOKENTALLY_API_BASE / TOKENTALLY_TOKEN override the file.)
 //
@@ -33,6 +38,9 @@ const CATCHUP_DAYS =
 const MAX_SESSIONS_PER_REQUEST = 200;
 // Bulk history backfill posts to a separate endpoint in larger chunks.
 const HISTORY_CHUNK = 500;
+// --dry-run (any command): print the exact payloads to stdout instead of POSTing.
+const DRY_RUN = process.argv.includes('--dry-run');
+if (DRY_RUN) process.argv = process.argv.filter((a) => a !== '--dry-run');
 
 // ---------------------------------------------------------------- parsing ----
 
@@ -551,6 +559,17 @@ function loadConfig() {
     const apiBase = process.env.TOKENTALLY_API_BASE ?? file.apiBase;
     const token = process.env.TOKENTALLY_TOKEN ?? file.token;
     if (!apiBase || !token) {
+        // Dry runs never send anything, so let them work before configuration.
+        if (DRY_RUN) {
+            return {
+                apiBase: String(apiBase ?? 'https://tokenmaxer.quest').replace(
+                    /\/+$/u,
+                    '',
+                ),
+                token: String(token ?? 'DRY_RUN'),
+                cursorCookie: file.cursorCookie,
+            };
+        }
         throw new Error(
             'TokenTally not configured (missing apiBase/token in ~/.tokentally/config.json)',
         );
@@ -654,6 +673,20 @@ async function readStdin() {
 }
 
 async function postBatch(cfg, source, batch, path) {
+    if (DRY_RUN) {
+        process.stdout.write(
+            `${JSON.stringify(
+                {
+                    dryRun: true,
+                    url: `${cfg.apiBase}${path}`,
+                    body: { source, sessions: batch },
+                },
+                null,
+                2,
+            )}\n`,
+        );
+        return batch.length;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     try {
@@ -987,7 +1020,7 @@ async function main() {
         }
         default:
             process.stderr.write(
-                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]>\n',
+                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]> [--dry-run]\n',
             );
     }
 }

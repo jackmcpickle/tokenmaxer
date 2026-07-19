@@ -195,9 +195,14 @@ export default defineConfig({
             },
         },
         {
-            files: ['src/__tests__/reporter.test.ts'],
+            files: [
+                'src/__tests__/reporter.test.ts',
+                'src/__tests__/reporter-privacy.test.ts',
+            ],
             rules: {
                 'import/no-relative-parent-imports': 'off',
+                // ?raw default export is provided by vite, invisible to the linter.
+                'import/default': 'off',
             },
         },
         {

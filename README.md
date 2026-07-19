@@ -12,8 +12,14 @@ API and the server-rendered site, backed by one D1 database.
 
 These tools don't hand token counts to hooks — they only point at local session
 files. So the installed **reporter** (`reporter/tokentally.mjs`, a zero-dependency
-Node script) reads those files, sums usage per model, and POSTs the totals — the same
+Node script published on npm as [`tokenmaxer`](https://www.npmjs.com/package/tokenmaxer))
+reads those files, sums usage per model, and POSTs the totals — the same
 files [`ccusage`](https://ccusage.com) parses.
+
+**What leaves the machine:** per-session token counts, model names, session ids,
+and timestamps — never prompts, code, file paths, or credentials. Append
+`--dry-run` to any reporter command to print the exact payloads instead of
+sending them.
 
 - **Claude Code** — `~/.claude/projects/**/<session>.jsonl` → `message.usage.*`
 - **Codex** — `~/.codex/sessions/**/rollout-*.jsonl` → last `token_count` event
@@ -43,7 +49,7 @@ src/
   lib/               # auth, pricing, ratelimit, validate, aggregate, format
   db/… drizzle/      # D1 schema + migrations
   __tests__/         # vitest unit tests
-reporter/tokentally.mjs   # the copy-paste reporter (served at /tokentally.mjs)
+reporter/tokentally.mjs   # the reporter (npm package `tokenmaxer`; also served at /tokentally.mjs)
 ```
 
 ## API
@@ -97,8 +103,8 @@ Username claims are invite-only via a shared invite link at `/invite?token=<KEY>
 After claiming a username at `/start`, users get a personalized version of:
 
 ```sh
-mkdir -p ~/.tokentally && \
-  curl -fsSL https://<host>/tokentally.mjs -o ~/.tokentally/tokentally.mjs && \
+npm install -g tokenmaxer && \
+  mkdir -p ~/.tokentally && \
   printf '%s' '{"apiBase":"https://<host>","token":"tt_..."}' > ~/.tokentally/config.json
 ```
 
@@ -110,13 +116,13 @@ mkdir -p ~/.tokentally && \
         "SessionStart": [
             {
                 "type": "shell",
-                "command": "node ~/.tokentally/tokentally.mjs claude-sessionstart"
+                "command": "tokenmaxer claude-sessionstart"
             }
         ],
         "SessionEnd": [
             {
                 "type": "shell",
-                "command": "node ~/.tokentally/tokentally.mjs claude-sessionend"
+                "command": "tokenmaxer claude-sessionend"
             }
         ]
     }
@@ -129,20 +135,20 @@ session reports on the next launch):
 ```toml
 [[hooks.SessionStart.hooks]]
 type = "command"
-command = "node ~/.tokentally/tokentally.mjs codex-sessionstart"
+command = "tokenmaxer codex-sessionstart"
 ```
 
 **opencode** — opencode has no shell hooks, so add a wrapper to `~/.bashrc`/`~/.zshrc`
 that reports your latest sessions each time opencode exits:
 
 ```sh
-opencode() { command opencode "$@"; node ~/.tokentally/tokentally.mjs opencode-sessionstart; }
+opencode() { command opencode "$@"; tokenmaxer opencode-sessionstart; }
 ```
 
 **pi** — same idea for pi:
 
 ```sh
-pi() { command pi "$@"; node ~/.tokentally/tokentally.mjs pi-sessionstart; }
+pi() { command pi "$@"; tokenmaxer pi-sessionstart; }
 ```
 
 The token lives only in `~/.tokentally/config.json`, never in shared settings files.
@@ -151,16 +157,13 @@ The token lives only in `~/.tokentally/config.json`, never in shared settings fi
 
 The hooks only report sessions going forward (`SessionStart` catch-up scans the last
 `TOKENTALLY_DAYS`, default 3). To load everything you ran _before_ installing TokenTally,
-run the one-time backfill — it scans **all** local Claude Code / Codex / opencode / pi / Cursor
-transcripts and uploads them:
+run the one-time backfill — it computes token-count summaries from all local
+Claude Code / Codex / opencode / pi / Cursor transcripts and uploads only those summaries:
 
 ```sh
-node ~/.tokentally/tokentally.mjs backfill            # all tools
-node ~/.tokentally/tokentally.mjs backfill claude     # Claude Code only
-node ~/.tokentally/tokentally.mjs backfill codex      # Codex only
-node ~/.tokentally/tokentally.mjs backfill opencode   # opencode only
-node ~/.tokentally/tokentally.mjs backfill pi         # pi only
-node ~/.tokentally/tokentally.mjs backfill cursor     # Cursor only
+tokenmaxer backfill --dry-run    # print payloads, send nothing
+tokenmaxer backfill              # all tools
+tokenmaxer backfill claude      # Claude Code only (same for codex|opencode|pi|cursor)
 ```
 
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than

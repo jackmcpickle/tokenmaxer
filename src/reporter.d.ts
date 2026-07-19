@@ -37,6 +37,7 @@ declare module '*/tokentally.mjs' {
         text: string,
         opts?: { sessionId?: string; fallbackStartedAt?: number },
     ): ParsedTranscript;
+    export function parseCursorEvents(events: unknown[]): ReporterRow[];
     export function sessionIdFromPath(path: string): string;
     export function toRows(
         parsed: ParsedTranscript,
@@ -45,4 +46,10 @@ declare module '*/tokentally.mjs' {
 
     const content: string;
     export default content;
+}
+
+// Vite/vitest raw-source import, used by the privacy tests.
+declare module '*/tokentally.mjs?raw' {
+    const source: string;
+    export default source;
 }

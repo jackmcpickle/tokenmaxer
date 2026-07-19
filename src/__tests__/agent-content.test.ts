@@ -27,7 +27,9 @@ describe('startMarkdown', () => {
         expect(md).toMatch(/^# Get started/mu);
         expect(md).toContain('YOUR_USERNAME');
         expect(md).toContain('YOUR_TOKEN');
-        expect(md).toContain('https://tokenmaxer.quest/tokentally.mjs');
+        expect(md).toContain('npm install -g tokenmaxer');
+        expect(md).toContain('## What leaves your machine');
+        expect(md).toContain('--dry-run');
         expect(md).toContain('## Agent prompt');
         expect(md).toContain('## Claude Code');
         expect(md).toContain('## Codex');

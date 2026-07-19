@@ -58,9 +58,7 @@ async function unlockViaInviteUrl(
     const startRes = await app.request(
         'https://tokenmaxer.quest/start',
         {
-            headers: browserHeaders(
-                cookie ? { Cookie: cookie } : {},
-            ),
+            headers: browserHeaders(cookie ? { Cookie: cookie } : {}),
         },
         env({ INVITE_KEY: 'secret' }),
     );

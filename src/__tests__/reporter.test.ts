@@ -247,7 +247,7 @@ describe('sessionIdFromPath', () => {
 });
 
 describe('parseCursorEvents', () => {
-    function ev(ts, model, usage) {
+    function ev(ts: number | string, model: string, usage: unknown) {
         return {
             timestamp: String(ts),
             model,
