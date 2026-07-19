@@ -64,6 +64,7 @@ app.route('/', agentPageRoutes);
 function withAgentDiscoveryHeaders(c: Context<{ Bindings: Env }>): void {
     c.header('Link', '</llms.txt>; rel="describedby"');
     c.header('X-Llms-Txt', '/llms.txt');
+    c.header('Vary', 'Accept, Sec-Fetch-Mode');
 }
 
 // Public API — token goes in the Authorization header (no cookies), so reflecting
