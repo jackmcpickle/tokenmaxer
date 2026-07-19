@@ -27,10 +27,7 @@ export function markdownBody(
     return new Response(body, { status: init?.status ?? 200, headers });
 }
 
-export function plainBody(
-    body: string,
-    init?: { status?: number },
-): Response {
+export function plainBody(body: string, init?: { status?: number }): Response {
     const headers = new Headers({
         'Content-Type': 'text/plain; charset=utf-8',
     });

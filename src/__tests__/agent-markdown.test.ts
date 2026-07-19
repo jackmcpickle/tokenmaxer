@@ -42,9 +42,7 @@ describe('isBrowserRequest', () => {
     });
 
     it('is false for Accept: text/markdown', () => {
-        expect(
-            isBrowserRequest(req({ Accept: 'text/markdown' })),
-        ).toBe(false);
+        expect(isBrowserRequest(req({ Accept: 'text/markdown' }))).toBe(false);
     });
 });
 

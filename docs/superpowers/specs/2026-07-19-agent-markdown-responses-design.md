@@ -21,15 +21,15 @@ Not relied on as the primary switch: User-Agent bot lists alone, or “missing `
 
 ## Decisions
 
-| Topic | Choice |
-| --- | --- |
-| Approach | Hand-authored Markdown modules + Hono helpers |
-| Scope | `/`, `/about`, `/start`, `/u/:username` + `llms.txt` / `llms-full.txt`; JSON API linked from index |
-| Home MD default | Top **10**, window **`7d`**, all stats in a Markdown table |
-| Profiles | Markdown via `/u/:username.md` or negotiation |
-| Start invite | Same gate as HTML (`inviteSessionAllowed` + cookie) |
-| Negotiation host | Origin (Hono) only — no Cloudflare edge Markdown-for-Agents dependency |
-| Non-browser default | Markdown unless request looks like a browser (lightweight heuristic) |
+| Topic               | Choice                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| Approach            | Hand-authored Markdown modules + Hono helpers                                                      |
+| Scope               | `/`, `/about`, `/start`, `/u/:username` + `llms.txt` / `llms-full.txt`; JSON API linked from index |
+| Home MD default     | Top **10**, window **`7d`**, all stats in a Markdown table                                         |
+| Profiles            | Markdown via `/u/:username.md` or negotiation                                                      |
+| Start invite        | Same gate as HTML (`inviteSessionAllowed` + cookie)                                                |
+| Negotiation host    | Origin (Hono) only — no Cloudflare edge Markdown-for-Agents dependency                             |
+| Non-browser default | Markdown unless request looks like a browser (lightweight heuristic)                               |
 
 ## Architecture
 
@@ -50,15 +50,15 @@ Shared render functions are called from both `*.md` routes and negotiated HTML r
 
 ## Routes
 
-| Request | Response |
-| --- | --- |
-| `GET /llms.txt` | Curated index — `text/plain; charset=utf-8` |
-| `GET /llms-full.txt` | Concatenated corpus — `text/plain; charset=utf-8` |
-| `GET /about.md`, `/start.md`, `/index.md` | Page Markdown — `text/markdown; charset=utf-8` |
-| `GET /u/:username.md` | Profile Markdown |
-| Same paths without `.md` when not a browser (see negotiation) | Same Markdown body |
-| Browser (or explicit HTML preference) | Existing HTML |
-| JSON `/api/*` | Unchanged |
+| Request                                                       | Response                                          |
+| ------------------------------------------------------------- | ------------------------------------------------- |
+| `GET /llms.txt`                                               | Curated index — `text/plain; charset=utf-8`       |
+| `GET /llms-full.txt`                                          | Concatenated corpus — `text/plain; charset=utf-8` |
+| `GET /about.md`, `/start.md`, `/index.md`                     | Page Markdown — `text/markdown; charset=utf-8`    |
+| `GET /u/:username.md`                                         | Profile Markdown                                  |
+| Same paths without `.md` when not a browser (see negotiation) | Same Markdown body                                |
+| Browser (or explicit HTML preference)                         | Existing HTML                                     |
+| JSON `/api/*`                                                 | Unchanged                                         |
 
 ### Negotiation rules
 
@@ -71,10 +71,10 @@ Serve **HTML** only when the request looks like a browser:
 
 Otherwise serve **Markdown**. This covers:
 
-- curl (`Accept: */*`, has UA) → Markdown  
-- missing `Accept` → Markdown  
-- missing `User-Agent` → Markdown (unless `Accept` has `text/html` or `Sec-Fetch-Mode` is set)  
-- agents sending `Accept: text/markdown` → Markdown  
+- curl (`Accept: */*`, has UA) → Markdown
+- missing `Accept` → Markdown
+- missing `User-Agent` → Markdown (unless `Accept` has `text/html` or `Sec-Fetch-Mode` is set)
+- agents sending `Accept: text/markdown` → Markdown
 
 Explicit `.md` / `llms*.txt` routes always return Markdown/plain text regardless of headers.
 
@@ -108,9 +108,9 @@ Open `/invite?invite=…` in a browser first, then retry.
 
 Per [llmstxt.org](https://llmstxt.org/): H1, blockquote summary, then H2 sections with absolute links.
 
-- **Docs** — `/index.md`, `/about.md`, `/start.md` (note invite), example profile pattern  
-- **API** — existing JSON endpoints (`/api/leaderboard`, `/api/u/:username`, register/ingest/history as relevant)  
-- **Optional** — lower-priority links if any  
+- **Docs** — `/index.md`, `/about.md`, `/start.md` (note invite), example profile pattern
+- **API** — existing JSON endpoints (`/api/leaderboard`, `/api/u/:username`, register/ingest/history as relevant)
+- **Optional** — lower-priority links if any
 
 ### Home Markdown
 
@@ -120,15 +120,15 @@ Per [llmstxt.org](https://llmstxt.org/): H1, blockquote summary, then H2 section
 > Token leaderboard for AI builders. Default: top 10 · last 7 days · all sources.
 
 | Rank | Username | Sessions | Input | Output | Cache read | Cache write | Reasoning | Total | Est. cost |
-|------|----------|----------|------:|-------:|-----------:|------------:|----------:|------:|----------:|
-| … | … | … | … | … | … | … | … | … | … |
+| ---- | -------- | -------- | ----: | -----: | ---------: | ----------: | --------: | ----: | --------: |
+| …    | …        | …        |     … |      … |          … |           … |         … |     … |         … |
 
 Query filters: `?window=7d|30d|today|all&source=…&model=…`
 For structured data prefer `GET /api/leaderboard`.
 ```
 
-- Defaults: `limit=10`, `window=7d`; show **all** numeric columns (metric filter does not collapse columns).  
-- Honor `window` / `source` / `model` query params like HTML.  
+- Defaults: `limit=10`, `window=7d`; show **all** numeric columns (metric filter does not collapse columns).
+- Honor `window` / `source` / `model` query params like HTML.
 - Format numbers with existing `formatTokens` / `formatUsd` (same compact style as the HTML UI).
 
 ### Profile Markdown
@@ -147,28 +147,28 @@ Concatenate: about Markdown + start Markdown (full guide text; live `/start.md` 
 
 `src/__tests__/agent-markdown.test.ts` (and small content render tests):
 
-- Browser-like Accept (`text/html,…`) → not Markdown path  
-- `Sec-Fetch-Mode: navigate` → HTML path  
-- curl-like (`Accept: */*` or absent, no Sec-Fetch) → Markdown  
-- Explicit `Accept: text/markdown` → Markdown  
-- Home MD defaults top 10 / 7d; all columns present; `?window=` respected  
-- Profile MD 200 / 404 text  
-- `/start.md` gated: no cookie → 403 text; session → 200  
-- `/llms.txt` structure + absolute links  
-- `Vary` / `Content-Type` / discovery headers set appropriately  
+- Browser-like Accept (`text/html,…`) → not Markdown path
+- `Sec-Fetch-Mode: navigate` → HTML path
+- curl-like (`Accept: */*` or absent, no Sec-Fetch) → Markdown
+- Explicit `Accept: text/markdown` → Markdown
+- Home MD defaults top 10 / 7d; all columns present; `?window=` respected
+- Profile MD 200 / 404 text
+- `/start.md` gated: no cookie → 403 text; session → 200
+- `/llms.txt` structure + absolute links
+- `Vary` / `Content-Type` / discovery headers set appropriately
 
 ## Out of scope
 
-- Cloudflare dashboard “Markdown for Agents” edge conversion  
-- Robust bot/UA databases  
-- Content Signals / robots.txt changes  
-- Putting `.md` URLs in a sitemap  
-- Changing JSON API contracts  
-- HTML→Markdown libraries  
+- Cloudflare dashboard “Markdown for Agents” edge conversion
+- Robust bot/UA databases
+- Content Signals / robots.txt changes
+- Putting `.md` URLs in a sitemap
+- Changing JSON API contracts
+- HTML→Markdown libraries
 
 ## Implementation notes
 
-- Factor page handlers so HTML and Markdown share data loading (`getLeaderboard`, `getProfile`, invite checks).  
-- Prefer absolute URLs in `llms.txt` via existing `baseUrl(env, url)`.  
-- Do not embed “fetch the .md version” hints inside Markdown bodies (avoid agent loops).  
+- Factor page handlers so HTML and Markdown share data loading (`getLeaderboard`, `getProfile`, invite checks).
+- Prefer absolute URLs in `llms.txt` via existing `baseUrl(env, url)`.
+- Do not embed “fetch the .md version” hints inside Markdown bodies (avoid agent loops).
 - Optional: `<link rel="alternate" type="text/markdown" href="…">` in HTML layout for discovery — nice-to-have, not required for v1.

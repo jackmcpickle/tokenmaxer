@@ -133,10 +133,7 @@ app.get('/', async (c) => {
 app.get('/invite', async (c) => {
     const provided = c.req.query('invite') ?? '';
     // Cookie only when the gate is on and the key matched (empty provided fails).
-    if (
-        c.env.INVITE_KEY &&
-        (await inviteAllowed(c.env.INVITE_KEY, provided))
-    ) {
+    if (c.env.INVITE_KEY && (await inviteAllowed(c.env.INVITE_KEY, provided))) {
         await setInviteCookie(c, c.env.INVITE_KEY);
     }
     return c.redirect('/', 302);

@@ -22,20 +22,20 @@
 
 ## File map
 
-| File | Responsibility |
-| --- | --- |
-| `src/lib/agent-markdown.ts` | `isBrowserRequest`, response helpers, discovery headers |
-| `src/content/about.md.ts` | About page Markdown |
-| `src/content/start.md.ts` | Start guide Markdown (+ invite-required stub) |
-| `src/content/home.md.ts` | Leaderboard → Markdown table |
-| `src/content/profile.md.ts` | Profile → Markdown |
-| `src/content/llms.ts` | `/llms.txt` body |
-| `src/content/llms-full.ts` | `/llms-full.txt` body |
-| `src/routes/agent-pages.ts` | Hono routes for llms + `.md` |
-| `src/index.tsx` | Mount agent routes; branch HTML handlers |
-| `src/__tests__/agent-markdown.test.ts` | Detection + headers |
-| `src/__tests__/agent-content.test.ts` | Content renderers + llms shape |
-| `src/__tests__/agent-pages.test.ts` | Sub-app request tests (mock D1 where needed) |
+| File                                   | Responsibility                                          |
+| -------------------------------------- | ------------------------------------------------------- |
+| `src/lib/agent-markdown.ts`            | `isBrowserRequest`, response helpers, discovery headers |
+| `src/content/about.md.ts`              | About page Markdown                                     |
+| `src/content/start.md.ts`              | Start guide Markdown (+ invite-required stub)           |
+| `src/content/home.md.ts`               | Leaderboard → Markdown table                            |
+| `src/content/profile.md.ts`            | Profile → Markdown                                      |
+| `src/content/llms.ts`                  | `/llms.txt` body                                        |
+| `src/content/llms-full.ts`             | `/llms-full.txt` body                                   |
+| `src/routes/agent-pages.ts`            | Hono routes for llms + `.md`                            |
+| `src/index.tsx`                        | Mount agent routes; branch HTML handlers                |
+| `src/__tests__/agent-markdown.test.ts` | Detection + headers                                     |
+| `src/__tests__/agent-content.test.ts`  | Content renderers + llms shape                          |
+| `src/__tests__/agent-pages.test.ts`    | Sub-app request tests (mock D1 where needed)            |
 
 ---
 
@@ -49,11 +49,11 @@
 **Interfaces:**
 
 - Produces:
-  - `isBrowserRequest(req: Request): boolean`
-  - `markdownBody(body: string, init?: { status?: number }): Response` — `text/markdown; charset=utf-8`, `Vary: Accept, Sec-Fetch-Mode`, discovery headers
-  - `plainBody(body: string, init?: { status?: number }): Response` — `text/plain; charset=utf-8`, same Vary + discovery
-  - `withAgentDiscovery(headers: Headers): void` — sets `Link: </llms.txt>; rel="describedby"` and `X-Llms-Txt: /llms.txt`
-  - `INVITE_REQUIRED_MD` constant string for 403 start responses
+    - `isBrowserRequest(req: Request): boolean`
+    - `markdownBody(body: string, init?: { status?: number }): Response` — `text/markdown; charset=utf-8`, `Vary: Accept, Sec-Fetch-Mode`, discovery headers
+    - `plainBody(body: string, init?: { status?: number }): Response` — `text/plain; charset=utf-8`, same Vary + discovery
+    - `withAgentDiscovery(headers: Headers): void` — sets `Link: </llms.txt>; rel="describedby"` and `X-Llms-Txt: /llms.txt`
+    - `INVITE_REQUIRED_MD` constant string for 403 start responses
 
 - [ ] **Step 1: Write failing tests** in `src/__tests__/agent-markdown.test.ts`:
 
@@ -102,9 +102,7 @@ describe('isBrowserRequest', () => {
     });
 
     it('is false for Accept: text/markdown', () => {
-        expect(
-            isBrowserRequest(req({ Accept: 'text/markdown' })),
-        ).toBe(false);
+        expect(isBrowserRequest(req({ Accept: 'text/markdown' }))).toBe(false);
     });
 });
 
@@ -136,7 +134,7 @@ describe('markdownBody / plainBody', () => {
 ```
 
 - [ ] **Step 2: Run** `pnpm vitest run src/__tests__/agent-markdown.test.ts`  
-  Expected: FAIL (module missing).
+      Expected: FAIL (module missing).
 
 - [ ] **Step 3: Implement** `src/lib/agent-markdown.ts`:
 
@@ -170,10 +168,7 @@ export function markdownBody(
     return new Response(body, { status: init?.status ?? 200, headers });
 }
 
-export function plainBody(
-    body: string,
-    init?: { status?: number },
-): Response {
+export function plainBody(body: string, init?: { status?: number }): Response {
     const headers = new Headers({
         'Content-Type': 'text/plain; charset=utf-8',
     });
@@ -208,8 +203,8 @@ EOF
 **Interfaces:**
 
 - Produces:
-  - `aboutMarkdown(): string`
-  - `startMarkdown(base: string): string` — setup guide with `YOUR_USERNAME` / `YOUR_TOKEN` placeholders and absolute `base` in curl/snippet URLs
+    - `aboutMarkdown(): string`
+    - `startMarkdown(base: string): string` — setup guide with `YOUR_USERNAME` / `YOUR_TOKEN` placeholders and absolute `base` in curl/snippet URLs
 
 - [ ] **Step 1: Write failing tests** — create `src/__tests__/agent-content.test.ts`:
 
@@ -292,8 +287,8 @@ EOF
 
 - Consumes: `aboutMarkdown`, `startMarkdown`
 - Produces:
-  - `llmsTxt(base: string): string`
-  - `llmsFullTxt(base: string): string`
+    - `llmsTxt(base: string): string`
+    - `llmsFullTxt(base: string): string`
 
 - [ ] **Step 1: Append failing tests** to `src/__tests__/agent-content.test.ts`:
 
@@ -311,9 +306,7 @@ describe('llmsTxt', () => {
         expect(md).toContain(
             '[Leaderboard](https://tokenmaxer.quest/index.md)',
         );
-        expect(md).toContain(
-            '[About](https://tokenmaxer.quest/about.md)',
-        );
+        expect(md).toContain('[About](https://tokenmaxer.quest/about.md)');
         expect(md).toContain(
             '[Get started](https://tokenmaxer.quest/start.md)',
         );
@@ -401,18 +394,18 @@ EOF
 
 - Consumes: `LeaderboardEntry`, `Profile` from `@/lib/aggregate`; `formatTokens`, `formatUsd`, `formatDate` from `@/lib/format`; `Source`, `TimeWindow` from `@/types`
 - Produces:
-  - `homeMarkdown(opts: { base: string; entries: LeaderboardEntry[]; window: TimeWindow; source?: Source; model?: string }): string`
-  - `profileMarkdown(opts: { base: string; profile: Profile }): string`
-  - `profileNotFoundMarkdown(username: string): string`
+    - `homeMarkdown(opts: { base: string; entries: LeaderboardEntry[]; window: TimeWindow; source?: Source; model?: string }): string`
+    - `profileMarkdown(opts: { base: string; profile: Profile }): string`
+    - `profileNotFoundMarkdown(username: string): string`
 
 - [ ] **Step 1: Append failing tests** with a small fixture entry/profile (invent numbers). Assert:
 
-  - Home title + default copy mentions top 10 / 7 days
-  - Table header includes: Rank, Username, Sessions, Input, Output, Cache read, Cache write, Reasoning, Total, Est. cost
-  - Fixture username appears; `formatTokens` / `formatUsd` values appear
-  - When `window: '30d'` is passed, body mentions `30d` (or “30 days”)
-  - Profile includes username, rank, totals, breakdown model row
-  - `profileNotFoundMarkdown('nope')` mentions not found / nope
+    - Home title + default copy mentions top 10 / 7 days
+    - Table header includes: Rank, Username, Sessions, Input, Output, Cache read, Cache write, Reasoning, Total, Est. cost
+    - Fixture username appears; `formatTokens` / `formatUsd` values appear
+    - When `window: '30d'` is passed, body mentions `30d` (or “30 days”)
+    - Profile includes username, rank, totals, breakdown model row
+    - `profileNotFoundMarkdown('nope')` mentions not found / nope
 
 - [ ] **Step 2: Run** — Expected: FAIL.
 
@@ -458,17 +451,17 @@ EOF
 
 - Consumes: content modules, `agent-markdown` helpers, `getLeaderboard`, `getProfile`, `inviteSessionAllowed`, `getInviteCookie`, `parseWindow`, `parseSourceParam` from `@/routes/leaderboard`
 - Produces: `export const agentPageRoutes` — Hono app with:
-  - `GET /llms.txt`
-  - `GET /llms-full.txt`
-  - `GET /about.md`
-  - `GET /start.md`
-  - `GET /index.md`
-  - `GET /u/:username.md`
+    - `GET /llms.txt`
+    - `GET /llms-full.txt`
+    - `GET /about.md`
+    - `GET /start.md`
+    - `GET /index.md`
+    - `GET /u/:username.md`
 
 Also export helpers used by `index.tsx`:
 
 ```ts
-export function requestBaseUrl(env: Env, url: string): string
+export function requestBaseUrl(env: Env, url: string): string;
 // same logic as baseUrl in index — move or duplicate once; prefer exporting from a tiny shared place
 ```
 
@@ -602,10 +595,7 @@ import {
 } from '@/lib/agent-markdown';
 import { baseUrl } from '@/lib/base-url'; // after extracting
 import { getInviteCookie, inviteSessionAllowed } from '@/lib/invite';
-import {
-    parseSourceParam,
-    parseWindow,
-} from '@/routes/leaderboard';
+import { parseSourceParam, parseWindow } from '@/routes/leaderboard';
 import type { Env } from '@/types';
 
 export const agentPageRoutes = new Hono<{ Bindings: Env }>();
@@ -708,16 +698,24 @@ EOF
 
 - Consumes: `isBrowserRequest`, `agentPageRoutes`, content renderers, existing page components
 - Behavior:
-  - `app.route('/', agentPageRoutes)` early (after www redirect / before or after API — must not shadow `/api`)
-  - For `GET /`, `/about`, `/start`, `/u/:username`: if `!isBrowserRequest(c.req.raw)` then return the same Markdown as the `.md` handlers (shared internal functions — either call `agentPageRoutes.fetch` with rewritten URL, or extract `serveHomeMarkdown(c)` helpers in `agent-pages.ts` and use from both)
+    - `app.route('/', agentPageRoutes)` early (after www redirect / before or after API — must not shadow `/api`)
+    - For `GET /`, `/about`, `/start`, `/u/:username`: if `!isBrowserRequest(c.req.raw)` then return the same Markdown as the `.md` handlers (shared internal functions — either call `agentPageRoutes.fetch` with rewritten URL, or extract `serveHomeMarkdown(c)` helpers in `agent-pages.ts` and use from both)
 
 **Recommended wiring to avoid duplication:** export named handlers from `agent-pages.ts`:
 
 ```ts
-export async function serveHomeMarkdown(c: Context<{ Bindings: Env }>): Promise<Response>
-export async function serveAboutMarkdown(c: Context<{ Bindings: Env }>): Promise<Response>
-export async function serveStartMarkdown(c: Context<{ Bindings: Env }>): Promise<Response>
-export async function serveProfileMarkdown(c: Context<{ Bindings: Env }>): Promise<Response>
+export async function serveHomeMarkdown(
+    c: Context<{ Bindings: Env }>,
+): Promise<Response>;
+export async function serveAboutMarkdown(
+    c: Context<{ Bindings: Env }>,
+): Promise<Response>;
+export async function serveStartMarkdown(
+    c: Context<{ Bindings: Env }>,
+): Promise<Response>;
+export async function serveProfileMarkdown(
+    c: Context<{ Bindings: Env }>,
+): Promise<Response>;
 ```
 
 `.md` routes and HTML-route branches both call these.
@@ -740,7 +738,7 @@ Prefer `c.header('Link', '...')` / `c.header('X-Llms-Txt', '/llms.txt')` on HTML
 
 - [ ] **Step 1: Write failing test** for negotiation via exported `isBrowserRequest` already covered; add one sub-app-level test is enough. Add test that documents HTML branch by exporting a tiny `shouldServeMarkdown(req: Request): boolean` = `!isBrowserRequest(req)` — already covered in Task 1.
 
-  Add to `agent-pages.test.ts`:
+    Add to `agent-pages.test.ts`:
 
 ```ts
 it('serveHomeMarkdown returns markdown for empty db', async () => {
@@ -874,17 +872,17 @@ EOF
 
 ## Spec coverage checklist
 
-| Spec requirement | Task |
-| --- | --- |
-| `/llms.txt` + `/llms-full.txt` | 3, 5 |
-| `.md` twins for `/`, about, start, profiles | 2, 4, 5 |
-| Browser heuristic (Accept text/html \|\| Sec-Fetch-Mode) | 1, 6 |
-| curl / `*/*` → Markdown | 1, 6 |
-| `Vary` + Link / X-Llms-Txt | 1, 6 |
-| Home top 10 / 7d all columns | 4, 5 |
-| Profile MD + 404 text | 4, 5 |
-| Start invite 403 | 2, 5 |
-| JSON API linked from llms.txt | 3 |
-| Origin-only (no CF edge feature) | all |
-| Tests for negotiation + content | 1–5 |
-| README | 7 |
+| Spec requirement                                         | Task    |
+| -------------------------------------------------------- | ------- |
+| `/llms.txt` + `/llms-full.txt`                           | 3, 5    |
+| `.md` twins for `/`, about, start, profiles              | 2, 4, 5 |
+| Browser heuristic (Accept text/html \|\| Sec-Fetch-Mode) | 1, 6    |
+| curl / `*/*` → Markdown                                  | 1, 6    |
+| `Vary` + Link / X-Llms-Txt                               | 1, 6    |
+| Home top 10 / 7d all columns                             | 4, 5    |
+| Profile MD + 404 text                                    | 4, 5    |
+| Start invite 403                                         | 2, 5    |
+| JSON API linked from llms.txt                            | 3       |
+| Origin-only (no CF edge feature)                         | all     |
+| Tests for negotiation + content                          | 1–5     |
+| README                                                   | 7       |
