@@ -37,6 +37,7 @@ import {
     parseWindow,
 } from '@/routes/leaderboard';
 import { leaderboardRoutes } from '@/routes/leaderboard';
+import { profileRoutes } from '@/routes/profile';
 import { registerRoutes } from '@/routes/register';
 import type { Env } from '@/types';
 // Raw text via the wrangler Text rule (see wrangler.toml). Typed by src/reporter.d.ts.
@@ -85,6 +86,7 @@ app.route('/api', registerRoutes);
 app.route('/api', ingestRoutes);
 app.route('/api', historyRoutes);
 app.route('/api', leaderboardRoutes);
+app.route('/api', profileRoutes);
 
 // Reporter script served for the copy-paste onboarding snippet.
 app.get('/tokentally.mjs', (c) =>

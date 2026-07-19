@@ -60,6 +60,7 @@ reporter/tokentally.mjs   # the reporter (npm package `tokenmaxer`; also served 
 | POST   | `/api/token/rotate` | Bearer | rotate your token                                   |
 | POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[]}` (live reporting)      |
 | POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[]}` (past history) |
+| POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)       |
 | GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=`            |
 | GET    | `/api/u/:username`  | —      | profile totals + breakdown                          |
 | GET    | `/api/health`       | —      | `{name, version}`                                   |
