@@ -796,9 +796,10 @@ async function cursorFetchEvents(sessionToken, sinceMs) {
             process.stderr.write(
                 `tokentally: cursor usage fetch failed (${res.status})\n`,
             );
-            break;
+            return null;
         }
         const data = await res.json().catch(() => null);
+        if (data === null) return null;
         const batch = data?.usageEvents ?? data?.usageEventsDisplay ?? [];
         if (!Array.isArray(batch) || batch.length === 0) break;
         events.push(...batch);
@@ -815,8 +816,16 @@ async function cursorSync(cfg, opts = {}) {
         );
         return;
     }
-    const sinceMs = opts.sinceMs ?? Date.now() - CATCHUP_DAYS * 86_400_000;
+    const since = opts.sinceMs ?? Date.now() - CATCHUP_DAYS * 86_400_000;
+    // Floor to UTC day start: rows are whole-day sums and the server upsert
+    // replaces counts, so a partial oldest day would shrink stored totals.
+    const d = new Date(since);
+    const sinceMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     const events = await cursorFetchEvents(sessionToken, sinceMs);
+    if (events === null) {
+        process.stderr.write('tokentally: cursor sync aborted (fetch failed)\n');
+        return;
+    }
     const rows = parseCursorEvents(events);
     const { accepted } = await postSessions(cfg, 'cursor', rows, opts.post);
     process.stderr.write(
