@@ -349,8 +349,13 @@ describe('loadConfig', () => {
     ] as const;
     let home: string;
     let savedHome: string | undefined;
-    const savedEnv: Partial<Record<(typeof envKeys)[number], string | undefined>> =
-        {};
+    const savedEnv: Partial<
+        Record<(typeof envKeys)[number], string | undefined>
+    > = {};
+
+    function clearEnv(key: (typeof envKeys)[number] | 'HOME') {
+        Reflect.deleteProperty(process.env, key);
+    }
 
     beforeEach(() => {
         home = mkdtempSync(join(tmpdir(), 'tokenmaxer-cfg-'));
@@ -358,15 +363,15 @@ describe('loadConfig', () => {
         process.env.HOME = home;
         for (const key of envKeys) {
             savedEnv[key] = process.env[key];
-            delete process.env[key];
+            clearEnv(key);
         }
     });
 
     afterEach(() => {
-        if (savedHome === undefined) delete process.env.HOME;
+        if (savedHome === undefined) clearEnv('HOME');
         else process.env.HOME = savedHome;
         for (const key of envKeys) {
-            if (savedEnv[key] === undefined) delete process.env[key];
+            if (savedEnv[key] === undefined) clearEnv(key);
             else process.env[key] = savedEnv[key];
         }
         rmSync(home, { recursive: true, force: true });

@@ -387,7 +387,7 @@ export function sessionIdFromPath(path) {
 /** Claude Code `<synthetic>` turns — never report or score. */
 function isSyntheticModel(model) {
     if (typeof model !== 'string') return false;
-    const m = model.toLowerCase().trim().replace(/^<|>$/g, '');
+    const m = model.toLowerCase().trim().replace(/^<|>$/gu, '');
     return m === 'synthetic';
 }
 
@@ -571,7 +571,8 @@ function readConfigFile(dirName) {
 
 export function loadConfig() {
     // Prefer ~/.tokenmaxer; fall back to legacy ~/.tokentally.
-    const file = readConfigFile('.tokenmaxer') ?? readConfigFile('.tokentally') ?? {};
+    const file =
+        readConfigFile('.tokenmaxer') ?? readConfigFile('.tokentally') ?? {};
     const apiBase =
         process.env.TOKENMAXER_API_BASE ??
         process.env.TOKENTALLY_API_BASE ??
