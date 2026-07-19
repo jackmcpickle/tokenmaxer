@@ -10,7 +10,6 @@
         "build:css:watch": "tailwindcss -i src/styles/tailwind.css -o src/styles/app.css --watch",
         "brand:assets": "node scripts/gen-brand-assets.mjs",
         "dev": "pnpm build:css && wrangler dev",
-        "prototype:charts": "pnpm build:css && wrangler dev",
         "deploy": "pnpm build:css && wrangler deploy --minify",
         "deploy:preview": "pnpm build:css && wrangler versions upload --minify",
         "prepare": "pnpm build:css",

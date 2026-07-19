@@ -15,8 +15,10 @@ export function windowStart(window: TimeWindow, now: number): number {
             return now - 30 * DAY_MS;
         case 'all':
             return 0;
-        default:
-            break;
+        default: {
+            const exhaustive: never = window;
+            return exhaustive;
+        }
     }
 }
 
@@ -98,14 +100,18 @@ export function metricValue(t: Totals, metric: Metric): number {
     switch (metric) {
         case 'total':
             return grandTotal(t);
-        case 'io':
-            return t.input_tokens + t.output_tokens;
+        case 'input':
+            return t.input_tokens;
         case 'output':
             return t.output_tokens;
+        case 'cached':
+            return t.cache_read_tokens + t.cache_creation_tokens;
         case 'cost':
             return t.cost;
-        default:
-            break;
+        default: {
+            const exhaustive: never = metric;
+            return exhaustive;
+        }
     }
 }
 

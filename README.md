@@ -58,7 +58,7 @@ reporter/tokentally.mjs   # the copy-paste reporter (served at /tokentally.mjs)
 | GET    | `/api/u/:username`  | —      | profile totals + breakdown                          |
 | GET    | `/api/health`       | —      | `{name, version}`                                   |
 
-`window` ∈ `today|7d|30d|all`, `metric` ∈ `total|io|output|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor`.
+`window` ∈ `today|7d|30d|all`, `metric` ∈ `total|input|output|cached|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor`.
 
 ## Development
 
