@@ -60,15 +60,22 @@ export function isTimeWindow(v: unknown): v is TimeWindow {
     return v === 'today' || v === '7d' || v === '30d' || v === 'all';
 }
 
-export type Metric = 'total' | 'io' | 'output' | 'cost';
+export type Metric = 'total' | 'input' | 'output' | 'cached' | 'cost';
 
 export const METRICS: readonly Metric[] = [
     'total',
-    'io',
+    'input',
     'output',
+    'cached',
     'cost',
 ] as const;
 
 export function isMetric(v: unknown): v is Metric {
-    return v === 'total' || v === 'io' || v === 'output' || v === 'cost';
+    return (
+        v === 'total' ||
+        v === 'input' ||
+        v === 'output' ||
+        v === 'cached' ||
+        v === 'cost'
+    );
 }

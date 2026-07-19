@@ -1,39 +1,18 @@
 import type { FC } from 'hono/jsx';
 import type { LeaderboardEntry } from '@/lib/aggregate';
-import { formatTokens, formatUsd } from '@/lib/format';
 import { familyLabel } from '@/lib/model-family';
 import { Button } from '@/pages/components/button';
 import { Input } from '@/pages/components/input';
 import { Layout } from '@/pages/layout';
-import type { ChartMetric, ChartPeriod } from '@/pages/prototype/chart-mock';
-import { ChartPrototype } from '@/pages/prototype/chart-variants';
-import { PrototypeSwitcher } from '@/pages/prototype/switcher';
 import {
-    empty,
-    filterLabel,
-    filters,
-    hero,
-    heroActions,
-    num,
-    panel,
-    sub,
-} from '@/pages/ui';
+    LeaderboardChart,
+    METRIC_LABELS,
+    WINDOW_LABELS,
+} from '@/pages/leaderboard-chart';
+import { filterLabel, filters, hero, heroActions, sub } from '@/pages/ui';
 import type { Metric, Source, TimeWindow } from '@/types';
 
 const AUTO_SUBMIT = 'this.form.requestSubmit()';
-
-const WINDOW_LABELS: Record<TimeWindow, string> = {
-    today: 'Today',
-    '7d': 'Last 7 days',
-    '30d': 'Last 30 days',
-    all: 'All time',
-};
-const METRIC_LABELS: Record<Metric, string> = {
-    total: 'Total tokens',
-    io: 'Input + output',
-    output: 'Output only',
-    cost: 'Est. cost',
-};
 
 interface HomeProps {
     base: string;
@@ -44,18 +23,6 @@ interface HomeProps {
     metric: Metric;
     source: Source | undefined;
     model: string | undefined;
-    /** PROTOTYPE: when set, mounts chart variants + switcher above the board. */
-    chartPrototype?: {
-        variant: string;
-        period: ChartPeriod;
-        chartMetric: ChartMetric;
-    };
-}
-
-function rankClass(rank: number): string {
-    const weight =
-        rank <= 3 ? 'font-semibold text-text' : 'font-medium text-muted';
-    return `w-11 tabular-nums ${weight}`;
 }
 
 export const Home: FC<HomeProps> = (p) => (
@@ -84,67 +51,21 @@ export const Home: FC<HomeProps> = (p) => (
             </div>
         </section>
 
-        {p.chartPrototype ? (
-            <ChartPrototype
-                variant={p.chartPrototype.variant}
-                period={p.chartPrototype.period}
-                metric={p.chartPrototype.chartMetric}
-            />
-        ) : null}
-
         <form
             class={filters}
             method="get"
             action="/"
         >
-            <label
-                class={filterLabel}
-                htmlFor="filter-window"
-            >
-                Window
-                <Input
-                    variant="select"
-                    id="filter-window"
-                    name="window"
-                    onchange={AUTO_SUBMIT}
-                >
-                    {(['today', '7d', '30d', 'all'] as TimeWindow[]).map(
-                        (w) => (
-                            <option
-                                key={w}
-                                value={w}
-                                selected={w === p.window}
-                            >
-                                {WINDOW_LABELS[w]}
-                            </option>
-                        ),
-                    )}
-                </Input>
-            </label>
-            <label
-                class={filterLabel}
-                htmlFor="filter-metric"
-            >
-                Rank by
-                <Input
-                    variant="select"
-                    id="filter-metric"
-                    name="metric"
-                    onchange={AUTO_SUBMIT}
-                >
-                    {(['total', 'io', 'output', 'cost'] as Metric[]).map(
-                        (m) => (
-                            <option
-                                key={m}
-                                value={m}
-                                selected={m === p.metric}
-                            >
-                                {METRIC_LABELS[m]}
-                            </option>
-                        ),
-                    )}
-                </Input>
-            </label>
+            <input
+                type="hidden"
+                name="window"
+                value={p.window}
+            />
+            <input
+                type="hidden"
+                name="metric"
+                value={p.metric}
+            />
             <label
                 class={filterLabel}
                 htmlFor="filter-source"
@@ -224,55 +145,13 @@ export const Home: FC<HomeProps> = (p) => (
             </label>
         </form>
 
-        <div class={panel}>
-            {p.entries.length === 0 ? (
-                <div class={empty}>
-                    No builders on the board yet for this window.{' '}
-                    <a href="/start">Be the first →</a>
-                </div>
-            ) : (
-                <div class="overflow-x-auto">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="w-11">#</th>
-                                <th>Builder</th>
-                                <th class={num}>Total</th>
-                                <th class={num}>In+Out</th>
-                                <th class={num}>Output</th>
-                                <th class={num}>Est. cost</th>
-                                <th class={num}>Sessions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {p.entries.map((e) => (
-                                <tr key={e.username}>
-                                    <td class={rankClass(e.rank)}>{e.rank}</td>
-                                    <td>
-                                        <a href={`/u/${e.username}`}>
-                                            {e.username}
-                                        </a>
-                                    </td>
-                                    <td class={num}>
-                                        {formatTokens(e.grand_total)}
-                                    </td>
-                                    <td class={num}>
-                                        {formatTokens(
-                                            e.input_tokens + e.output_tokens,
-                                        )}
-                                    </td>
-                                    <td class={num}>
-                                        {formatTokens(e.output_tokens)}
-                                    </td>
-                                    <td class={num}>{formatUsd(e.cost)}</td>
-                                    <td class={num}>{e.sessions}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
+        <LeaderboardChart
+            entries={p.entries}
+            window={p.window}
+            metric={p.metric}
+            source={p.source}
+            model={p.model}
+        />
 
         <aside class="spotlight spotlight-violet mt-4 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
             <div>
@@ -292,9 +171,5 @@ export const Home: FC<HomeProps> = (p) => (
                 Get started
             </Button>
         </aside>
-
-        {p.chartPrototype ? (
-            <PrototypeSwitcher current={p.chartPrototype.variant} />
-        ) : null}
     </Layout>
 );

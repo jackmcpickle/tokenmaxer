@@ -195,21 +195,6 @@ export default defineConfig({
             },
         },
         {
-            // Exploratory chart prototypes; relax rules that only matter for
-            // shipped, reusable components.
-            files: ['src/pages/prototype/**'],
-            rules: {
-                'import/no-relative-parent-imports': 'off',
-                'react/no-multi-comp': 'off',
-                'react/no-danger': 'off',
-                'react/style-prop-object': 'off',
-                'jsx-a11y/prefer-tag-over-role': 'off',
-                'typescript/no-non-null-assertion': 'off',
-                'no-plusplus': 'off',
-                'no-inline-comments': 'off',
-            },
-        },
-        {
             files: ['src/__tests__/reporter.test.ts'],
             rules: {
                 'import/no-relative-parent-imports': 'off',

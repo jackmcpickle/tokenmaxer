@@ -37,11 +37,14 @@ describe('metricValue', () => {
         expect(grandTotal(T)).toBe(1360);
         expect(metricValue(T, 'total')).toBe(1360);
     });
-    it('io is input + output', () => {
-        expect(metricValue(T, 'io')).toBe(300);
+    it('input is input tokens only', () => {
+        expect(metricValue(T, 'input')).toBe(100);
     });
     it('output is output only', () => {
         expect(metricValue(T, 'output')).toBe(200);
+    });
+    it('cached is cache read + cache creation', () => {
+        expect(metricValue(T, 'cached')).toBe(1050);
     });
     it('cost is the estimated dollars', () => {
         expect(metricValue(T, 'cost')).toBe(4.2);
