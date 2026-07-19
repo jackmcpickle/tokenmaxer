@@ -4,6 +4,7 @@ import {
     parseClaudeTranscript,
     parseCodexRollout,
     parseOpencodeMessages,
+    parseCursorEvents,
     parsePiRollout,
     sessionIdFromPath,
     toRows,
@@ -242,5 +243,67 @@ describe('sessionIdFromPath', () => {
             sessionIdFromPath('/a/b/rollout-2026-07-18T09-00-00-uuid.jsonl'),
         ).toBe('2026-07-18T09-00-00-uuid');
         expect(sessionIdFromPath('/c/sess-abc.jsonl')).toBe('sess-abc');
+    });
+});
+
+describe('parseCursorEvents', () => {
+    function ev(ts, model, usage) {
+        return {
+            timestamp: String(ts),
+            model,
+            tokenUsage: usage,
+        };
+    }
+    const DAY = Date.UTC(2026, 6, 18); // 2026-07-18T00:00:00Z
+
+    it('buckets events by UTC day and model', () => {
+        const rows = parseCursorEvents([
+            ev(DAY + 1000, 'claude-4.5-sonnet', {
+                inputTokens: 10,
+                outputTokens: 20,
+                cacheReadTokens: 30,
+                cacheWriteTokens: 5,
+            }),
+            ev(DAY + 5000, 'claude-4.5-sonnet', {
+                inputTokens: 1,
+                outputTokens: 2,
+                cacheReadTokens: 3,
+                cacheWriteTokens: 4,
+            }),
+            ev(DAY + 6000, 'gpt-5', { inputTokens: 7, outputTokens: 8 }),
+            ev(DAY + 86_400_000, 'gpt-5', {
+                inputTokens: 100,
+                outputTokens: 1,
+            }),
+        ]);
+        expect(rows).toHaveLength(3);
+        const sonnet = rows.find((r) => r.model === 'claude-4.5-sonnet');
+        expect(sonnet).toMatchObject({
+            session_id: 'cursor-2026-07-18',
+            started_at: DAY,
+            input_tokens: 11,
+            output_tokens: 22,
+            cache_read_tokens: 33,
+            cache_creation_tokens: 9,
+            reasoning_tokens: 0,
+        });
+        const day2 = rows.find((r) => r.session_id === 'cursor-2026-07-19');
+        expect(day2).toMatchObject({ model: 'gpt-5', input_tokens: 100 });
+    });
+
+    it('skips malformed events and empty input', () => {
+        expect(parseCursorEvents([])).toEqual([]);
+        expect(
+            parseCursorEvents([
+                null,
+                {},
+                {
+                    timestamp: 'nope',
+                    model: 'm',
+                    tokenUsage: { inputTokens: 1 },
+                },
+                { timestamp: '123', tokenUsage: { inputTokens: 1 } }, // no model -> 'unknown'
+            ]),
+        ).toHaveLength(1);
     });
 });

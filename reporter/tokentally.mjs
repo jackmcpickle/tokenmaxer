@@ -19,11 +19,13 @@
 //   node tokentally.mjs codex-report <path>      # parse one Codex rollout
 //   node tokentally.mjs opencode-report <sessID> # parse one opencode session
 //   node tokentally.mjs pi-report <path>         # parse one pi session file
-//   node tokentally.mjs backfill [claude|codex|opencode|pi] # one-time: upload ALL past history
+//   node tokentally.mjs cursor-sync                # sync recent Cursor dashboard usage
+//   node tokentally.mjs backfill [claude|codex|opencode|pi|cursor] # one-time: upload ALL past history
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
 const CATCHUP_DAYS =
@@ -223,6 +225,47 @@ export function parseOpencodeMessages(messages, opts = {}) {
         started_at: startedAt ?? opts.fallbackStartedAt ?? null,
         models,
     };
+}
+
+/**
+ * Bucket Cursor dashboard usage events by UTC day + model into session rows.
+ * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
+ * on every run keeps ingestion idempotent (server upserts by session+model).
+ */
+export function parseCursorEvents(events) {
+    // 'YYYY-MM-DD' -> Map(model -> totals)
+    const days = new Map();
+    for (const e of Array.isArray(events) ? events : []) {
+        if (!e || typeof e !== 'object') continue;
+        const ms = Number(e.timestamp);
+        if (!Number.isFinite(ms) || ms <= 0) continue;
+        const u = e.tokenUsage;
+        if (!u || typeof u !== 'object') continue;
+        const day = new Date(ms).toISOString().slice(0, 10);
+        const model =
+            typeof e.model === 'string' && e.model ? e.model : 'unknown';
+        const byModel = days.get(day) ?? new Map();
+        const t = byModel.get(model) ?? emptyTotals();
+        t.input_tokens += num(u.inputTokens);
+        t.output_tokens += num(u.outputTokens);
+        t.cache_read_tokens += num(u.cacheReadTokens);
+        t.cache_creation_tokens += num(u.cacheWriteTokens);
+        byModel.set(model, t);
+        days.set(day, byModel);
+    }
+    const rows = [];
+    for (const [day, byModel] of days) {
+        const startedAt = Date.parse(`${day}T00:00:00Z`);
+        for (const [model, t] of byModel) {
+            rows.push({
+                session_id: `cursor-${day}`,
+                model,
+                started_at: startedAt,
+                ...t,
+            });
+        }
+    }
+    return rows;
 }
 
 function piUsage(obj) {
@@ -515,7 +558,92 @@ function loadConfig() {
     return {
         apiBase: String(apiBase).replace(/\/+$/u, ''),
         token: String(token),
+        cursorCookie: file.cursorCookie,
     };
+}
+
+// Cursor stores its auth JWT in the app's global state SQLite DB.
+function cursorDbPaths() {
+    const home = homedir();
+    return [
+        join(
+            home,
+            'Library',
+            'Application Support',
+            'Cursor',
+            'User',
+            'globalStorage',
+            'state.vscdb',
+        ),
+        join(home, '.config', 'Cursor', 'User', 'globalStorage', 'state.vscdb'),
+        join(
+            process.env.APPDATA ?? join(home, 'AppData', 'Roaming'),
+            'Cursor',
+            'User',
+            'globalStorage',
+            'state.vscdb',
+        ),
+    ];
+}
+
+// Older Cursor builds store the value JSON-quoted; current builds store the raw JWT.
+function normalizeCursorToken(value) {
+    let token = typeof value === 'string' ? value : null;
+    if (token?.startsWith('"')) {
+        try {
+            token = JSON.parse(token);
+        } catch {
+            /* keep raw */
+        }
+    }
+    return typeof token === 'string' && token ? token : null;
+}
+
+// Read cursorAuth/accessToken from one state.vscdb and build the session cookie.
+// Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
+function cursorTokenFromDb(path) {
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+        const row = db
+            .prepare(
+                "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
+            )
+            .get();
+        const token = normalizeCursorToken(row?.value);
+        if (!token) return null;
+        const sub = jwtSub(token);
+        return sub ? `${sub}::${token}` : null;
+    } finally {
+        db.close();
+    }
+}
+
+// Try each known state.vscdb location; fall back to cfg.cursorCookie.
+function cursorSessionToken(cfg) {
+    for (const path of cursorDbPaths()) {
+        try {
+            const token = cursorTokenFromDb(path);
+            if (token) return token;
+        } catch {
+            /* try next path / fallback */
+        }
+    }
+    return typeof cfg.cursorCookie === 'string' && cfg.cursorCookie
+        ? cfg.cursorCookie
+        : null;
+}
+
+function jwtSub(jwt) {
+    try {
+        const payload = JSON.parse(
+            Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8'),
+        );
+        // sub looks like "auth0|user_xxx"; the cookie wants the trailing id part.
+        const sub = String(payload.sub ?? '');
+        return sub.includes('|') ? sub.split('|').pop() : sub || null;
+    } catch {
+        return null;
+    }
 }
 
 async function readStdin() {
@@ -653,6 +781,77 @@ async function reportOneOpencode(cfg, sessionArg) {
     process.stderr.write(`tokentally: reported ${accepted} opencode row(s)\n`);
 }
 
+// Unofficial dashboard endpoint — the only individual route to Cursor usage.
+async function cursorFetchEvents(sessionToken, sinceMs) {
+    const events = [];
+    for (let page = 1; page <= 200; page += 1) {
+        // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
+        const res = await fetch(
+            'https://cursor.com/api/dashboard/get-filtered-usage-events',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Origin: 'https://cursor.com',
+                    Cookie: `WorkosCursorSessionToken=${encodeURIComponent(sessionToken)}`,
+                },
+                body: JSON.stringify({
+                    teamId: 0,
+                    startDate: String(sinceMs),
+                    endDate: String(Date.now()),
+                    page,
+                    pageSize: 1000,
+                }),
+            },
+        );
+        if (!res.ok) {
+            process.stderr.write(
+                `tokentally: cursor usage fetch failed (${res.status})\n`,
+            );
+            return null;
+        }
+        // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
+        const data = await res.json().catch(() => null);
+        if (data === null) return null;
+        const batch = data?.usageEvents ?? data?.usageEventsDisplay ?? [];
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        events.push(...batch);
+        if (batch.length < 1000) break;
+    }
+    return events;
+}
+
+async function cursorSync(cfg, opts = {}) {
+    const sessionToken = cursorSessionToken(cfg);
+    if (!sessionToken) {
+        process.stderr.write(
+            'tokentally: Cursor not configured (no state.vscdb token or cursorCookie)\n',
+        );
+        return;
+    }
+    const since = opts.sinceMs ?? Date.now() - CATCHUP_DAYS * 86_400_000;
+    // Floor to UTC day start: rows are whole-day sums and the server upsert
+    // replaces counts, so a partial oldest day would shrink stored totals.
+    const d = new Date(since);
+    const sinceMs = Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+    );
+    const events = await cursorFetchEvents(sessionToken, sinceMs);
+    if (events === null) {
+        process.stderr.write(
+            'tokentally: cursor sync aborted (fetch failed)\n',
+        );
+        return;
+    }
+    const rows = parseCursorEvents(events);
+    const { accepted } = await postSessions(cfg, 'cursor', rows, opts.post);
+    process.stderr.write(
+        `tokentally: cursor synced ${accepted} row(s) from ${events.length} event(s)\n`,
+    );
+}
+
 function safeParse(path, source) {
     try {
         return parseFile(path, source);
@@ -718,6 +917,12 @@ async function backfill(cfg, only) {
         const rows = files.flatMap((f) => safeParse(f, 'pi'));
         total += await backfillFiles(cfg, 'pi', rows, 'pi', files.length);
     }
+    if (!only || only === 'cursor') {
+        await cursorSync(cfg, {
+            sinceMs: Date.now() - 90 * 86_400_000,
+            post: { path: '/api/history', chunkSize: HISTORY_CHUNK },
+        });
+    }
     process.stderr.write(
         `tokentally: backfill complete — ${total} row(s) total\n`,
     );
@@ -763,11 +968,18 @@ async function main() {
         case 'pi-report':
             await reportOne(cfg, process.argv[3], 'pi');
             break;
+        case 'cursor-sync':
+            await cursorSync(cfg);
+            break;
         case 'backfill': {
-            // Optional scope: `backfill claude|codex|opencode|pi`.
-            const only = ['claude', 'codex', 'opencode', 'pi'].includes(
-                process.argv[3],
-            )
+            // Optional scope: `backfill claude|codex|opencode|pi|cursor`.
+            const only = [
+                'claude',
+                'codex',
+                'opencode',
+                'pi',
+                'cursor',
+            ].includes(process.argv[3])
                 ? process.argv[3]
                 : undefined;
             await backfill(cfg, only);
@@ -775,7 +987,7 @@ async function main() {
         }
         default:
             process.stderr.write(
-                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|backfill [claude|codex|opencode|pi]>\n',
+                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]>\n',
             );
     }
 }

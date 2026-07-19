@@ -4,20 +4,26 @@ export interface Env {
     ENVIRONMENT: string;
     PUBLIC_BASE_URL: string;
     TURNSTYLE_SECRET_KEY: string;
+    INVITE_KEY?: string;
 }
 
-export type Source = 'claude_code' | 'codex' | 'opencode' | 'pi';
+export type Source = 'claude_code' | 'codex' | 'opencode' | 'pi' | 'cursor';
 
 export const SOURCES: readonly Source[] = [
     'claude_code',
     'codex',
     'opencode',
     'pi',
+    'cursor',
 ] as const;
 
 export function isSource(v: unknown): v is Source {
     return (
-        v === 'claude_code' || v === 'codex' || v === 'opencode' || v === 'pi'
+        v === 'claude_code' ||
+        v === 'codex' ||
+        v === 'opencode' ||
+        v === 'pi' ||
+        v === 'cursor'
     );
 }
 
