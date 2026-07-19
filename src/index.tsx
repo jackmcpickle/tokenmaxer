@@ -5,7 +5,12 @@ import {
     getLeaderboard,
     getProfile,
 } from '@/lib/aggregate';
-import { inviteAllowed } from '@/lib/invite';
+import {
+    getInviteCookie,
+    inviteAllowed,
+    inviteSessionAllowed,
+    setInviteCookie,
+} from '@/lib/invite';
 import { About } from '@/pages/about';
 import { Home } from '@/pages/home';
 import { Layout } from '@/pages/layout';
@@ -105,16 +110,37 @@ app.get('/', async (c) => {
     );
 });
 
-app.get('/start', async (c) => {
+// Shared invite link: `/invite?invite=<KEY>` sets a session cookie, then home.
+// Legacy `/start?invite=` redirects here.
+app.get('/invite', async (c) => {
     const provided = c.req.query('invite') ?? '';
-    const invited = await inviteAllowed(c.env.INVITE_KEY, provided);
-    // Only echo the key back when it validated (or gate is off) — never leak attempts.
-    const inviteKey = invited && c.env.INVITE_KEY ? provided : '';
+    // Cookie only when the gate is on and the key matched (empty provided fails).
+    if (
+        c.env.INVITE_KEY &&
+        (await inviteAllowed(c.env.INVITE_KEY, provided))
+    ) {
+        await setInviteCookie(c, c.env.INVITE_KEY);
+    }
+    return c.redirect('/', 302);
+});
+
+app.get('/start', async (c) => {
+    const invite = c.req.query('invite');
+    if (invite !== undefined) {
+        const dest =
+            invite.length > 0
+                ? `/invite?invite=${encodeURIComponent(invite)}`
+                : '/invite';
+        return c.redirect(dest, 302);
+    }
+    const invited = await inviteSessionAllowed(
+        c.env.INVITE_KEY,
+        getInviteCookie(c),
+    );
     return c.html(
         <Start
             base={baseUrl(c.env, c.req.url)}
             invited={invited}
-            inviteKey={inviteKey}
         />,
     );
 });
