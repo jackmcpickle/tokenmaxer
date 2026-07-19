@@ -247,11 +247,13 @@ describe('sessionIdFromPath', () => {
 });
 
 describe('parseCursorEvents', () => {
-    const ev = (ts, model, usage) => ({
-        timestamp: String(ts),
-        model,
-        tokenUsage: usage,
-    });
+    function ev(ts, model, usage) {
+        return {
+            timestamp: String(ts),
+            model,
+            tokenUsage: usage,
+        };
+    }
     const DAY = Date.UTC(2026, 6, 18); // 2026-07-18T00:00:00Z
 
     it('buckets events by UTC day and model', () => {
@@ -269,7 +271,10 @@ describe('parseCursorEvents', () => {
                 cacheWriteTokens: 4,
             }),
             ev(DAY + 6000, 'gpt-5', { inputTokens: 7, outputTokens: 8 }),
-            ev(DAY + 86_400_000, 'gpt-5', { inputTokens: 100, outputTokens: 1 }),
+            ev(DAY + 86_400_000, 'gpt-5', {
+                inputTokens: 100,
+                outputTokens: 1,
+            }),
         ]);
         expect(rows).toHaveLength(3);
         const sonnet = rows.find((r) => r.model === 'claude-4.5-sonnet');
@@ -292,7 +297,11 @@ describe('parseCursorEvents', () => {
             parseCursorEvents([
                 null,
                 {},
-                { timestamp: 'nope', model: 'm', tokenUsage: { inputTokens: 1 } },
+                {
+                    timestamp: 'nope',
+                    model: 'm',
+                    tokenUsage: { inputTokens: 1 },
+                },
                 { timestamp: '123', tokenUsage: { inputTokens: 1 } }, // no model -> 'unknown'
             ]),
         ).toHaveLength(1);

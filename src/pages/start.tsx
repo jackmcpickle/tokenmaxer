@@ -136,11 +136,11 @@ const TABS: Array<{ id: string; label: string }> = [
     { id: 'cursor', label: 'Cursor' },
 ];
 
-export const Start: FC<{ base: string; invited: boolean; inviteKey: string }> = ({
-    base,
-    invited,
-    inviteKey,
-}) => (
+export const Start: FC<{
+    base: string;
+    invited: boolean;
+    inviteKey: string;
+}> = ({ base, invited, inviteKey }) => (
     <Layout
         title="Get started · tokenmaxer.quest"
         base={base}
@@ -283,6 +283,7 @@ export const Start: FC<{ base: string; invited: boolean; inviteKey: string }> = 
             <div class="mt-6 mb-4 flex flex-wrap border-b border-border">
                 {TABS.map((t) => (
                     <button
+                        key={t.id}
                         class={`tab${t.id === 'agent' ? ' tab-active' : ''}`}
                         type="button"
                         data-tab={t.id}
@@ -407,8 +408,8 @@ export const Start: FC<{ base: string; invited: boolean; inviteKey: string }> = 
                     reporter pulls your usage from Cursor&apos;s dashboard API.
                     It auto-reads your Cursor login from local storage — no
                     extra auth in the common case. Add this to{' '}
-                    <code>~/.cursor/hooks.json</code> so every session
-                    triggers a sync:
+                    <code>~/.cursor/hooks.json</code> so every session triggers
+                    a sync:
                 </p>
                 <div class={copyrow}>
                     <pre id="r-cursor" />
@@ -434,12 +435,11 @@ export const Start: FC<{ base: string; invited: boolean; inviteKey: string }> = 
             <h2>Backfill past history (optional)</h2>
             <p class={muted}>
                 The hooks only report new sessions. To load everything you ran
-                before installing tokenmaxer.quest, run this once — it scans
-                all your local Claude Code, Codex, opencode, pi and Cursor
-                history and uploads it (idempotent, so it&apos;s safe to
-                re-run). Add <code>claude</code>, <code>codex</code>,{' '}
-                <code>opencode</code>, <code>pi</code> or <code>cursor</code>{' '}
-                to limit it to one tool:
+                before installing tokenmaxer.quest, run this once — it scans all
+                your local Claude Code, Codex, opencode, pi and Cursor history
+                and uploads it (idempotent, so it&apos;s safe to re-run). Add{' '}
+                <code>claude</code>, <code>codex</code>, <code>opencode</code>,{' '}
+                <code>pi</code> or <code>cursor</code> to limit it to one tool:
             </p>
             <div class={copyrow}>
                 <pre id="r-backfill">

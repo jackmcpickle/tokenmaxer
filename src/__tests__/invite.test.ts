@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inviteAllowed } from '../lib/invite';
+import { inviteAllowed } from '@/lib/invite';
 
 describe('inviteAllowed', () => {
     it('allows anything when no key configured', async () => {

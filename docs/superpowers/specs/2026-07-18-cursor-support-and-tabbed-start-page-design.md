@@ -101,11 +101,11 @@ in the public page.
   the component. When `INVITE_KEY` is unset (local/dev), treat as **not gated**
   (invited = true) so dev isn't blocked — documented in the route.
 - **`Start` component** renders the setup tabs **always**; renders the claim form
-  + "For your agent" prompt **only when `invited`**. When not invited, show a
-  brief notice ("Username claims are invite-only — ask for an invite link") in
-  place of the form. The invite key is passed through only via the form's hidden
-  handoff to the register call — never printed into the leaderboard or any public
-  route.
+    - "For your agent" prompt **only when `invited`**. When not invited, show a
+      brief notice ("Username claims are invite-only — ask for an invite link") in
+      place of the form. The invite key is passed through only via the form's hidden
+      handoff to the register call — never printed into the leaderboard or any public
+      route.
 - **`/api/register`** gains invite validation: read `inviteKey` from the request
   body, constant-time compare to `c.env.INVITE_KEY`; missing/wrong → `403`.
   Keeps existing Turnstile + rate-limit checks (invite check first, cheapest).
@@ -114,7 +114,7 @@ in the public page.
   `/api/register` body alongside `username` + `turnstileToken`.
 
 Note: an invite key in a URL is shareable-but-leakable by nature (that's the
-requirement — one link for a WhatsApp group). It is *not* per-user and grants no
+requirement — one link for a WhatsApp group). It is _not_ per-user and grants no
 account access on its own; it only unlocks the claim form + register endpoint.
 Rotating it (change the secret) invalidates old links.
 
@@ -128,18 +128,18 @@ Rotating it (change the secret) invalidates old links.
 - Convert the setup into **lightweight inline tabs** — buttons that toggle panels
   via the existing client `<script>` (no dependency, matches current copy-button
   pattern). Tabs:
-  1. **For your agent** (default) — copyable prompt embedding username + token +
-     base URL, e.g. *"Go to `<BASE>/start` and help me set up tokentally.
-     Username: X, token: Y. Run the one-time setup and configure hooks for
-     whichever editors I use (Claude Code / Codex / Cursor)."* Placeholder token
-     until claimed.
-  2. **Claude Code** — existing hooks JSON.
-  3. **Codex** — existing TOML.
-  4. **Cursor** — `~/.cursor/hooks.json` snippet running `cursor-sync`; note that
-     the token is auto-read from Cursor's local storage, with a concise fallback
-     (paste `WorkosCursorSessionToken` into config if auto-auth fails); honest
-     note that this uses Cursor's unofficial dashboard endpoint so it may need
-     the fallback cookie occasionally.
+    1. **For your agent** (default) — copyable prompt embedding username + token +
+       base URL, e.g. _"Go to `<BASE>/start` and help me set up tokentally.
+       Username: X, token: Y. Run the one-time setup and configure hooks for
+       whichever editors I use (Claude Code / Codex / Cursor)."_ Placeholder token
+       until claimed.
+    2. **Claude Code** — existing hooks JSON.
+    3. **Codex** — existing TOML.
+    4. **Cursor** — `~/.cursor/hooks.json` snippet running `cursor-sync`; note that
+       the token is auto-read from Cursor's local storage, with a concise fallback
+       (paste `WorkosCursorSessionToken` into config if auto-auth fails); honest
+       note that this uses Cursor's unofficial dashboard endpoint so it may need
+       the fallback cookie occasionally.
 - On claim, the existing JS swaps placeholders for the real token/username across
   all tabs (extends the current `r-*` element updates).
 - Backfill note gains a `cursor` mention.

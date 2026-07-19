@@ -216,6 +216,13 @@ export default defineConfig({
             },
         },
         {
+            // Constant-time digest comparison requires XOR-accumulate.
+            files: ['src/lib/invite.ts'],
+            rules: {
+                'no-bitwise': 'off',
+            },
+        },
+        {
             files: ['*.config.ts'],
             rules: {
                 'import/no-default-export': 'off',

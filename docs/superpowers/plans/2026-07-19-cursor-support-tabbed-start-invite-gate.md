@@ -26,6 +26,7 @@
 ### Task 1: Server `cursor` source
 
 **Files:**
+
 - Modify: `src/types.ts:9-22` (Source union/list/guard)
 - Modify: `src/lib/validate.ts:121-126` (error message)
 - Modify: `src/pages/profile.tsx:18-23` (`SOURCE_LABELS`)
@@ -33,6 +34,7 @@
 - Test: `src/__tests__/validate.test.ts`
 
 **Interfaces:**
+
 - Produces: `Source` union includes `'cursor'`; `isSource('cursor') === true`; ingest/history accept `source: 'cursor'`.
 
 - [ ] **Step 1: Write failing tests** — append to the `parseIngestBody` describe in `src/__tests__/validate.test.ts`:
@@ -90,10 +92,12 @@ In `src/lib/validate.ts` update the message to `"source must be 'claude_code', '
 ### Task 2: Reporter `parseCursorEvents`
 
 **Files:**
+
 - Modify: `reporter/tokentally.mjs` (add exported pure function near other parsers)
 - Test: `src/__tests__/reporter.test.ts`
 
 **Interfaces:**
+
 - Produces: `parseCursorEvents(events: unknown[]): rows[]` — rows shaped `{ session_id: 'cursor-YYYY-MM-DD', model, started_at: <UTC day start ms>, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens: 0 }`.
 - Event shape consumed (Cursor dashboard): `{ timestamp: '<epoch-ms string>', model: 'claude-4.5-sonnet', tokenUsage: { inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens } }`.
 
@@ -123,7 +127,10 @@ describe('parseCursorEvents', () => {
                 cacheWriteTokens: 4,
             }),
             ev(DAY + 6000, 'gpt-5', { inputTokens: 7, outputTokens: 8 }),
-            ev(DAY + 86_400_000, 'gpt-5', { inputTokens: 100, outputTokens: 1 }),
+            ev(DAY + 86_400_000, 'gpt-5', {
+                inputTokens: 100,
+                outputTokens: 1,
+            }),
         ]);
         expect(rows).toHaveLength(3);
         const sonnet = rows.find((r) => r.model === 'claude-4.5-sonnet');
@@ -146,7 +153,11 @@ describe('parseCursorEvents', () => {
             parseCursorEvents([
                 null,
                 {},
-                { timestamp: 'nope', model: 'm', tokenUsage: { inputTokens: 1 } },
+                {
+                    timestamp: 'nope',
+                    model: 'm',
+                    tokenUsage: { inputTokens: 1 },
+                },
                 { timestamp: '123', tokenUsage: { inputTokens: 1 } }, // no model -> 'unknown'
             ]),
         ).toHaveLength(1);
@@ -207,9 +218,11 @@ export function parseCursorEvents(events) {
 ### Task 3: Reporter `cursor-sync` command + backfill
 
 **Files:**
+
 - Modify: `reporter/tokentally.mjs` — auth/fetch/sync helpers, `main()` switch (~line 736), `backfill()` (add cursor branch), usage string, header comment.
 
 **Interfaces:**
+
 - Consumes: `parseCursorEvents` (Task 2), existing `postSessions(cfg, source, rows, opts)`, `loadConfig()`, `CATCHUP_DAYS`.
 - Produces: CLI commands `cursor-sync`, `backfill cursor`; optional `cursorCookie` config key.
 - **Caution:** the dashboard endpoint is unofficial. Shapes below come from research (CodexBar et al.); verify against a live response during the manual step and adjust field names defensively — parsing already tolerates unknown shapes.
@@ -223,9 +236,23 @@ import { DatabaseSync } from 'node:sqlite';
 function cursorDbPaths() {
     const home = homedir();
     return [
-        join(home, 'Library', 'Application Support', 'Cursor', 'User', 'globalStorage', 'state.vscdb'),
+        join(
+            home,
+            'Library',
+            'Application Support',
+            'Cursor',
+            'User',
+            'globalStorage',
+            'state.vscdb',
+        ),
         join(home, '.config', 'Cursor', 'User', 'globalStorage', 'state.vscdb'),
-        join(process.env.APPDATA ?? join(home, 'AppData', 'Roaming'), 'Cursor', 'User', 'globalStorage', 'state.vscdb'),
+        join(
+            process.env.APPDATA ?? join(home, 'AppData', 'Roaming'),
+            'Cursor',
+            'User',
+            'globalStorage',
+            'state.vscdb',
+        ),
     ];
 }
 
@@ -236,9 +263,14 @@ function cursorSessionToken(cfg) {
             const db = new DatabaseSync(path, { readOnly: true });
             try {
                 const row = db
-                    .prepare("SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'")
+                    .prepare(
+                        "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
+                    )
                     .get();
-                const token = typeof row?.value === 'string' ? JSON.parse(row.value) : null;
+                const token =
+                    typeof row?.value === 'string'
+                        ? JSON.parse(row.value)
+                        : null;
                 if (typeof token === 'string' && token) {
                     // Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
                     const sub = jwtSub(token);
@@ -298,7 +330,9 @@ async function cursorFetchEvents(sessionToken, sinceMs) {
             },
         );
         if (!res.ok) {
-            process.stderr.write(`tokentally: cursor usage fetch failed (${res.status})\n`);
+            process.stderr.write(
+                `tokentally: cursor usage fetch failed (${res.status})\n`,
+            );
             break;
         }
         const data = await res.json().catch(() => null);
@@ -360,6 +394,7 @@ Update the usage string and header comment to mention `cursor-sync` and `backfil
 ### Task 4: Invite gate on `/api/register`
 
 **Files:**
+
 - Modify: `src/types.ts:1-7` (Env)
 - Create: `src/lib/invite.ts`
 - Modify: `src/routes/register.ts` (check before Turnstile)
@@ -367,6 +402,7 @@ Update the usage string and header comment to mention `cursor-sync` and `backfil
 - Test: `src/__tests__/invite.test.ts`
 
 **Interfaces:**
+
 - Produces: `inviteAllowed(configuredKey: string | undefined, provided: unknown): Promise<boolean>` in `src/lib/invite.ts`; `Env.INVITE_KEY?: string`; `/api/register` body gains optional `inviteKey`.
 
 - [ ] **Step 1: Write failing tests** — `src/__tests__/invite.test.ts`:
@@ -436,11 +472,13 @@ if (!invited) return c.json({ error: 'invite required' }, 403);
 ### Task 5: Start route passes invite state
 
 **Files:**
+
 - Modify: `src/index.tsx:116`
 
 **Interfaces:**
+
 - Consumes: `inviteAllowed` (Task 4).
-- Produces: `Start` receives props `{ base: string; invited: boolean; inviteKey: string }` (`inviteKey` is the *user-provided, validated* value to echo into the register call — `''` when ungated or invalid).
+- Produces: `Start` receives props `{ base: string; invited: boolean; inviteKey: string }` (`inviteKey` is the _user-provided, validated_ value to echo into the register call — `''` when ungated or invalid).
 
 - [ ] **Step 1: Implement** — replace the `/start` route:
 
@@ -469,10 +507,12 @@ app.get('/start', async (c) => {
 ### Task 6: Tabbed start page + agent prompt + gated claim
 
 **Files:**
+
 - Modify: `src/pages/start.tsx` (restructure)
 - Modify: `src/pages/ui.ts` only if a tab style helper is added (optional; inline Tailwind classes are fine)
 
 **Interfaces:**
+
 - Consumes: `Start` props from Task 5.
 - Produces: public tabbed setup docs; claim form only when `invited`; client script posts `inviteKey` to `/api/register`.
 
@@ -483,10 +523,16 @@ Design (matches existing patterns — server-rendered sections, one inline `clie
 
 ```js
 document.querySelectorAll('button.tab').forEach((b) => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('button.tab').forEach((x) => x.classList.toggle('tab-active', x === b));
-    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== 'tab-' + b.dataset.tab));
-  });
+    b.addEventListener('click', () => {
+        document
+            .querySelectorAll('button.tab')
+            .forEach((x) => x.classList.toggle('tab-active', x === b));
+        document
+            .querySelectorAll('.tab-panel')
+            .forEach((p) =>
+                p.classList.toggle('hidden', p.id !== 'tab-' + b.dataset.tab),
+            );
+    });
 });
 ```
 
@@ -494,44 +540,69 @@ document.querySelectorAll('button.tab').forEach((b) => {
 
 ```js
 const agent =
-  'Go to ' + BASE + '/start and help me set up tokentally (token usage leaderboard).\n' +
-  'My username: ' + username + '\n' +
-  'My token: ' + token + '\n' +
-  'Do this for me:\n' +
-  '1. Run the one-time setup command from that page (downloads ~/.tokentally/tokentally.mjs and writes config).\n' +
-  '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from the page.\n' +
-  '3. Run: node ~/.tokentally/tokentally.mjs backfill\n' +
-  '4. Confirm my sessions appear at ' + BASE + '/u/' + username;
+    'Go to ' +
+    BASE +
+    '/start and help me set up tokentally (token usage leaderboard).\n' +
+    'My username: ' +
+    username +
+    '\n' +
+    'My token: ' +
+    token +
+    '\n' +
+    'Do this for me:\n' +
+    '1. Run the one-time setup command from that page (downloads ~/.tokentally/tokentally.mjs and writes config).\n' +
+    '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from the page.\n' +
+    '3. Run: node ~/.tokentally/tokentally.mjs backfill\n' +
+    '4. Confirm my sessions appear at ' +
+    BASE +
+    '/u/' +
+    username;
 ```
 
-  Panel copy above the pre: "Paste this into your coding agent — it will read the start page and do the setup for you." When not yet claimed, `username`/`token` are the placeholders.
+Panel copy above the pre: "Paste this into your coding agent — it will read the start page and do the setup for you." When not yet claimed, `username`/`token` are the placeholders.
+
 - **Cursor tab content:** heading "Cursor"; muted text: "Cursor doesn't expose token usage to hooks, so the reporter pulls your usage from Cursor's dashboard API. It auto-reads your Cursor login from local storage — no extra auth in the common case. Add this to `~/.cursor/hooks.json` so every session triggers a sync:" then `pre#r-cursor`:
 
 ```js
-const cursor = JSON.stringify({
-  version: 1,
-  hooks: {
-    sessionStart: [{ command: 'node ~/.tokentally/tokentally.mjs cursor-sync' }]
-  }
-}, null, 2);
+const cursor = JSON.stringify(
+    {
+        version: 1,
+        hooks: {
+            sessionStart: [
+                { command: 'node ~/.tokentally/tokentally.mjs cursor-sync' },
+            ],
+        },
+    },
+    null,
+    2,
+);
 ```
 
-  Below, a smaller muted note: "If auto-auth fails (Cursor not logged in on this machine), copy the `WorkosCursorSessionToken` cookie from cursor.com (DevTools → Application → Cookies) into `~/.tokentally/config.json` as `\"cursorCookie\"`. This uses an unofficial Cursor endpoint, so the cookie may occasionally need refreshing."
+Below, a smaller muted note: "If auto-auth fails (Cursor not logged in on this machine), copy the `WorkosCursorSessionToken` cookie from cursor.com (DevTools → Application → Cookies) into `~/.tokentally/config.json` as `\"cursorCookie\"`. This uses an unofficial Cursor endpoint, so the cookie may occasionally need refreshing."
+
 - **Claim gating:** when `invited` is false, replace the form panel with `<div class={notice}>Username claims are invite-only. Ask the person who shared tokenmaxer.quest for the invite link.</div>`. When true, render the existing form. Embed the key for the client as `<form id="reg" data-invite={inviteKey}>`; client sends `inviteKey: form.dataset.invite || undefined` in the register body alongside `username` + `turnstileToken`.
 - **Existing content moves:** current sections 2a–2d become the claude/codex/opencode/pi tab panels (same copy, same `r-*` ids). Backfill section stays below the tabs, always visible, and gains `cursor` in its list. `snippets()` gains `agent` + `cursor` and is called once on page load with placeholders and again after claim with real values:
 
 ```js
 function render(username, token) {
-  const s = snippets(username, token);
-  for (const [k, v] of Object.entries({ 'r-setup': s.setup, 'r-claude': s.claude, 'r-codex': s.codex, 'r-opencode': s.opencode, 'r-pi': s.pi, 'r-cursor': s.cursor, 'r-agent': s.agent })) {
-    const el = document.getElementById(k);
-    if (el) el.textContent = v;
-  }
+    const s = snippets(username, token);
+    for (const [k, v] of Object.entries({
+        'r-setup': s.setup,
+        'r-claude': s.claude,
+        'r-codex': s.codex,
+        'r-opencode': s.opencode,
+        'r-pi': s.pi,
+        'r-cursor': s.cursor,
+        'r-agent': s.agent,
+    })) {
+        const el = document.getElementById(k);
+        if (el) el.textContent = v;
+    }
 }
 render('YOUR_USERNAME', 'YOUR_TOKEN');
 ```
 
-  After claim: `render(data.username, data.token)` plus the existing token/profile/result handling. The `#result` block keeps the welcome notice + token pre; the setup tabs are no longer duplicated inside it (delete the per-tool sections from `#result`, link the user to the tabs above or scroll there).
+After claim: `render(data.username, data.token)` plus the existing token/profile/result handling. The `#result` block keeps the welcome notice + token pre; the setup tabs are no longer duplicated inside it (delete the per-tool sections from `#result`, link the user to the tabs above or scroll there).
 
 - [ ] **Step 1: Implement** the restructure per above (server component + client script).
 - [ ] **Step 2: Typecheck/tests** — `pnpm vitest run` and `npx tsc --noEmit` (or the repo's check script) — expect PASS.
@@ -543,6 +614,7 @@ render('YOUR_USERNAME', 'YOUR_TOKEN');
 ### Task 7: Docs touch-up
 
 **Files:**
+
 - Modify: `README.md` (sources list / setup mention, if it enumerates sources)
 - Modify: reporter header comment (verify done in Task 3)
 

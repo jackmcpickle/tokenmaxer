@@ -233,7 +233,8 @@ export function parseOpencodeMessages(messages, opts = {}) {
  * on every run keeps ingestion idempotent (server upserts by session+model).
  */
 export function parseCursorEvents(events) {
-    const days = new Map(); // 'YYYY-MM-DD' -> Map(model -> totals)
+    // 'YYYY-MM-DD' -> Map(model -> totals)
+    const days = new Map();
     for (const e of Array.isArray(events) ? events : []) {
         if (!e || typeof e !== 'object') continue;
         const ms = Number(e.timestamp);
@@ -585,34 +586,44 @@ function cursorDbPaths() {
     ];
 }
 
-// Read cursorAuth/accessToken from state.vscdb; fall back to cfg.cursorCookie.
+// Older Cursor builds store the value JSON-quoted; current builds store the raw JWT.
+function normalizeCursorToken(value) {
+    let token = typeof value === 'string' ? value : null;
+    if (token?.startsWith('"')) {
+        try {
+            token = JSON.parse(token);
+        } catch {
+            /* keep raw */
+        }
+    }
+    return typeof token === 'string' && token ? token : null;
+}
+
+// Read cursorAuth/accessToken from one state.vscdb and build the session cookie.
+// Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
+function cursorTokenFromDb(path) {
+    const db = new DatabaseSync(path, { readOnly: true });
+    try {
+        const row = db
+            .prepare(
+                "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
+            )
+            .get();
+        const token = normalizeCursorToken(row?.value);
+        if (!token) return null;
+        const sub = jwtSub(token);
+        return sub ? `${sub}::${token}` : null;
+    } finally {
+        db.close();
+    }
+}
+
+// Try each known state.vscdb location; fall back to cfg.cursorCookie.
 function cursorSessionToken(cfg) {
     for (const path of cursorDbPaths()) {
         try {
-            const db = new DatabaseSync(path, { readOnly: true });
-            try {
-                const row = db
-                    .prepare(
-                        "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
-                    )
-                    .get();
-                let token = typeof row?.value === 'string' ? row.value : null;
-                // Older Cursor builds store the value JSON-quoted; current builds store the raw JWT.
-                if (token?.startsWith('"')) {
-                    try {
-                        token = JSON.parse(token);
-                    } catch {
-                        /* keep raw */
-                    }
-                }
-                if (typeof token === 'string' && token) {
-                    // Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
-                    const sub = jwtSub(token);
-                    if (sub) return `${sub}::${token}`;
-                }
-            } finally {
-                db.close();
-            }
+            const token = cursorTokenFromDb(path);
+            if (token) return token;
         } catch {
             /* try next path / fallback */
         }
@@ -774,6 +785,7 @@ async function reportOneOpencode(cfg, sessionArg) {
 async function cursorFetchEvents(sessionToken, sinceMs) {
     const events = [];
     for (let page = 1; page <= 200; page += 1) {
+        // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const res = await fetch(
             'https://cursor.com/api/dashboard/get-filtered-usage-events',
             {
@@ -798,6 +810,7 @@ async function cursorFetchEvents(sessionToken, sinceMs) {
             );
             return null;
         }
+        // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const data = await res.json().catch(() => null);
         if (data === null) return null;
         const batch = data?.usageEvents ?? data?.usageEventsDisplay ?? [];
@@ -820,10 +833,16 @@ async function cursorSync(cfg, opts = {}) {
     // Floor to UTC day start: rows are whole-day sums and the server upsert
     // replaces counts, so a partial oldest day would shrink stored totals.
     const d = new Date(since);
-    const sinceMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const sinceMs = Date.UTC(
+        d.getUTCFullYear(),
+        d.getUTCMonth(),
+        d.getUTCDate(),
+    );
     const events = await cursorFetchEvents(sessionToken, sinceMs);
     if (events === null) {
-        process.stderr.write('tokentally: cursor sync aborted (fetch failed)\n');
+        process.stderr.write(
+            'tokentally: cursor sync aborted (fetch failed)\n',
+        );
         return;
     }
     const rows = parseCursorEvents(events);
