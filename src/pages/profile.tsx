@@ -108,9 +108,7 @@ export const ProfilePage: FC<{ base: string; profile: Profile }> = ({
                                         <td class={num}>
                                             {formatTokens(b.output_tokens)}
                                         </td>
-                                        <td class={num}>
-                                            {formatUsd(b.cost)}
-                                        </td>
+                                        <td class={num}>{formatUsd(b.cost)}</td>
                                     </tr>
                                 ))}
                             </tbody>
