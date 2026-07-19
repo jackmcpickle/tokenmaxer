@@ -596,8 +596,15 @@ function cursorSessionToken(cfg) {
                         "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
                     )
                     .get();
-                const token =
-                    typeof row?.value === 'string' ? JSON.parse(row.value) : null;
+                let token = typeof row?.value === 'string' ? row.value : null;
+                // Older Cursor builds store the value JSON-quoted; current builds store the raw JWT.
+                if (token?.startsWith('"')) {
+                    try {
+                        token = JSON.parse(token);
+                    } catch {
+                        /* keep raw */
+                    }
+                }
                 if (typeof token === 'string' && token) {
                     // Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
                     const sub = jwtSub(token);
