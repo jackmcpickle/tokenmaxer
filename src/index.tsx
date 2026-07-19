@@ -5,6 +5,7 @@ import {
     getLeaderboard,
     getProfile,
 } from '@/lib/aggregate';
+import { baseUrl } from '@/lib/base-url';
 import {
     getInviteCookie,
     inviteAllowed,
@@ -35,12 +36,6 @@ import REPORTER_SOURCE from '../reporter/tokentally.mjs';
 const VERSION = '0.1.0';
 
 const app = new Hono<{ Bindings: Env }>();
-
-function baseUrl(env: Env, url: string): string {
-    return env.PUBLIC_BASE_URL && env.PUBLIC_BASE_URL.length > 0
-        ? env.PUBLIC_BASE_URL
-        : new URL(url).origin;
-}
 
 // Redirect www.* to the apex so we serve a single canonical host.
 app.use('*', async (c, next) => {
