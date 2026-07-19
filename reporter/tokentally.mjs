@@ -26,6 +26,7 @@
 //   node tokentally.mjs pi-report <path>         # parse one pi session file
 //   node tokentally.mjs cursor-sync                # sync recent Cursor dashboard usage
 //   node tokentally.mjs backfill [claude|codex|opencode|pi|cursor] # one-time: upload ALL past history
+//   node tokentally.mjs set-profile-url <https-url>|--clear # set or clear public profile link
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -753,6 +754,50 @@ function parseFile(path, source) {
 
 // --------------------------------------------------------------- commands ----
 
+export function parseSetProfileUrlArgs(argv) {
+    const args = argv.filter((a) => a !== '--dry-run');
+    if (args.length === 1 && args[0] === '--clear') return { clear: true };
+    if (args.length === 1 && typeof args[0] === 'string' && args[0].length > 0) {
+        return { clear: false, url: args[0] };
+    }
+    throw new Error(
+        'usage: tokenmaxer set-profile-url <https-url> | tokenmaxer set-profile-url --clear [--dry-run]',
+    );
+}
+
+export function buildProfileUrlBody(parsed) {
+    return { url: parsed.clear ? null : parsed.url };
+}
+
+async function setProfileUrl(cfg, argv) {
+    const parsed = parseSetProfileUrlArgs(argv);
+    const body = buildProfileUrlBody(parsed);
+    const endpoint = `${cfg.apiBase}/api/profile`;
+    if (DRY_RUN) {
+        process.stdout.write(
+            `${JSON.stringify({ method: 'POST', url: endpoint, body }, null, 2)}\n`,
+        );
+        return;
+    }
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${cfg.token}`,
+        },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data.error ?? `profile update failed (${res.status})`);
+    }
+    if (data.url) {
+        process.stdout.write(`profile url: ${data.url}\n`);
+    } else {
+        process.stdout.write('profile url: cleared\n');
+    }
+}
+
 async function claudeSessionEnd(cfg) {
     const stdin = await readStdin();
     let hook = {};
@@ -977,7 +1022,7 @@ async function reportOne(cfg, path, source) {
 
 async function main() {
     const cmd = process.argv[2];
-    const cfg = loadConfig();
+    const cfg = cmd === 'set-profile-url' ? null : loadConfig();
     switch (cmd) {
         case 'claude-sessionend':
             await claudeSessionEnd(cfg);
@@ -1026,9 +1071,18 @@ async function main() {
             await backfill(cfg, only);
             break;
         }
+        case 'set-profile-url': {
+            try {
+                await setProfileUrl(loadConfig(), process.argv.slice(3));
+            } catch (err) {
+                process.stderr.write(`tokentally: ${err?.message ?? err}\n`);
+                process.exit(1);
+            }
+            break;
+        }
         default:
             process.stderr.write(
-                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]> [--dry-run]\n',
+                'usage: tokentally.mjs <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url <https-url>|--clear> [--dry-run]\n',
             );
     }
 }

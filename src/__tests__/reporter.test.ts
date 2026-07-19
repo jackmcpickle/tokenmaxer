@@ -6,6 +6,8 @@ import {
     parseOpencodeMessages,
     parseCursorEvents,
     parsePiRollout,
+    parseSetProfileUrlArgs,
+    buildProfileUrlBody,
     sessionIdFromPath,
     toRows,
 } from '../../reporter/tokentally.mjs';
@@ -333,5 +335,32 @@ describe('parseCursorEvents', () => {
                 { timestamp: '123', tokenUsage: { inputTokens: 1 } }, // no model -> 'unknown'
             ]),
         ).toHaveLength(1);
+    });
+});
+
+describe('set-profile-url helpers', () => {
+    it('parses a url argument', () => {
+        expect(parseSetProfileUrlArgs(['https://example.com/me'])).toEqual({
+            clear: false,
+            url: 'https://example.com/me',
+        });
+    });
+
+    it('parses --clear', () => {
+        expect(parseSetProfileUrlArgs(['--clear'])).toEqual({ clear: true });
+    });
+
+    it('rejects missing args', () => {
+        expect(() => parseSetProfileUrlArgs([])).toThrow(/set-profile-url/u);
+    });
+
+    it('builds JSON bodies', () => {
+        expect(
+            buildProfileUrlBody({
+                clear: false,
+                url: 'https://example.com/me',
+            }),
+        ).toEqual({ url: 'https://example.com/me' });
+        expect(buildProfileUrlBody({ clear: true })).toEqual({ url: null });
     });
 });

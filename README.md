@@ -165,6 +165,8 @@ Claude Code / Codex / opencode / pi / Cursor transcripts and uploads only those 
 tokenmaxer backfill --dry-run    # print payloads, send nothing
 tokenmaxer backfill              # all tools
 tokenmaxer backfill claude      # Claude Code only (same for codex|opencode|pi|cursor)
+tokenmaxer set-profile-url https://github.com/YOU   # optional public link on /u/YOU
+tokenmaxer set-profile-url --clear
 ```
 
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than
