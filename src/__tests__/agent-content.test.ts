@@ -81,6 +81,7 @@ describe('llmsFullTxt', () => {
         expect(md).toContain('# Reference pricing');
         expect(md).toContain('# Get started');
         expect(md).toContain('/index.md');
+        expect(md).toContain('https://tokenmaxer.quest/api/profile');
         expect(md.length).toBeLessThan(50_000);
     });
 });
