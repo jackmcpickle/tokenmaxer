@@ -165,7 +165,7 @@ export const LeaderboardChart: FC<{
                                     key={e.username}
                                     class="group rounded-md open:bg-panel2 hover:bg-panel2"
                                 >
-                                    <summary class="grid cursor-pointer grid-cols-[2.5rem_7rem_1fr_4.5rem] items-center gap-2 px-1 py-1.5 list-none [&::-webkit-details-marker]:hidden">
+                                    <summary class="grid cursor-pointer list-none grid-cols-[2.5rem_7rem_1fr_4.5rem] items-center gap-2 px-1 py-1.5 [&::-webkit-details-marker]:hidden">
                                         <span class="text-xs font-semibold text-muted tabular-nums">
                                             #{e.rank}
                                         </span>
@@ -186,7 +186,7 @@ export const LeaderboardChart: FC<{
                                                 class="fill-accent"
                                             />
                                         </svg>
-                                        <span class="text-right text-sm font-semibold tabular-nums text-text">
+                                        <span class="text-right text-sm font-semibold text-text tabular-nums">
                                             {formatMetric(metric, value)}
                                         </span>
                                     </summary>
