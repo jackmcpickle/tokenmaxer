@@ -11,7 +11,7 @@ import { formatTokens, formatUsd } from '@/lib/format';
 describe('aboutMarkdown', () => {
     it('has title and core sections', () => {
         const md = aboutMarkdown();
-        expect(md).toMatch(/^# About tokenmaxer\.quest/m);
+        expect(md).toMatch(/^# About tokenmaxer\.quest/mu);
         expect(md).toContain('## What it tracks');
         expect(md).toContain('## Where the numbers come from');
         expect(md).toContain('## The honest part');
@@ -24,7 +24,7 @@ describe('aboutMarkdown', () => {
 describe('startMarkdown', () => {
     it('includes setup placeholders and tool sections', () => {
         const md = startMarkdown('https://tokenmaxer.quest');
-        expect(md).toMatch(/^# Get started/m);
+        expect(md).toMatch(/^# Get started/mu);
         expect(md).toContain('YOUR_USERNAME');
         expect(md).toContain('YOUR_TOKEN');
         expect(md).toContain('https://tokenmaxer.quest/tokentally.mjs');
@@ -41,8 +41,8 @@ describe('startMarkdown', () => {
 describe('llmsTxt', () => {
     it('matches llms.txt shape with absolute .md and API links', () => {
         const md = llmsTxt('https://tokenmaxer.quest');
-        expect(md).toMatch(/^# tokenmaxer\.quest/m);
-        expect(md).toMatch(/^>/m);
+        expect(md).toMatch(/^# tokenmaxer\.quest/mu);
+        expect(md).toMatch(/^>/mu);
         expect(md).toContain('## Docs');
         expect(md).toContain('## API');
         expect(md).toContain(
@@ -88,8 +88,8 @@ describe('homeMarkdown', () => {
             entries: [fixtureEntry],
             window: '7d',
         });
-        expect(md).toMatch(/top 10/i);
-        expect(md).toMatch(/7 days/i);
+        expect(md).toMatch(/top 10/iu);
+        expect(md).toMatch(/7 days/iu);
         expect(md).toContain('| Rank |');
         for (const col of [
             'Rank',
@@ -117,7 +117,7 @@ describe('homeMarkdown', () => {
             entries: [fixtureEntry],
             window: '30d',
         });
-        expect(md).toMatch(/30d|30 days/i);
+        expect(md).toMatch(/30d|30 days/iu);
     });
 
     it('shows a "no entries yet" note with an empty leaderboard', () => {
@@ -127,7 +127,7 @@ describe('homeMarkdown', () => {
             window: '7d',
         });
         expect(md).toContain('| Rank |');
-        expect(md).toMatch(/no entries yet/i);
+        expect(md).toMatch(/no entries yet/iu);
     });
 
     it('lists active source and model filters when provided', () => {
@@ -175,7 +175,7 @@ describe('profileMarkdown', () => {
             base: 'https://tokenmaxer.quest',
             profile: fixtureProfile,
         });
-        expect(md).toMatch(/^# bob/m);
+        expect(md).toMatch(/^# bob/mu);
         expect(md).toContain('Rank #3');
         expect(md).toContain(formatTokens(fixtureProfile.grand_total));
         expect(md).toContain(formatUsd(fixtureProfile.cost));
@@ -191,14 +191,14 @@ describe('profileMarkdown', () => {
             base: 'https://tokenmaxer.quest',
             profile: { ...fixtureProfile, breakdown: [] },
         });
-        expect(md).toMatch(/no usage/i);
+        expect(md).toMatch(/no usage/iu);
     });
 });
 
 describe('profileNotFoundMarkdown', () => {
     it('mentions not found and the requested username', () => {
         const md = profileNotFoundMarkdown('nope');
-        expect(md).toMatch(/not found/i);
+        expect(md).toMatch(/not found/iu);
         expect(md).toContain('nope');
     });
 });

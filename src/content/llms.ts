@@ -1,5 +1,5 @@
 export function llmsTxt(base: string): string {
-    const b = base.replace(/\/$/, '');
+    const b = base.replace(/\/$/u, '');
     return `# tokenmaxer.quest
 
 > Public token leaderboard for AI builders (Claude Code, Codex, opencode, pi, Cursor). Self-reported session usage; no prompts or PII.

@@ -1,4 +1,12 @@
-function snippets(base: string) {
+function snippets(base: string): {
+    setup: string;
+    claude: string;
+    codex: string;
+    opencode: string;
+    pi: string;
+    cursor: string;
+    agent: string;
+} {
     const setup =
         'mkdir -p ~/.tokentally && \\\n' +
         '  curl -fsSL ' +

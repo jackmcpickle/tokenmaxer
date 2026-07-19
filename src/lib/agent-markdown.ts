@@ -5,7 +5,7 @@ Open \`/invite?invite=…\` in a browser first, then retry.
 
 export function isBrowserRequest(req: Request): boolean {
     const accept = req.headers.get('accept');
-    if (accept && /text\/html/i.test(accept)) return true;
+    if (accept && /text\/html/iu.test(accept)) return true;
     if (req.headers.get('sec-fetch-mode')) return true;
     return false;
 }

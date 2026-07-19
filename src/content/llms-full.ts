@@ -2,7 +2,7 @@ import { aboutMarkdown } from '@/content/about.md';
 import { startMarkdown } from '@/content/start.md';
 
 export function llmsFullTxt(base: string): string {
-    const b = base.replace(/\/$/, '');
+    const b = base.replace(/\/$/u, '');
 
     const intro = `# tokenmaxer.quest — full corpus
 
