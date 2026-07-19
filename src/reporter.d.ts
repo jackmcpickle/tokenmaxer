@@ -38,6 +38,26 @@ declare module '*/tokentally.mjs' {
         opts?: { sessionId?: string; fallbackStartedAt?: number },
     ): ParsedTranscript;
     export function parseCursorEvents(events: unknown[]): ReporterRow[];
+    export function parseSetProfileUrlArgs(
+        argv: string[],
+    ): { clear: true } | { clear: false; url: string };
+    export function buildProfileUrlBody(parsed: { clear: true }): { url: null };
+    export function buildProfileUrlBody(parsed: {
+        clear: false;
+        url: string;
+    }): { url: string };
+    export function buildProfileUrlDryRun(args: {
+        endpoint: string;
+        body: { url: string | null };
+    }): {
+        method: 'POST';
+        url: string;
+        headers: {
+            'Content-Type': 'application/json';
+            Authorization: 'Bearer <redacted>';
+        };
+        body: { url: string | null };
+    };
     export function sessionIdFromPath(path: string): string;
     export function toRows(
         parsed: ParsedTranscript,

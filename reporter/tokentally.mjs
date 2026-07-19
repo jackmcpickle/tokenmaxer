@@ -27,6 +27,7 @@
 //   tokenmaxer pi-report <path>         # parse one pi session file
 //   tokenmaxer cursor-sync              # sync recent Cursor dashboard usage
 //   tokenmaxer backfill [claude|codex|opencode|pi|cursor] # one-time: upload ALL past history
+//   tokenmaxer set-profile-url <https-url>|--clear # set or clear public profile link
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -768,6 +769,75 @@ function parseFile(path, source) {
 
 // --------------------------------------------------------------- commands ----
 
+export function parseSetProfileUrlArgs(argv) {
+    const args = argv.filter((a) => a !== '--dry-run');
+    if (args.length === 1 && args[0] === '--clear') return { clear: true };
+    if (
+        args.length === 1 &&
+        typeof args[0] === 'string' &&
+        args[0].length > 0
+    ) {
+        return { clear: false, url: args[0] };
+    }
+    throw new Error(
+        'usage: tokenmaxer set-profile-url <https-url> | tokenmaxer set-profile-url --clear [--dry-run]',
+    );
+}
+
+export function buildProfileUrlBody(parsed) {
+    return { url: parsed.clear ? null : parsed.url };
+}
+
+export function buildProfileUrlDryRun({ endpoint, body }) {
+    return {
+        method: 'POST',
+        url: endpoint,
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer <redacted>',
+        },
+        body,
+    };
+}
+
+async function setProfileUrl(cfg, argv) {
+    const parsed = parseSetProfileUrlArgs(argv);
+    const body = buildProfileUrlBody(parsed);
+    const endpoint = `${cfg.apiBase}/api/profile`;
+    if (DRY_RUN) {
+        process.stdout.write(
+            `${JSON.stringify(buildProfileUrlDryRun({ endpoint, body }), null, 2)}\n`,
+        );
+        return;
+    }
+    const res = await fetch(`${cfg.apiBase}/api/profile`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${cfg.token}`,
+        },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data.error ?? `profile update failed (${res.status})`);
+    }
+    if (data.url) {
+        process.stdout.write(`profile url: ${data.url}\n`);
+    } else {
+        process.stdout.write('profile url: cleared\n');
+    }
+}
+
+async function runSetProfileUrl(argv) {
+    try {
+        await setProfileUrl(loadConfig(), argv);
+    } catch (err) {
+        process.stderr.write(`tokenmaxer: ${err?.message ?? err}\n`);
+        process.exit(1);
+    }
+}
+
 async function claudeSessionEnd(cfg) {
     const stdin = await readStdin();
     let hook = {};
@@ -992,6 +1062,10 @@ async function reportOne(cfg, path, source) {
 
 async function main() {
     const cmd = process.argv[2];
+    if (cmd === 'set-profile-url') {
+        await runSetProfileUrl(process.argv.slice(3));
+        return;
+    }
     const cfg = loadConfig();
     switch (cmd) {
         case 'claude-sessionend':
@@ -1043,7 +1117,7 @@ async function main() {
         }
         default:
             process.stderr.write(
-                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]> [--dry-run]\n',
+                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url (<https-url>|--clear)> [--dry-run]\n',
             );
     }
 }

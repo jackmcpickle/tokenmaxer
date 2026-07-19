@@ -19,6 +19,7 @@ describe('aboutMarkdown', () => {
         expect(md).toContain('## Accounts & privacy');
         expect(md).toContain('Claude Code');
         expect(md).toContain('Cursor');
+        expect(md).toContain('/api/profile');
     });
 });
 
@@ -70,6 +71,7 @@ describe('llmsTxt', () => {
         );
         expect(md).toContain('https://tokenmaxer.quest/api/leaderboard');
         expect(md).toContain('https://tokenmaxer.quest/api/u/:username');
+        expect(md).toContain('https://tokenmaxer.quest/api/profile');
         expect(md).toContain('## Optional');
     });
 });
@@ -81,6 +83,7 @@ describe('llmsFullTxt', () => {
         expect(md).toContain('# Reference pricing');
         expect(md).toContain('# Get started');
         expect(md).toContain('/index.md');
+        expect(md).toContain('https://tokenmaxer.quest/api/profile');
         expect(md.length).toBeLessThan(50_000);
     });
 });
@@ -165,6 +168,7 @@ const fixtureProfile: Profile = {
     created_at: Date.UTC(2026, 0, 1),
     rank: 3,
     sessions: 20,
+    url: null,
     grand_total: 500_000,
     input_tokens: 300_000,
     output_tokens: 150_000,
@@ -209,6 +213,16 @@ describe('profileMarkdown', () => {
             profile: { ...fixtureProfile, breakdown: [] },
         });
         expect(md).toMatch(/no usage/iu);
+    });
+
+    it('includes a markdown link when profile.url is set', () => {
+        const md = profileMarkdown({
+            base: 'https://tokenmaxer.quest',
+            profile: { ...fixtureProfile, url: 'https://example.com/bob' },
+        });
+        expect(md).toContain(
+            '[https://example.com/bob](https://example.com/bob)',
+        );
     });
 });
 
