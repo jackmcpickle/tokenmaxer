@@ -225,6 +225,46 @@ export function parseOpencodeMessages(messages, opts = {}) {
     };
 }
 
+/**
+ * Bucket Cursor dashboard usage events by UTC day + model into session rows.
+ * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
+ * on every run keeps ingestion idempotent (server upserts by session+model).
+ */
+export function parseCursorEvents(events) {
+    const days = new Map(); // 'YYYY-MM-DD' -> Map(model -> totals)
+    for (const e of Array.isArray(events) ? events : []) {
+        if (!e || typeof e !== 'object') continue;
+        const ms = Number(e.timestamp);
+        if (!Number.isFinite(ms) || ms <= 0) continue;
+        const u = e.tokenUsage;
+        if (!u || typeof u !== 'object') continue;
+        const day = new Date(ms).toISOString().slice(0, 10);
+        const model =
+            typeof e.model === 'string' && e.model ? e.model : 'unknown';
+        const byModel = days.get(day) ?? new Map();
+        const t = byModel.get(model) ?? emptyTotals();
+        t.input_tokens += num(u.inputTokens);
+        t.output_tokens += num(u.outputTokens);
+        t.cache_read_tokens += num(u.cacheReadTokens);
+        t.cache_creation_tokens += num(u.cacheWriteTokens);
+        byModel.set(model, t);
+        days.set(day, byModel);
+    }
+    const rows = [];
+    for (const [day, byModel] of days) {
+        const startedAt = Date.parse(`${day}T00:00:00Z`);
+        for (const [model, t] of byModel) {
+            rows.push({
+                session_id: `cursor-${day}`,
+                model,
+                started_at: startedAt,
+                ...t,
+            });
+        }
+    }
+    return rows;
+}
+
 function piUsage(obj) {
     if (obj.usage && typeof obj.usage === 'object') return obj.usage;
     const nested = obj.message?.usage;
