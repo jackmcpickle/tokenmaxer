@@ -1,5 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { distinctFamilies, familyLabel, familyOf } from '@/lib/model-family';
+import {
+    distinctFamilies,
+    familyLabel,
+    familyOf,
+    isSyntheticModel,
+} from '@/lib/model-family';
+
+describe('isSyntheticModel', () => {
+    it('detects Claude Code synthetic model ids', () => {
+        expect(isSyntheticModel('<synthetic>')).toBe(true);
+        expect(isSyntheticModel('synthetic')).toBe(true);
+        expect(isSyntheticModel('SYNTHETIC')).toBe(true);
+        expect(isSyntheticModel(' <synthetic> ')).toBe(true);
+    });
+
+    it('allows real model ids (including substring false friends)', () => {
+        expect(isSyntheticModel('claude-sonnet-5')).toBe(false);
+        expect(isSyntheticModel('gpt-5.1-codex')).toBe(false);
+        expect(isSyntheticModel('unknown')).toBe(false);
+        expect(isSyntheticModel('my-synthetic-router')).toBe(false);
+    });
+});
 
 describe('familyOf', () => {
     it('hides synthetic models', () => {

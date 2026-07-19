@@ -1,4 +1,4 @@
-import { distinctFamilies, familyOf } from '@/lib/model-family';
+import { distinctFamilies, familyOf, isSyntheticModel } from '@/lib/model-family';
 import { estimateCost } from '@/lib/pricing';
 import type { Metric, Source, TimeWindow } from '@/types';
 
@@ -160,6 +160,7 @@ export async function getLeaderboard(
         { username: string; totals: Totals; sessions: number }
     >();
     for (const r of res.results) {
+        if (isSyntheticModel(r.model)) continue;
         if (q.model && familyOf(r.model) !== q.model) continue;
         let entry = byUser.get(r.user_id);
         if (!entry) {
@@ -230,6 +231,7 @@ export async function getProfile(
     const breakdown: ModelBreakdown[] = [];
     let sessions = 0;
     for (const r of res.results) {
+        if (isSyntheticModel(r.model)) continue;
         addRow(totals, r);
         sessions += r.sessions;
         const bt = emptyTotals();
@@ -239,11 +241,14 @@ export async function getProfile(
     breakdown.sort((a, b) => grandTotal(b) - grandTotal(a));
 
     const myTotal = grandTotal(totals);
+    // Exclude Claude Code `<synthetic>` rows so rank matches filtered totals.
     const rankRes = await db
         .prepare(
             `SELECT COUNT(*) AS ahead FROM (
                SELECT user_id, SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_tokens) AS t
-               FROM session_usage GROUP BY user_id HAVING t > ?
+               FROM session_usage
+               WHERE LOWER(TRIM(model, '<>')) != 'synthetic'
+               GROUP BY user_id HAVING t > ?
              )`,
         )
         .bind(myTotal)

@@ -107,6 +107,34 @@ describe('parseClaudeTranscript', () => {
         expect(rows[0]?.session_id).toBe('sess-abc');
         expect(rows[0]?.model).toBe('claude-opus-4-8-20260101');
     });
+
+    it('drops <synthetic> model rows from toRows', () => {
+        const parsed = parseClaudeTranscript(
+            [
+                JSON.stringify({
+                    type: 'assistant',
+                    timestamp: '2026-07-18T10:00:05Z',
+                    sessionId: 'sess-syn',
+                    message: {
+                        model: 'claude-sonnet-5',
+                        usage: { input_tokens: 10, output_tokens: 20 },
+                    },
+                }),
+                JSON.stringify({
+                    type: 'assistant',
+                    timestamp: '2026-07-18T10:00:06Z',
+                    sessionId: 'sess-syn',
+                    message: {
+                        model: '<synthetic>',
+                        usage: { input_tokens: 0, output_tokens: 0 },
+                    },
+                }),
+            ].join('\n'),
+        );
+        expect(parsed.models.has('<synthetic>')).toBe(true);
+        const rows = toRows(parsed, '/x/sess-syn.jsonl');
+        expect(rows.map((r) => r.model)).toEqual(['claude-sonnet-5']);
+    });
 });
 
 describe('parseCodexRollout', () => {

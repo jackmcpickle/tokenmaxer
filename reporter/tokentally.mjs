@@ -380,12 +380,20 @@ export function sessionIdFromPath(path) {
     return name;
 }
 
+/** Claude Code `<synthetic>` turns — never report or score. */
+function isSyntheticModel(model) {
+    if (typeof model !== 'string') return false;
+    const m = model.toLowerCase().trim().replace(/^<|>$/g, '');
+    return m === 'synthetic';
+}
+
 /** Turn a parsed result into API session rows (one per model). */
 export function toRows(parsed, path) {
     const sid = parsed.session_id ?? sessionIdFromPath(path ?? '');
     const startedAt = parsed.started_at ?? Date.now();
     const rows = [];
     for (const [model, t] of parsed.models) {
+        if (isSyntheticModel(model)) continue;
         rows.push({ session_id: sid, model, started_at: startedAt, ...t });
     }
     return rows;

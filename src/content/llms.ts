@@ -10,6 +10,7 @@ Prefer the Markdown links below. Live rankings also available as JSON.
 
 - [Leaderboard](${b}/index.md): Top builders — default top 10 · last 7 days
 - [About](${b}/about.md): What is tracked, privacy, honor system
+- [Pricing](${b}/pricing.md): Reference USD/MTok rates used for estimated cost
 - [Get started](${b}/start.md): Claim username + reporter setup (invite cookie required when gate is on)
 - [Profile pattern](${b}/u/USERNAME.md): Replace USERNAME — per-builder totals and model breakdown
 

@@ -4,6 +4,7 @@ import { aboutMarkdown } from '@/content/about.md';
 import { homeMarkdown } from '@/content/home.md';
 import { llmsTxt } from '@/content/llms';
 import { llmsFullTxt } from '@/content/llms-full';
+import { pricingMarkdown } from '@/content/pricing.md';
 import { profileMarkdown, profileNotFoundMarkdown } from '@/content/profile.md';
 import { startMarkdown } from '@/content/start.md';
 import {
@@ -24,6 +25,13 @@ export async function serveAboutMarkdown(
     _c: Context<{ Bindings: Env }>,
 ): Promise<Response> {
     return markdownBody(aboutMarkdown());
+}
+
+/** Shared with `GET /pricing` in `src/index.tsx` when the request isn't from a browser. */
+export async function servePricingMarkdown(
+    _c: Context<{ Bindings: Env }>,
+): Promise<Response> {
+    return markdownBody(pricingMarkdown());
 }
 
 /** Shared with `GET /start` in `src/index.tsx` when the request isn't from a browser. */
@@ -96,6 +104,8 @@ agentPageRoutes.get('/llms-full.txt', (c) =>
 );
 
 agentPageRoutes.get('/about.md', (c) => serveAboutMarkdown(c));
+
+agentPageRoutes.get('/pricing.md', (c) => servePricingMarkdown(c));
 
 agentPageRoutes.get('/start.md', (c) => serveStartMarkdown(c));
 

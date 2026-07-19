@@ -1,4 +1,5 @@
 import { aboutMarkdown } from '@/content/about.md';
+import { pricingMarkdown } from '@/content/pricing.md';
 import { startMarkdown } from '@/content/start.md';
 
 export function llmsFullTxt(base: string): string {
@@ -24,6 +25,7 @@ Current rankings: [Leaderboard](${b}/index.md) · [JSON](${b}/api/leaderboard)`;
     return [
         intro,
         aboutMarkdown(),
+        pricingMarkdown(),
         startMarkdown(b),
         apiBlurb,
         leaderboardPointer,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateCost, priceFor } from '@/lib/pricing';
+import { estimateCost, listPrices, priceFor } from '@/lib/pricing';
 
 describe('priceFor', () => {
     it('matches the longest substring for versioned model ids', () => {
@@ -21,6 +21,24 @@ describe('priceFor', () => {
         expect(priceFor('qwen/qwen3-coder').input).toBe(0.3);
         expect(priceFor('z-ai/glm-4.6').output).toBe(2.2);
         expect(priceFor('google/gemini-2.5-pro').output).toBe(10);
+    });
+});
+
+describe('listPrices', () => {
+    it('returns every priced model id sorted alphabetically', () => {
+        const prices = listPrices();
+        expect(prices.length).toBeGreaterThan(10);
+        expect(prices.map((p) => p.id)).toEqual(
+            [...prices.map((p) => p.id)].sort((a, b) => a.localeCompare(b)),
+        );
+        const sonnet = prices.find((p) => p.id === 'claude-sonnet-5');
+        expect(sonnet).toEqual({
+            id: 'claude-sonnet-5',
+            input: 3,
+            output: 15,
+            cacheRead: 0.3,
+            cacheWrite: 3.75,
+        });
     });
 });
 

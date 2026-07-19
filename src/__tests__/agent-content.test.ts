@@ -3,6 +3,7 @@ import { aboutMarkdown } from '@/content/about.md';
 import { homeMarkdown } from '@/content/home.md';
 import { llmsTxt } from '@/content/llms';
 import { llmsFullTxt } from '@/content/llms-full';
+import { pricingMarkdown } from '@/content/pricing.md';
 import { profileMarkdown, profileNotFoundMarkdown } from '@/content/profile.md';
 import { startMarkdown } from '@/content/start.md';
 import type { LeaderboardEntry, Profile } from '@/lib/aggregate';
@@ -18,6 +19,16 @@ describe('aboutMarkdown', () => {
         expect(md).toContain('## Accounts & privacy');
         expect(md).toContain('Claude Code');
         expect(md).toContain('Cursor');
+    });
+});
+
+describe('pricingMarkdown', () => {
+    it('lists reference rates as a table', () => {
+        const md = pricingMarkdown();
+        expect(md).toMatch(/^# Reference pricing/mu);
+        expect(md).toContain('| Model id |');
+        expect(md).toContain('`claude-sonnet-5`');
+        expect(md).toContain('1,000,000');
     });
 });
 
@@ -51,6 +62,7 @@ describe('llmsTxt', () => {
             '[Leaderboard](https://tokenmaxer.quest/index.md)',
         );
         expect(md).toContain('[About](https://tokenmaxer.quest/about.md)');
+        expect(md).toContain('[Pricing](https://tokenmaxer.quest/pricing.md)');
         expect(md).toContain(
             '[Get started](https://tokenmaxer.quest/start.md)',
         );
@@ -61,9 +73,10 @@ describe('llmsTxt', () => {
 });
 
 describe('llmsFullTxt', () => {
-    it('inlines about + start and stays under 50KB', () => {
+    it('inlines about + pricing + start and stays under 50KB', () => {
         const md = llmsFullTxt('https://tokenmaxer.quest');
         expect(md).toContain('# About tokenmaxer.quest');
+        expect(md).toContain('# Reference pricing');
         expect(md).toContain('# Get started');
         expect(md).toContain('/index.md');
         expect(md.length).toBeLessThan(50_000);

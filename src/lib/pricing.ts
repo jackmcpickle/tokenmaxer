@@ -251,6 +251,15 @@ const FALLBACK: ModelPrice = {
     cacheWrite: 3.75,
 };
 
+export type ListedPrice = ModelPrice & { id: string };
+
+/** Sorted reference price rows for the public pricing page (USD per 1M tokens). */
+export function listPrices(): ListedPrice[] {
+    return Object.entries(PRICES)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([id, price]) => ({ id, ...price }));
+}
+
 export function priceFor(model: string): ModelPrice {
     const m = model.toLowerCase();
     let best: ModelPrice | null = null;

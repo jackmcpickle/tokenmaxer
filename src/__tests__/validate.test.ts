@@ -25,6 +25,7 @@ describe('validateUsername', () => {
     it('rejects reserved names case-insensitively', () => {
         expect(validateUsername('API').ok).toBe(false);
         expect(validateUsername('admin').ok).toBe(false);
+        expect(validateUsername('pricing').ok).toBe(false);
     });
 });
 
@@ -115,6 +116,47 @@ describe('parseIngestBody', () => {
                 sessions: [{ session_id: 's' }],
             }).ok,
         ).toBe(false);
+    });
+
+    it('drops synthetic model sessions', () => {
+        const r = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    session_id: 's1',
+                    model: 'claude-sonnet-5',
+                    input_tokens: 10,
+                    output_tokens: 20,
+                },
+                {
+                    session_id: 's2',
+                    model: '<synthetic>',
+                    input_tokens: 0,
+                    output_tokens: 0,
+                },
+            ],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toHaveLength(1);
+            expect(r.value.sessions[0]?.model).toBe('claude-sonnet-5');
+        }
+    });
+
+    it('accepts an all-synthetic payload as an empty session list', () => {
+        const r = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    session_id: 's2',
+                    model: '<synthetic>',
+                    input_tokens: 0,
+                    output_tokens: 0,
+                },
+            ],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.sessions).toEqual([]);
     });
 
     it('caps ingest at MAX_INGEST_SESSIONS', () => {

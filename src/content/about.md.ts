@@ -5,7 +5,7 @@ A public leaderboard of tokens burned by AI builders — nothing more.
 
 ## What it tracks
 
-For each coding session, tokenmaxer.quest stores only token counts — input, output, cache read, cache write, and reasoning tokens — broken down by model and by tool (Claude Code, Codex, opencode, pi, or Cursor). That's it. No prompts, no code, no file paths, no email, no IP beyond transient rate-limiting. The leaderboard can rank by total tokens, input+output, output only, or estimated cost.
+For each coding session, tokenmaxer.quest stores only token counts — input, output, cache read, cache write, and reasoning tokens — broken down by model and by tool (Claude Code, Codex, opencode, pi, or Cursor). That's it. No prompts, no code, no file paths, no email, no IP beyond transient rate-limiting. The leaderboard can rank by total tokens, input+output, output only, or estimated cost. Reference rates for that estimate are listed on [Pricing](/pricing.md).
 
 ## Where the numbers come from
 

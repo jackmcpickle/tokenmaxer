@@ -1,3 +1,4 @@
+import { isSyntheticModel } from '@/lib/model-family';
 import { isSource, type SessionUsageInput, type Source } from '@/types';
 
 export const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/u;
@@ -6,6 +7,7 @@ const RESERVED = new Set([
     'api',
     'start',
     'about',
+    'pricing',
     'u',
     'admin',
     'static',
@@ -141,6 +143,8 @@ export function parseIngestBody(
     for (const raw of b.sessions) {
         const parsed = parseSessionEntry(raw);
         if (!parsed.ok) return parsed;
+        // Skip Claude Code `<synthetic>` rows; all-synthetic batches still succeed.
+        if (isSyntheticModel(parsed.value.model)) continue;
         sessions.push(parsed.value);
     }
 

@@ -17,6 +17,7 @@ import {
 import { About } from '@/pages/about';
 import { Home } from '@/pages/home';
 import { Layout } from '@/pages/layout';
+import { Pricing } from '@/pages/pricing';
 import { ProfilePage } from '@/pages/profile';
 import { Start } from '@/pages/start';
 import { sub } from '@/pages/ui';
@@ -24,6 +25,7 @@ import {
     agentPageRoutes,
     serveAboutMarkdown,
     serveHomeMarkdown,
+    servePricingMarkdown,
     serveProfileMarkdown,
     serveStartMarkdown,
 } from '@/routes/agent-pages';
@@ -57,8 +59,8 @@ app.use('*', async (c, next) => {
 });
 
 // Markdown/plaintext pages for agents: /llms.txt, /llms-full.txt, /about.md,
-// /start.md, /index.md, /u/:username.md. Distinct literal paths, so this
-// never shadows /api/*.
+// /pricing.md, /start.md, /index.md, /u/:username.md. Distinct literal paths,
+// so this never shadows /api/*.
 app.route('/', agentPageRoutes);
 
 function withAgentDiscoveryHeaders(c: Context<{ Bindings: Env }>): void {
@@ -168,6 +170,12 @@ app.get('/about', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return serveAboutMarkdown(c);
     withAgentDiscoveryHeaders(c);
     return c.html(<About base={baseUrl(c.env, c.req.url)} />);
+});
+
+app.get('/pricing', async (c) => {
+    if (!isBrowserRequest(c.req.raw)) return servePricingMarkdown(c);
+    withAgentDiscoveryHeaders(c);
+    return c.html(<Pricing base={baseUrl(c.env, c.req.url)} />);
 });
 
 app.get('/u/:username', async (c) => {

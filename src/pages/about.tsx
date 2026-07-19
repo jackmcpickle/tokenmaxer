@@ -25,7 +25,8 @@ export const About: FC<{ base: string }> = ({ base }) => (
                 opencode or pi). That&apos;s it. No prompts, no code, no file
                 paths, no email, no IP beyond transient rate-limiting. The
                 leaderboard can rank by total tokens, input+output, output only,
-                or estimated cost.
+                or estimated cost. The rates behind that estimate are on the{' '}
+                <a href="/pricing">pricing</a> page.
             </p>
 
             <h2>Where the numbers come from</h2>

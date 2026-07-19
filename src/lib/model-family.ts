@@ -12,10 +12,16 @@ const FAMILY_LABELS: Record<string, string> = {
     gpt: 'GPT',
 };
 
+/** Claude Code `<synthetic>` internal turns — never show or score. */
+export function isSyntheticModel(model: string): boolean {
+    const m = model.toLowerCase().trim().replace(/^<|>$/gu, '');
+    return m === 'synthetic';
+}
+
 /** Family id for a raw model string, or null to hide from the filter list. */
 export function familyOf(model: string): string | null {
     const m = model.toLowerCase().trim();
-    if (!m || m.includes('synthetic')) return null;
+    if (!m || isSyntheticModel(m)) return null;
 
     if (m.includes('sonnet')) return 'sonnet';
     if (m.includes('opus')) return 'opus';
