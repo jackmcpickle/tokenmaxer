@@ -13,17 +13,17 @@ Give each public profile a **dynamic social share card**:
 
 ## Decisions
 
-| Topic | Choice |
-| --- | --- |
-| Scope | Dynamic OG image **and** on-page share UI |
-| Card layout | Poster flex (monochrome dark canvas) |
-| Card stats | Last 7 days + All time; each: tokens, est. cost, sessions; plus username + rank + brand |
-| Image pipeline | Hand-authored SVG template → PNG via `resvg-wasm` on the Worker |
-| Size | 1200×630 (`summary_large_image`) |
-| Data cache | Existing KV `cachedProfile` / `getOrSet` + `READ_CACHE_TTL_SECONDS` (600); invalidate via `invalidateProfileCache` on ingest |
-| HTTP cache | Same pattern as `pageCache` / `apiCache`: Hono Cache API middleware, `max-age=600`, cache name `tokentally-og` |
-| Share actions | Copy link, Download PNG, `navigator.share` when supported |
-| Out of scope | Square/story variant, per-network share buttons, custom themes, active Cache API purge beyond TTL |
+| Topic          | Choice                                                                                                                       |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Scope          | Dynamic OG image **and** on-page share UI                                                                                    |
+| Card layout    | Poster flex (monochrome dark canvas)                                                                                         |
+| Card stats     | Last 7 days + All time; each: tokens, est. cost, sessions; plus username + rank + brand                                      |
+| Image pipeline | Hand-authored SVG template → PNG via `resvg-wasm` on the Worker                                                              |
+| Size           | 1200×630 (`summary_large_image`)                                                                                             |
+| Data cache     | Existing KV `cachedProfile` / `getOrSet` + `READ_CACHE_TTL_SECONDS` (600); invalidate via `invalidateProfileCache` on ingest |
+| HTTP cache     | Same pattern as `pageCache` / `apiCache`: Hono Cache API middleware, `max-age=600`, cache name `tokentally-og`               |
+| Share actions  | Copy link, Download PNG, `navigator.share` when supported                                                                    |
+| Out of scope   | Square/story variant, per-network share buttons, custom themes, active Cache API purge beyond TTL                            |
 
 ## Architecture
 
@@ -47,11 +47,11 @@ flowchart LR
 - **Path:** `GET /u/:username/og.png`
 - **Middleware:** Cache API wrapper matching [`src/lib/page-cache.ts`](../../../src/lib/page-cache.ts) — `cacheName: 'tokentally-og'`, `Cache-Control: public, max-age=${READ_CACHE_TTL_SECONDS}`. No `Vary` on Accept/Origin (URL is the cache key).
 - **Handler:**
-  1. Load all-time profile via `cachedProfile(db, kv, username)`
-  2. Load last-7-day totals via a new cached helper (same TTL / key namespace as aggregates, e.g. `agg:profile7d:v1:{username}`)
-  3. If profile missing → `404` (do not store in KV; do not rely on caching error bodies)
-  4. Build SVG from Poster-flex template; escape text for XML
-  5. Rasterize with `resvg-wasm`; return `image/png`
+    1. Load all-time profile via `cachedProfile(db, kv, username)`
+    2. Load last-7-day totals via a new cached helper (same TTL / key namespace as aggregates, e.g. `agg:profile7d:v1:{username}`)
+    3. If profile missing → `404` (do not store in KV; do not rely on caching error bodies)
+    4. Build SVG from Poster-flex template; escape text for XML
+    5. Rasterize with `resvg-wasm`; return `image/png`
 
 ### Data
 
@@ -94,18 +94,18 @@ On [`ProfilePage`](../../../src/pages/profile.tsx), under the hero and before th
 - Top row: Capsule Ladder mark + `tokenmaxer.quest` wordmark; rank pill (`Rank #{n}`)
 - Hero: username (large display tracking)
 - Stats block under the name (not footer-stuck): two columns
-  - **Last 7 days** — Tokens · Est. cost · Sessions
-  - **All time** — Tokens · Est. cost · Sessions
+    - **Last 7 days** — Tokens · Est. cost · Sessions
+    - **All time** — Tokens · Est. cost · Sessions
 - System fonts in SVG suitable for `resvg` (Helvetica Neue / Arial stack, matching existing static `brand/logo/og.svg`)
 
 ## Caching policy
 
 Align with dashboard read cache ([#11](https://github.com/jackmcpickle/tokentally/commit/3953ba1)):
 
-| Layer | Mechanism | TTL | Invalidation |
-| --- | --- | --- | --- |
-| Aggregate JSON | KV `getOrSet` | 600s | `invalidateProfileCache` on ingest/history (include 7d key) |
-| PNG bytes | Hono `cache()` Cache API | 600s via `Cache-Control` | TTL only (same as HTML pages) |
+| Layer          | Mechanism                | TTL                      | Invalidation                                                |
+| -------------- | ------------------------ | ------------------------ | ----------------------------------------------------------- |
+| Aggregate JSON | KV `getOrSet`            | 600s                     | `invalidateProfileCache` on ingest/history (include 7d key) |
+| PNG bytes      | Hono `cache()` Cache API | 600s via `Cache-Control` | TTL only (same as HTML pages)                               |
 
 Do not introduce a shorter OG-only TTL.
 

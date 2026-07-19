@@ -17,18 +17,18 @@
 
 ## File map
 
-| File | Role |
-| --- | --- |
-| `src/lib/aggregate.ts` | `getProfileWindowTotals` |
+| File                          | Role                                        |
+| ----------------------------- | ------------------------------------------- |
+| `src/lib/aggregate.ts`        | `getProfileWindowTotals`                    |
 | `src/lib/cached-aggregate.ts` | `cachedProfileWindow` / 7d key + invalidate |
-| `src/lib/page-cache.ts` | `ogCache` middleware |
-| `src/lib/share-card.ts` | Card payload + SVG builder |
-| `src/lib/share-card-png.ts` | resvg rasterize |
-| `src/routes/og.ts` | `GET /u/:username/og.png` |
-| `src/index.tsx` | Mount OG route before profile HTML |
-| `src/pages/layout.tsx` | Optional og meta overrides |
-| `src/pages/profile.tsx` | Share panel + script |
-| `src/__tests__/*` | Unit + route tests |
+| `src/lib/page-cache.ts`       | `ogCache` middleware                        |
+| `src/lib/share-card.ts`       | Card payload + SVG builder                  |
+| `src/lib/share-card-png.ts`   | resvg rasterize                             |
+| `src/routes/og.ts`            | `GET /u/:username/og.png`                   |
+| `src/index.tsx`               | Mount OG route before profile HTML          |
+| `src/pages/layout.tsx`        | Optional og meta overrides                  |
+| `src/pages/profile.tsx`       | Share panel + script                        |
+| `src/__tests__/*`             | Unit + route tests                          |
 
 ---
 
