@@ -37,7 +37,8 @@ const REFERENCES: readonly { href: string; title: string; usedFor: string }[] =
         {
             href: 'https://arxiv.org/abs/2304.03271',
             title: 'Li et al. 2023 — Making AI Less ‘Thirsty’',
-            usedFor: 'Water footprint methodology; AU offsite grid water factor',
+            usedFor:
+                'Water footprint methodology; AU offsite grid water factor',
         },
         {
             href: 'https://arxiv.org/abs/2407.14713',
@@ -267,15 +268,16 @@ export const Footprint: FC<FootprintProps> = (p) => (
             <p class="mb-4 text-muted">
                 Each row also shows percent of an average household framed as{' '}
                 <strong class="text-text">two adults and two children</strong>{' '}
-                for that region (electricity, water, or electricity-linked CO₂e).
-                China and India household baselines are approximate order-of-magnitude
-                fillers. For all-time rankings, household % uses a 30-day household
-                denominator.
+                for that region (electricity, water, or electricity-linked
+                CO₂e). China and India household baselines are approximate
+                order-of-magnitude fillers. For all-time rankings, household %
+                uses a 30-day household denominator.
             </p>
             <p class="text-sm text-muted">
                 Disclaimer: these are awareness estimates. Actual use varies by
                 data center, cooling, hardware, batching, and where the model
-                really runs. Low–High is real-world spread, not measurement error.
+                really runs. Low–High is real-world spread, not measurement
+                error.
             </p>
         </section>
 

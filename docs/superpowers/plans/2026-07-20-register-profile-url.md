@@ -20,30 +20,33 @@
 
 ## File map
 
-| File | Role |
-| ---- | ---- |
-| `src/routes/register.ts` | Parse/validate optional `url`; INSERT `profile_url` |
-| `src/pages/start.tsx` | Optional input + include `url` in register JSON |
-| `src/content/start.md.ts` | Document optional `url` on register |
-| `src/__tests__/register-route.test.ts` | New: register with/without/invalid url |
-| `src/__tests__/invite-session.test.ts` | Assert invited form has profile URL input |
-| `src/__tests__/agent-content.test.ts` | Assert start.md mentions optional url |
+| File                                   | Role                                                |
+| -------------------------------------- | --------------------------------------------------- |
+| `src/routes/register.ts`               | Parse/validate optional `url`; INSERT `profile_url` |
+| `src/pages/start.tsx`                  | Optional input + include `url` in register JSON     |
+| `src/content/start.md.ts`              | Document optional `url` on register                 |
+| `src/__tests__/register-route.test.ts` | New: register with/without/invalid url              |
+| `src/__tests__/invite-session.test.ts` | Assert invited form has profile URL input           |
+| `src/__tests__/agent-content.test.ts`  | Assert start.md mentions optional url               |
 
 ---
 
 ### Task 1: Register API accepts optional `url`
 
 **Files:**
+
 - Create: `src/__tests__/register-route.test.ts`
 - Modify: `src/routes/register.ts`
 
 **Interfaces:**
+
 - Consumes: `validateProfileUrl(raw) -> Result<string | null>`
 - Produces: `POST /api/register` body may include `url?; INSERT` binds `profile_url`
 
 - [x] **Step 1: Write failing register-route tests**
 
 Create `src/__tests__/register-route.test.ts` that:
+
 - Stubs KV via `@/__tests__/helpers/kv`
 - Mocks D1 to capture INSERT binds and reject duplicate usernames
 - Stubs `globalThis.fetch` for Turnstile `siteverify` → `{ success: true }`
@@ -51,6 +54,7 @@ Create `src/__tests__/register-route.test.ts` that:
 - Prefer `INVITE_KEY` unset so invite is open; still send a dummy `turnstileToken`
 
 Tests:
+
 1. Valid `url` → 201; INSERT includes normalized profile_url
 2. No `url` → 201; profile_url null/undefined in binds
 3. Invalid `url` (`http://…`) → 400; no successful insert
@@ -80,6 +84,7 @@ npx vitest run src/__tests__/register-route.test.ts
 ### Task 2: `/start` claim form optional Profile URL field
 
 **Files:**
+
 - Modify: `src/pages/start.tsx`
 - Modify: `src/__tests__/invite-session.test.ts`
 
@@ -110,6 +115,7 @@ npx vitest run src/__tests__/invite-session.test.ts
 ### Task 3: Document optional `url` in start.md
 
 **Files:**
+
 - Modify: `src/content/start.md.ts`
 - Modify: `src/__tests__/agent-content.test.ts`
 
@@ -131,7 +137,11 @@ npx vitest run src/__tests__/agent-content.test.ts
 - [ ] **Step 3: Update start.md.ts claim example**
 
 ```json
-{ "username": "yourname", "turnstileToken": "…", "url": "https://example.com/me" }
+{
+    "username": "yourname",
+    "turnstileToken": "…",
+    "url": "https://example.com/me"
+}
 ```
 
 Note that `url` is optional and can be set later with `tokenmaxer set-profile-url`.

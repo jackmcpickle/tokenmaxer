@@ -124,7 +124,9 @@ export interface ImpactEstimate {
 }
 
 export function isImpactScenario(v: unknown): v is ImpactScenario {
-    return typeof v === 'string' && IMPACT_SCENARIOS.includes(v as ImpactScenario);
+    return (
+        typeof v === 'string' && IMPACT_SCENARIOS.includes(v as ImpactScenario)
+    );
 }
 
 export function isImpactMetric(v: unknown): v is ImpactMetric {
@@ -227,7 +229,10 @@ export function householdPercent(impact: number, household: number): number {
 
 function trimNum(n: number, digits: number): string {
     if (digits <= 0) return String(Math.round(n));
-    return n.toFixed(digits).replace(/(\.\d*?)0+$/u, '$1').replace(/\.$/u, '');
+    return n
+        .toFixed(digits)
+        .replace(/(\.\d*?)0+$/u, '$1')
+        .replace(/\.$/u, '');
 }
 
 function formatScaled(n: number, unit: string): string {
@@ -237,7 +242,9 @@ function formatScaled(n: number, unit: string): string {
 export function formatImpact(metric: ImpactMetric, n: number): string {
     switch (metric) {
         case 'energy':
-            return n < 1 ? `${trimNum(n * 1000, 1)} Wh` : formatScaled(n, 'kWh');
+            return n < 1
+                ? `${trimNum(n * 1000, 1)} Wh`
+                : formatScaled(n, 'kWh');
         case 'water':
             return n < 1 ? `${trimNum(n * 1000, 0)} mL` : formatScaled(n, 'L');
         case 'co2':

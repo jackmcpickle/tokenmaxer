@@ -27,7 +27,11 @@ function db(): D1Database {
                     return self;
                 },
                 async first<T>() {
-                    if (sql.includes('SELECT id FROM users WHERE username_lower')) {
+                    if (
+                        sql.includes(
+                            'SELECT id FROM users WHERE username_lower',
+                        )
+                    ) {
                         const lower = String(self.binds[0]);
                         const hit = state.users.find(
                             (u) => u.username_lower === lower,
@@ -48,8 +52,7 @@ function db(): D1Database {
                         };
                         if (
                             state.users.some(
-                                (u) =>
-                                    u.username_lower === row.username_lower,
+                                (u) => u.username_lower === row.username_lower,
                             )
                         ) {
                             throw new Error('UNIQUE constraint failed');

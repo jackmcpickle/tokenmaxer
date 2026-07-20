@@ -1,10 +1,7 @@
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import {
-    AGENT_PAGE_VARY,
-    isBrowserRequest,
-} from '@/lib/agent-markdown';
+import { AGENT_PAGE_VARY, isBrowserRequest } from '@/lib/agent-markdown';
 import { baseUrl } from '@/lib/base-url';
 import {
     cachedDistinctModelFamilies,
@@ -12,18 +9,18 @@ import {
     cachedProfile,
 } from '@/lib/cached-aggregate';
 import {
-    getInviteCookie,
-    inviteAllowed,
-    inviteSessionAllowed,
-    setInviteCookie,
-} from '@/lib/invite';
-import {
     estimateImpact,
     impactValue,
     parseImpactMetric,
     parseImpactRegion,
     parseImpactScenario,
 } from '@/lib/impact';
+import {
+    getInviteCookie,
+    inviteAllowed,
+    inviteSessionAllowed,
+    setInviteCookie,
+} from '@/lib/invite';
 import { pageCache } from '@/lib/page-cache';
 import { About } from '@/pages/about';
 import { Footprint } from '@/pages/footprint';
