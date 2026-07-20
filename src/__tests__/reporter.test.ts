@@ -296,6 +296,68 @@ describe('parseCodexRollout thread-spawn children', () => {
         expect(parsed.pending_inherited).toHaveLength(0);
     });
 
+    it('ignores a later session_meta after the boundary (resume / replayed parent meta)', () => {
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                TRIGGER_TURN,
+                codexLine('session_meta', {
+                    id: 'parent-1',
+                    source: {
+                        subagent: {
+                            thread_spawn: {
+                                parent_thread_id: 'grandparent-1',
+                                depth: 1,
+                            },
+                        },
+                    },
+                }),
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        expect(parsed.parent_id).toBe('parent-1');
+        expect(parsed.pending_inherited).toHaveLength(0);
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(11);
+    });
+
+    it('does not let a trigger_turn marker wipe a forked session’s held usage', () => {
+        const parsed = parseCodexRollout(
+            [
+                codexLine('session_meta', {
+                    id: 'fork-1',
+                    source: { forked_from_id: 'parent-1' },
+                }),
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                tokenCount(200, 160, 20, 4),
+                TRIGGER_TURN,
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        expect(parsed.models.size).toBe(0);
+        expect(parsed.pending_inherited).toHaveLength(3);
+        resolveCodexInherited(parsed, PARENT_ROLLOUT);
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(11);
+        expect(t?.output_tokens).toBe(5);
+    });
+
+    it('resolveCodexInherited keeps a run that matches the parent only mid-sequence', () => {
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(200, 160, 20, 4),
+                tokenCount(300, 240, 30, 6),
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, PARENT_ROLLOUT);
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(511);
+    });
+
     it('resolveCodexInherited keeps a single-event match (may be coincidence)', () => {
         const parsed = parseCodexRollout(
             [

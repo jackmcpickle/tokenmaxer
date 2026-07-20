@@ -65,6 +65,19 @@ function toMs(ts) {
     return Number.isFinite(n) ? n : null;
 }
 
+/** Yield each parseable JSON object from a JSONL text, skipping bad lines. */
+function* jsonlObjects(text) {
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+            yield JSON.parse(trimmed);
+        } catch {
+            /* skip unparseable line */
+        }
+    }
+}
+
 /**
  * Parse a Claude Code transcript (JSONL). One transcript = one session that may
  * touch several models. Returns { session_id, started_at, models: {model: totals} }.
@@ -124,13 +137,22 @@ function addCodexUsage(models, model, last) {
 // those would double-count usage already reported under the parent session
 // (the parent and child have distinct session ids, so server idempotency
 // cannot catch it).
-function codexParentId(payload) {
-    const id =
+//
+// `spawn: true` (thread-spawn subagents) means the file carries a trigger_turn
+// boundary marker separating replay from real usage. Forks have no such
+// marker of their own — a later trigger_turn in a fork's file would be from
+// the fork spawning its own subagent — so they are always resolved against
+// the parent rollout at EOF instead.
+function codexParentMeta(payload) {
+    const spawnId =
         payload.source?.subagent?.thread_spawn?.parent_thread_id ??
-        payload.source?.subagent?.parent_thread_id ??
-        payload.source?.forked_from_id ??
-        payload.forked_from_id;
-    return typeof id === 'string' && id ? id : null;
+        payload.source?.subagent?.parent_thread_id;
+    if (typeof spawnId === 'string' && spawnId)
+        return { id: spawnId, spawn: true };
+    const forkId = payload.source?.forked_from_id ?? payload.forked_from_id;
+    if (typeof forkId === 'string' && forkId)
+        return { id: forkId, spawn: false };
+    return null;
 }
 
 // Multi-agent v2 rollouts mark the child's first real turn with an
@@ -154,9 +176,17 @@ function applyCodexSessionMeta(payload, state) {
         state.sessionId = state.sessionId ?? payload.id;
     const m = modelFromContext(payload);
     if (m) state.currentModel = m;
-    const parent = codexParentId(payload);
+    // Only the file's own (first) session_meta can declare this session's
+    // parent. Later session_meta lines — appended on resume, or the parent's
+    // own meta inside replayed history — must not (re-)arm inheritance: after
+    // the boundary that would divert genuine child usage into pending, and a
+    // replayed grandparent id would make prefix matching hit the wrong file.
+    if (state.metaSeen) return;
+    state.metaSeen = true;
+    const parent = codexParentMeta(payload);
     if (parent) {
-        state.parentId = parent;
+        state.parentId = parent.id;
+        state.parentSpawn = parent.spawn;
         state.inherited = true;
     }
 }
@@ -178,7 +208,13 @@ function processCodexLine(obj, state, models) {
         applyCodexTurnContext(payload, state);
         return;
     }
-    if (state.inherited && isCodexTurnBoundary(obj, payload)) {
+    // The boundary marker only delimits a thread-spawn child's own replay;
+    // forks resolve against the parent rollout at EOF instead.
+    if (
+        state.inherited &&
+        state.parentSpawn &&
+        isCodexTurnBoundary(obj, payload)
+    ) {
         state.pending.length = 0;
         state.inherited = false;
         return;
@@ -212,20 +248,14 @@ export function parseCodexRollout(text, opts = {}) {
         sessionId: opts.sessionId ?? null,
         startedAt: null,
         currentModel: 'unknown',
+        metaSeen: false,
         parentId: null,
+        parentSpawn: false,
         inherited: false,
         pending: [],
     };
 
-    for (const line of text.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let obj;
-        try {
-            obj = JSON.parse(trimmed);
-        } catch {
-            continue;
-        }
+    for (const obj of jsonlObjects(text)) {
         processCodexLine(obj, state, models);
     }
 
@@ -234,7 +264,8 @@ export function parseCodexRollout(text, opts = {}) {
         started_at: state.startedAt ?? opts.fallbackStartedAt ?? null,
         models,
         parent_id: state.parentId,
-        pending_inherited: state.inherited ? state.pending : [],
+        // Emptied at the boundary, so anything left is unresolved held usage.
+        pending_inherited: state.pending,
     };
 }
 
@@ -251,15 +282,7 @@ function codexUsageKey(last) {
 /** Ordered token-count tuple sequence of a rollout, for parent-prefix matching. */
 function codexTokenSequence(text) {
     const keys = [];
-    for (const line of text.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let obj;
-        try {
-            obj = JSON.parse(trimmed);
-        } catch {
-            continue;
-        }
+    for (const obj of jsonlObjects(text)) {
         const payload = obj.payload ?? {};
         if (obj.type !== 'event_msg' || payload.type !== 'token_count')
             continue;
@@ -269,42 +292,45 @@ function codexTokenSequence(text) {
     return keys;
 }
 
-// Longest initial run of childKeys appearing as a contiguous subsequence of
-// parentKeys. A single-event match may be coincidence, so require >= 2.
+// Replayed history is the parent's rollout from its beginning up to the
+// spawn/fork point, so a genuine replay matches the parent's own initial
+// token sequence. Anchoring the comparison at the parent's start keeps a
+// coincidental value match elsewhere in the parent (identical small turns are
+// common) from silently discarding genuine child usage. A single-event match
+// may still be coincidence, so require >= 2 consecutive matches.
 function inheritedPrefixLength(parentKeys, childKeys) {
-    let best = 0;
-    for (let i = 0; i < parentKeys.length; i += 1) {
-        if (parentKeys[i] !== childKeys[0]) continue;
-        let k = 0;
-        while (
-            k < childKeys.length &&
-            i + k < parentKeys.length &&
-            parentKeys[i + k] === childKeys[k]
-        ) {
-            k += 1;
-        }
-        if (k > best) best = k;
+    let k = 0;
+    while (
+        k < childKeys.length &&
+        k < parentKeys.length &&
+        parentKeys[k] === childKeys[k]
+    ) {
+        k += 1;
     }
-    return best >= 2 ? best : 0;
+    return k >= 2 ? k : 0;
 }
 
 /**
- * Resolve a legacy child rollout's held token events (no trigger_turn marker in
- * the file). The initial run that matches an ordered contiguous sequence in the
- * parent rollout is replayed parent history and is dropped; the remainder is
- * genuine child usage and is counted. Without parent text (parent rollout not
- * found locally) everything is counted, preserving the old behaviour.
+ * Resolve a child rollout's held token events (a legacy thread-spawn file
+ * without the trigger_turn marker, or any fork). The initial run matching the
+ * parent rollout's own initial token sequence is replayed parent history and
+ * is dropped; the remainder is genuine child usage and is counted. `parent`
+ * is the parent rollout's text (or its precomputed token sequence); without
+ * it (parent not found locally) everything is counted, preserving the old
+ * behaviour.
  */
-export function resolveCodexInherited(parsed, parentText) {
+export function resolveCodexInherited(parsed, parent) {
     const pending = parsed.pending_inherited ?? [];
     if (pending.length === 0) return parsed;
-    let drop = 0;
-    if (typeof parentText === 'string' && parentText) {
-        drop = inheritedPrefixLength(
-            codexTokenSequence(parentText),
-            pending.map((p) => codexUsageKey(p.last)),
-        );
-    }
+    const parentKeys = Array.isArray(parent)
+        ? parent
+        : typeof parent === 'string' && parent
+          ? codexTokenSequence(parent)
+          : [];
+    const drop = inheritedPrefixLength(
+        parentKeys,
+        pending.map((p) => codexUsageKey(p.last)),
+    );
     for (const { model, last } of pending.slice(drop)) {
         addCodexUsage(parsed.models, model, last);
     }
@@ -550,6 +576,10 @@ function walkJsonl(dir, sinceMs, match) {
         if (e.isDirectory()) {
             out.push(...walkJsonl(full, sinceMs, match));
         } else if (e.isFile() && match(e.name)) {
+            if (sinceMs <= 0) {
+                out.push(full);
+                continue;
+            }
             try {
                 if (statSync(full).mtimeMs >= sinceMs) out.push(full);
             } catch {
@@ -576,27 +606,49 @@ function codexDirs() {
     ];
 }
 
+const CODEX_ROLLOUT_FILE = /^rollout-.*\.jsonl$/iu;
+
 // Lazy index of local Codex rollouts by session UUID, used to resolve the
-// declared parent of legacy subagent children (rollouts without the
-// trigger_turn boundary marker). Filenames look like
-// rollout-2026-07-18T09-00-00-<uuid>.jsonl.
+// declared parent of subagent/fork children whose replayed history must be
+// matched against the parent rollout. Filenames look like
+// rollout-2026-07-18T09-00-00-<uuid>.jsonl; keys are lowercased so lookups
+// by parent_thread_id are case-insensitive.
 let codexRolloutsById = null;
 function codexRolloutPathById(id) {
-    if (!id) return null;
+    if (typeof id !== 'string' || !id) return null;
     if (codexRolloutsById === null) {
         codexRolloutsById = new Map();
         for (const dir of codexDirs()) {
             for (const f of walkJsonl(dir, 0, (n) =>
-                /^rollout-.*\.jsonl$/iu.test(n),
+                CODEX_ROLLOUT_FILE.test(n),
             )) {
                 const m = basename(f).match(
                     /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/iu,
                 );
-                codexRolloutsById.set(m ? m[1] : sessionIdFromPath(f), f);
+                const key = (m ? m[1] : sessionIdFromPath(f)).toLowerCase();
+                codexRolloutsById.set(key, f);
             }
         }
     }
-    return codexRolloutsById.get(id) ?? null;
+    return codexRolloutsById.get(id.toLowerCase()) ?? null;
+}
+
+// Token sequences of parent rollouts, memoized so a parent that spawned many
+// children is read and tokenized once, not once per child.
+const codexParentSequences = new Map();
+function codexParentSequenceById(parentId) {
+    const path = codexRolloutPathById(parentId);
+    if (!path) return null;
+    if (!codexParentSequences.has(path)) {
+        let keys = null;
+        try {
+            keys = codexTokenSequence(readFileSync(path, 'utf8'));
+        } catch {
+            /* parent unreadable — treat as not found */
+        }
+        codexParentSequences.set(path, keys);
+    }
+    return codexParentSequences.get(path);
 }
 
 // opencode stores one JSON file per message under storage/message/<sessionID>/.
@@ -916,16 +968,10 @@ function parseFile(path, source) {
     if (source === 'codex') {
         parsed = parseCodexRollout(text, { fallbackStartedAt });
         if (parsed.pending_inherited.length > 0) {
-            const parentPath = codexRolloutPathById(parsed.parent_id);
-            let parentText = null;
-            if (parentPath) {
-                try {
-                    parentText = readFileSync(parentPath, 'utf8');
-                } catch {
-                    /* parent unreadable — count held events as before */
-                }
-            }
-            resolveCodexInherited(parsed, parentText);
+            resolveCodexInherited(
+                parsed,
+                codexParentSequenceById(parsed.parent_id),
+            );
         }
     } else if (source === 'pi')
         parsed = parsePiRollout(text, { fallbackStartedAt });
@@ -1039,7 +1085,7 @@ async function claudeCatchup(cfg) {
 async function codexCatchup(cfg) {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const files = codexDirs().flatMap((d) =>
-        walkJsonl(d, since, (n) => /^rollout-.*\.jsonl$/iu.test(n)),
+        walkJsonl(d, since, (n) => CODEX_ROLLOUT_FILE.test(n)),
     );
     const rows = files.flatMap((f) => safeParse(f, 'codex'));
     const { accepted } = await postSessions(cfg, 'codex', rows);
@@ -1186,7 +1232,7 @@ async function backfill(cfg, only) {
     }
     if (!only || only === 'codex') {
         const files = codexDirs().flatMap((d) =>
-            walkJsonl(d, 0, (n) => /^rollout-.*\.jsonl$/iu.test(n)),
+            walkJsonl(d, 0, (n) => CODEX_ROLLOUT_FILE.test(n)),
         );
         const rows = files.flatMap((f) => safeParse(f, 'codex'));
         total += await backfillFiles(cfg, 'codex', rows, 'Codex', files.length);
