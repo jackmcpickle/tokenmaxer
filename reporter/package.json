@@ -33,6 +33,11 @@
         "README.md"
     ],
     "type": "module",
+    "scripts": {
+        "build": "tsc -p tsconfig.json && chmod +x tokentally.mjs && rm -f tokentally.mjs.map",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "prepublishOnly": "pnpm run build"
+    },
     "engines": {
         "node": ">=24"
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// tokenmaxer reporter — zero-dependency Node script.
+// tokenmaxer reporter — TypeScript source compiled to a zero-dependency .mjs.
 //
 // Reads Claude Code / Codex session transcripts, sums token usage per model, and
 // POSTs cumulative per-session totals to the tokenmaxer.quest API. Reporting is
@@ -35,6 +35,99 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 
+// ------------------------------------------------------------------ types ----
+
+export interface ReporterTotals {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_tokens: number;
+    cache_creation_tokens: number;
+    reasoning_tokens: number;
+}
+
+export interface ParsedTranscript {
+    session_id: string | null;
+    started_at: number | null;
+    models: Map<string, ReporterTotals>;
+}
+
+export interface CodexPendingUsage {
+    model: string;
+    last: Record<string, unknown>;
+}
+
+export interface ParsedCodexRollout extends ParsedTranscript {
+    parent_id: string | null;
+    pending_inherited: CodexPendingUsage[];
+}
+
+export interface ReporterRow extends ReporterTotals {
+    session_id: string;
+    model: string;
+    started_at: number;
+}
+
+export interface ReporterConfig {
+    apiBase: string;
+    token: string;
+    cursorCookie?: string;
+}
+
+interface ParseOpts {
+    sessionId?: string;
+    fallbackStartedAt?: number | null;
+}
+
+type TotalsKey = keyof ReporterTotals;
+
+interface ClaudeUsageRow {
+    key: string | null;
+    model: string;
+    usage: ReporterTotals;
+}
+
+interface CodexParseState {
+    sessionId: string | null;
+    startedAt: number | null;
+    currentModel: string;
+    metaSeen: boolean;
+    parentId: string | null;
+    parentSpawn: boolean;
+    inherited: boolean;
+    pending: CodexPendingUsage[];
+}
+
+interface PiParseState {
+    sessionId: string | null;
+    startedAt: number | null;
+    currentModel: string;
+}
+
+interface InheritedRun {
+    consumed: number;
+    matched: number;
+    distinctive: boolean;
+    steps: number;
+}
+
+interface PostOpts {
+    path?: string;
+    chunkSize?: number;
+}
+
+interface CursorSyncOpts {
+    sinceMs?: number;
+    post?: PostOpts;
+}
+
+type JsonObject = Record<string, unknown>;
+
+function asObject(value: unknown): JsonObject {
+    return value !== null && typeof value === 'object'
+        ? (value as JsonObject)
+        : {};
+}
+
 const CATCHUP_DAYS =
     Number.parseInt(
         process.env.TOKENMAXER_DAYS ?? process.env.TOKENTALLY_DAYS ?? '3',
@@ -49,7 +142,7 @@ if (DRY_RUN) process.argv = process.argv.filter((a) => a !== '--dry-run');
 
 // ---------------------------------------------------------------- parsing ----
 
-function emptyTotals() {
+function emptyTotals(): ReporterTotals {
     return {
         input_tokens: 0,
         output_tokens: 0,
@@ -59,19 +152,22 @@ function emptyTotals() {
     };
 }
 
-function toMs(ts) {
+function toMs(ts: unknown): number | null {
     if (typeof ts !== 'string') return null;
     const n = Date.parse(ts);
     return Number.isFinite(n) ? n : null;
 }
 
 /** Yield each parseable JSON object from a JSONL text, skipping bad lines. */
-function* jsonlObjects(text) {
+function* jsonlObjects(text: string): Generator<JsonObject> {
     for (const line of text.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed) continue;
         try {
-            yield JSON.parse(trimmed);
+            const parsed: unknown = JSON.parse(trimmed);
+            if (parsed !== null && typeof parsed === 'object') {
+                yield parsed as JsonObject;
+            }
         } catch {
             /* skip unparseable line */
         }
@@ -81,11 +177,11 @@ function* jsonlObjects(text) {
 // One assistant transcript line's usage, or null when it carries none.
 // `key` is `${message.id}:${requestId}` when either id is present; streamed
 // chunks of one API message share it, so keyed rows dedupe last-wins.
-function claudeUsageRow(obj) {
+function claudeUsageRow(obj: JsonObject): ClaudeUsageRow | null {
     if (obj.type !== 'assistant') return null;
-    const msg = obj.message;
-    const usage = msg?.usage;
-    if (!usage || typeof usage !== 'object') return null;
+    const msg = asObject(obj.message);
+    const usage = asObject(msg.usage);
+    if (!msg.usage || typeof msg.usage !== 'object') return null;
     const messageId = typeof msg.id === 'string' ? msg.id : '';
     const requestId = typeof obj.requestId === 'string' ? obj.requestId : '';
     return {
@@ -102,11 +198,11 @@ function claudeUsageRow(obj) {
     };
 }
 
-function sumClaudeRows(rows) {
-    const models = new Map();
+function sumClaudeRows(rows: ClaudeUsageRow[]): Map<string, ReporterTotals> {
+    const models = new Map<string, ReporterTotals>();
     for (const { model, usage } of rows) {
         const t = models.get(model) ?? emptyTotals();
-        for (const k of Object.keys(usage)) t[k] += usage[k];
+        for (const k of Object.keys(usage) as TotalsKey[]) t[k] += usage[k];
         models.set(model, t);
     }
     return models;
@@ -121,11 +217,14 @@ function sumClaudeRows(rows) {
  * last-wins so only the final chunk counts. Rows without either id can never
  * collide and are all kept.
  */
-export function parseClaudeTranscript(text, opts = {}) {
+export function parseClaudeTranscript(
+    text: string,
+    opts: ParseOpts = {},
+): ParsedTranscript {
     let sessionId = opts.sessionId ?? null;
-    let startedAt = null;
-    const keyed = new Map();
-    const unkeyed = [];
+    let startedAt: number | null = null;
+    const keyed = new Map<string, ClaudeUsageRow>();
+    const unkeyed: ClaudeUsageRow[] = [];
 
     for (const obj of jsonlObjects(text)) {
         if (startedAt === null) startedAt = toMs(obj.timestamp);
@@ -146,7 +245,11 @@ export function parseClaudeTranscript(text, opts = {}) {
     };
 }
 
-function addCodexUsage(models, model, last) {
+function addCodexUsage(
+    models: Map<string, ReporterTotals>,
+    model: string,
+    last: Record<string, unknown>,
+): void {
     const t = models.get(model) ?? emptyTotals();
     t.input_tokens += num(last.input_tokens);
     t.output_tokens += num(last.output_tokens);
@@ -167,13 +270,16 @@ function addCodexUsage(models, model, last) {
 // marker of their own — a later trigger_turn in a fork's file would be from
 // the fork spawning its own subagent — so they are always resolved against
 // the parent rollout at EOF instead.
-function codexParentMeta(payload) {
-    const spawnId =
-        payload.source?.subagent?.thread_spawn?.parent_thread_id ??
-        payload.source?.subagent?.parent_thread_id;
+function codexParentMeta(
+    payload: JsonObject,
+): { id: string; spawn: boolean } | null {
+    const source = asObject(payload.source);
+    const subagent = asObject(source.subagent);
+    const threadSpawn = asObject(subagent.thread_spawn);
+    const spawnId = threadSpawn.parent_thread_id ?? subagent.parent_thread_id;
     if (typeof spawnId === 'string' && spawnId)
         return { id: spawnId, spawn: true };
-    const forkId = payload.source?.forked_from_id ?? payload.forked_from_id;
+    const forkId = source.forked_from_id ?? payload.forked_from_id;
     if (typeof forkId === 'string' && forkId)
         return { id: forkId, spawn: false };
     return null;
@@ -182,7 +288,7 @@ function codexParentMeta(payload) {
 // Multi-agent v2 rollouts mark the child's first real turn with an
 // inter_agent_communication_metadata event carrying trigger_turn: true.
 // Everything before it is replayed parent history.
-function isCodexTurnBoundary(obj, payload) {
+function isCodexTurnBoundary(obj: JsonObject, payload: JsonObject): boolean {
     if (
         obj.type !== 'inter_agent_communication_metadata' &&
         !(
@@ -192,10 +298,14 @@ function isCodexTurnBoundary(obj, payload) {
     ) {
         return false;
     }
-    return payload.trigger_turn === true || payload.info?.trigger_turn === true;
+    const info = asObject(payload.info);
+    return payload.trigger_turn === true || info.trigger_turn === true;
 }
 
-function applyCodexSessionMeta(payload, state) {
+function applyCodexSessionMeta(
+    payload: JsonObject,
+    state: CodexParseState,
+): void {
     if (typeof payload.id === 'string')
         state.sessionId = state.sessionId ?? payload.id;
     const m = modelFromContext(payload);
@@ -215,14 +325,21 @@ function applyCodexSessionMeta(payload, state) {
     }
 }
 
-function applyCodexTurnContext(payload, state) {
+function applyCodexTurnContext(
+    payload: JsonObject,
+    state: CodexParseState,
+): void {
     const m = modelFromContext(payload);
     if (m) state.currentModel = m;
 }
 
-function processCodexLine(obj, state, models) {
+function processCodexLine(
+    obj: JsonObject,
+    state: CodexParseState,
+    models: Map<string, ReporterTotals>,
+): void {
     if (state.startedAt === null) state.startedAt = toMs(obj.timestamp);
-    const payload = obj.payload ?? {};
+    const payload = asObject(obj.payload);
 
     if (obj.type === 'session_meta') {
         applyCodexSessionMeta(payload, state);
@@ -248,15 +365,23 @@ function processCodexLine(obj, state, models) {
         return;
     }
     if (obj.type === 'event_msg' && payload.type === 'token_count') {
-        const last = payload.info?.last_token_usage;
+        const info = asObject(payload.info);
+        const last = info.last_token_usage;
         if (!last || typeof last !== 'object') return;
         if (state.inherited) {
             // Possibly replayed parent history — hold until the turn boundary
             // (dropped there) or EOF (resolved against the parent rollout).
-            state.pending.push({ model: state.currentModel, last });
+            state.pending.push({
+                model: state.currentModel,
+                last: last as Record<string, unknown>,
+            });
             return;
         }
-        addCodexUsage(models, state.currentModel, last);
+        addCodexUsage(
+            models,
+            state.currentModel,
+            last as Record<string, unknown>,
+        );
     }
 }
 
@@ -264,7 +389,10 @@ function processCodexLine(obj, state, models) {
 // the pre-fix reporter posted the replayed usage under those (session, model)
 // keys, and the server upsert can only overwrite the inflated rows if a
 // corrected report still submits them.
-function dropInheritedPending(state, models) {
+function dropInheritedPending(
+    state: CodexParseState,
+    models: Map<string, ReporterTotals>,
+): void {
     for (const { model } of state.pending) {
         if (!models.has(model)) models.set(model, emptyTotals());
     }
@@ -282,9 +410,12 @@ function dropInheritedPending(state, models) {
  * the held events in `pending_inherited` plus `parent_id` — pass the parent
  * rollout text to resolveCodexInherited() to strip the replayed prefix.
  */
-export function parseCodexRollout(text, opts = {}) {
-    const models = new Map();
-    const state = {
+export function parseCodexRollout(
+    text: string,
+    opts: ParseOpts = {},
+): ParsedCodexRollout {
+    const models = new Map<string, ReporterTotals>();
+    const state: CodexParseState = {
         sessionId: opts.sessionId ?? null,
         startedAt: null,
         currentModel: 'unknown',
@@ -309,7 +440,7 @@ export function parseCodexRollout(text, opts = {}) {
     };
 }
 
-function codexUsageKey(last) {
+function codexUsageKey(last: Record<string, unknown>): string {
     return [
         num(last.input_tokens),
         num(last.cached_input_tokens),
@@ -320,21 +451,22 @@ function codexUsageKey(last) {
 }
 
 /** Ordered token-count tuple sequence of a rollout, for parent-prefix matching. */
-function codexTokenSequence(text) {
-    const keys = [];
+function codexTokenSequence(text: string): string[] {
+    const keys: string[] = [];
     for (const obj of jsonlObjects(text)) {
-        const payload = obj.payload ?? {};
+        const payload = asObject(obj.payload);
         if (obj.type !== 'event_msg' || payload.type !== 'token_count')
             continue;
-        const last = payload.info?.last_token_usage;
-        if (last && typeof last === 'object') keys.push(codexUsageKey(last));
+        const last = asObject(payload.info).last_token_usage;
+        if (last && typeof last === 'object')
+            keys.push(codexUsageKey(last as Record<string, unknown>));
     }
     return keys;
 }
 
 // A tuple with real input is very unlikely to repeat by coincidence; all-zero
 // or output-only tuples can.
-function isDistinctiveKey(key) {
+function isDistinctiveKey(key: string): boolean {
     return !key.startsWith('0|');
 }
 
@@ -349,12 +481,23 @@ function isDistinctiveKey(key) {
 // requirement are measured on genuine parent matches only, so the tolerance
 // does not weaken the bar. Every comparison, including a skip, is charged
 // one step against `budget`.
-function matchInheritedRun(parentKeys, childKeys, start, budget) {
-    const run = { consumed: 0, matched: 0, distinctive: false, steps: 0 };
+function matchInheritedRun(
+    parentKeys: string[],
+    childKeys: string[],
+    start: number,
+    budget: number,
+): InheritedRun {
+    const run: InheritedRun = {
+        consumed: 0,
+        matched: 0,
+        distinctive: false,
+        steps: 0,
+    };
     let p = start;
     while (run.consumed < childKeys.length && run.steps < budget) {
         run.steps += 1;
         const key = childKeys[run.consumed];
+        if (key === undefined) break;
         if (p < parentKeys.length && parentKeys[p] === key) {
             run.matched += 1;
             if (isDistinctiveKey(key)) run.distinctive = true;
@@ -386,7 +529,10 @@ function matchInheritedRun(parentKeys, childKeys, start, budget) {
 // Adjacent duplicate child tuples are tolerated (see matchInheritedRun); the
 // returned length counts child events consumed, duplicates included, while
 // the thresholds count genuine parent matches only.
-function inheritedPrefixLength(parentKeys, childKeys) {
+function inheritedPrefixLength(
+    parentKeys: string[],
+    childKeys: string[],
+): number {
     const anchored = matchInheritedRun(parentKeys, childKeys, 0, Infinity);
     if (anchored.matched >= 2 && anchored.distinctive) return anchored.consumed;
 
@@ -395,7 +541,7 @@ function inheritedPrefixLength(parentKeys, childKeys) {
     // On exhaustion, fall through with the best run found so far (counting
     // is the safe direction).
     let steps = 200_000;
-    let best = null;
+    let best: InheritedRun | null = null;
     for (let i = 1; i < parentKeys.length && steps > 0; i += 1) {
         steps -= 1;
         if (parentKeys[i] !== childKeys[0]) continue;
@@ -423,7 +569,10 @@ function inheritedPrefixLength(parentKeys, childKeys) {
  * it (parent not found locally) everything is counted, preserving the old
  * behaviour.
  */
-export function resolveCodexInherited(parsed, parent) {
+export function resolveCodexInherited(
+    parsed: ParsedCodexRollout,
+    parent?: string | string[] | null,
+): ParsedCodexRollout {
     const pending = parsed.pending_inherited ?? [];
     if (pending.length === 0) return parsed;
     const parentKeys = Array.isArray(parent)
@@ -447,29 +596,33 @@ export function resolveCodexInherited(parsed, parent) {
     return parsed;
 }
 
-function modelFromContext(payload) {
+function modelFromContext(payload: JsonObject): string | null {
     if (typeof payload.model === 'string' && payload.model)
         return payload.model;
-    const nested = payload.turn_context?.model ?? payload.info?.model;
+    const nested =
+        asObject(payload.turn_context).model ?? asObject(payload.info).model;
     return typeof nested === 'string' && nested ? nested : null;
 }
 
-function opencodeTimestamp(msg) {
-    const created = msg.time?.created ?? msg.time?.start ?? msg.timestamp;
+function opencodeTimestamp(msg: JsonObject): number | null {
+    const time = asObject(msg.time);
+    const created = time.created ?? time.start ?? msg.timestamp;
     return typeof created === 'number' ? created : toMs(created);
 }
 
 // Written defensively — opencode has revised its message shape, so both nested
 // (`tokens.cache.read`) and flat (`cache_read`) keys are tolerated.
-function accumulateOpencodeTokens(models, msg) {
-    const tokens = msg.tokens;
-    if (!tokens || typeof tokens !== 'object') return;
+function accumulateOpencodeTokens(
+    models: Map<string, ReporterTotals>,
+    msg: JsonObject,
+): void {
+    const tokens = asObject(msg.tokens);
+    if (!msg.tokens || typeof msg.tokens !== 'object') return;
     const model =
         typeof msg.modelID === 'string' && msg.modelID
             ? msg.modelID
             : 'unknown';
-    const cache =
-        tokens.cache && typeof tokens.cache === 'object' ? tokens.cache : {};
+    const cache = asObject(tokens.cache);
     const t = models.get(model) ?? emptyTotals();
     t.input_tokens += num(tokens.input);
     t.output_tokens += num(tokens.output);
@@ -484,13 +637,17 @@ function accumulateOpencodeTokens(models, msg) {
  * `storage/message/<sessionID>/` is one message object). Sums the `tokens.*`
  * block per model.
  */
-export function parseOpencodeMessages(messages, opts = {}) {
-    const models = new Map();
+export function parseOpencodeMessages(
+    messages: unknown[],
+    opts: ParseOpts = {},
+): ParsedTranscript {
+    const models = new Map<string, ReporterTotals>();
     let sessionId = opts.sessionId ?? null;
-    let startedAt = null;
+    let startedAt: number | null = null;
 
-    for (const msg of messages) {
-        if (!msg || typeof msg !== 'object') continue;
+    for (const raw of messages) {
+        if (!raw || typeof raw !== 'object') continue;
+        const msg = raw as JsonObject;
         if (!sessionId && typeof msg.sessionID === 'string')
             sessionId = msg.sessionID;
         const ts = opencodeTimestamp(msg);
@@ -511,19 +668,20 @@ export function parseOpencodeMessages(messages, opts = {}) {
  * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
  * on every run keeps ingestion idempotent (server upserts by session+model).
  */
-export function parseCursorEvents(events) {
+export function parseCursorEvents(events: unknown[]): ReporterRow[] {
     // 'YYYY-MM-DD' -> Map(model -> totals)
-    const days = new Map();
-    for (const e of Array.isArray(events) ? events : []) {
-        if (!e || typeof e !== 'object') continue;
+    const days = new Map<string, Map<string, ReporterTotals>>();
+    for (const raw of Array.isArray(events) ? events : []) {
+        if (!raw || typeof raw !== 'object') continue;
+        const e = raw as JsonObject;
         const ms = Number(e.timestamp);
         if (!Number.isFinite(ms) || ms <= 0) continue;
-        const u = e.tokenUsage;
-        if (!u || typeof u !== 'object') continue;
+        const u = asObject(e.tokenUsage);
+        if (!e.tokenUsage || typeof e.tokenUsage !== 'object') continue;
         const day = new Date(ms).toISOString().slice(0, 10);
         const model =
             typeof e.model === 'string' && e.model ? e.model : 'unknown';
-        const byModel = days.get(day) ?? new Map();
+        const byModel = days.get(day) ?? new Map<string, ReporterTotals>();
         const t = byModel.get(model) ?? emptyTotals();
         t.input_tokens += num(u.inputTokens);
         t.output_tokens += num(u.outputTokens);
@@ -532,7 +690,7 @@ export function parseCursorEvents(events) {
         byModel.set(model, t);
         days.set(day, byModel);
     }
-    const rows = [];
+    const rows: ReporterRow[] = [];
     for (const [day, byModel] of days) {
         const startedAt = Date.parse(`${day}T00:00:00Z`);
         for (const [model, t] of byModel) {
@@ -547,25 +705,28 @@ export function parseCursorEvents(events) {
     return rows;
 }
 
-function piUsage(obj) {
-    if (obj.usage && typeof obj.usage === 'object') return obj.usage;
-    const nested = obj.message?.usage;
-    return nested && typeof nested === 'object' ? nested : null;
+function piUsage(obj: JsonObject): JsonObject | null {
+    if (obj.usage && typeof obj.usage === 'object') return asObject(obj.usage);
+    const nested = asObject(obj.message).usage;
+    return nested && typeof nested === 'object' ? asObject(nested) : null;
 }
 
-function piModel(obj) {
+function piModel(obj: JsonObject): string | null {
     const m =
-        obj.model ?? obj.modelID ?? obj.message?.model ?? obj.usage?.model;
+        obj.model ??
+        obj.modelID ??
+        asObject(obj.message).model ??
+        asObject(obj.usage).model;
     return typeof m === 'string' && m ? m : null;
 }
 
-function piSessionId(obj) {
+function piSessionId(obj: JsonObject): string | null {
     if (typeof obj.sessionId === 'string') return obj.sessionId;
     if (typeof obj.session_id === 'string') return obj.session_id;
     return null;
 }
 
-function accumulatePiUsage(t, usage) {
+function accumulatePiUsage(t: ReporterTotals, usage: JsonObject): void {
     t.input_tokens += num(usage.input ?? usage.input_tokens);
     t.output_tokens += num(usage.output ?? usage.output_tokens);
     t.cache_read_tokens += num(
@@ -583,7 +744,12 @@ function accumulatePiUsage(t, usage) {
     );
 }
 
-function processPiLine(obj, state, models, seen) {
+function processPiLine(
+    obj: JsonObject,
+    state: PiParseState,
+    models: Map<string, ReporterTotals>,
+    seen: Set<string>,
+): void {
     if (state.startedAt === null)
         state.startedAt = toMs(obj.timestamp ?? obj.time);
     if (!state.sessionId) state.sessionId = piSessionId(obj);
@@ -610,10 +776,13 @@ function processPiLine(obj, state, models, seen) {
  * `id`/`parentId` in one file, so the same record can appear more than once —
  * we dedupe by `id` before summing each record's `usage` per active model.
  */
-export function parsePiRollout(text, opts = {}) {
-    const models = new Map();
-    const seen = new Set();
-    const state = {
+export function parsePiRollout(
+    text: string,
+    opts: ParseOpts = {},
+): ParsedTranscript {
+    const models = new Map<string, ReporterTotals>();
+    const seen = new Set<string>();
+    const state: PiParseState = {
         sessionId: opts.sessionId ?? null,
         startedAt: null,
         currentModel: 'unknown',
@@ -630,31 +799,31 @@ export function parsePiRollout(text, opts = {}) {
     };
 }
 
-function num(v) {
+function num(v: unknown): number {
     return typeof v === 'number' && Number.isFinite(v) && v > 0
         ? Math.floor(v)
         : 0;
 }
 
 /** session id from a filename, stripping known prefixes/suffixes. */
-export function sessionIdFromPath(path) {
+export function sessionIdFromPath(path: string): string {
     let name = basename(path).replace(/\.jsonl$/iu, '');
     name = name.replace(/^rollout-/iu, '');
     return name;
 }
 
 /** Claude Code `<synthetic>` turns — never report or score. */
-function isSyntheticModel(model) {
+function isSyntheticModel(model: unknown): boolean {
     if (typeof model !== 'string') return false;
     const m = model.toLowerCase().trim().replace(/^<|>$/gu, '');
     return m === 'synthetic';
 }
 
 /** Turn a parsed result into API session rows (one per model). */
-export function toRows(parsed, path) {
+export function toRows(parsed: ParsedTranscript, path?: string): ReporterRow[] {
     const sid = parsed.session_id ?? sessionIdFromPath(path ?? '');
     const startedAt = parsed.started_at ?? Date.now();
-    const rows = [];
+    const rows: ReporterRow[] = [];
     for (const [model, t] of parsed.models) {
         if (isSyntheticModel(model)) continue;
         rows.push({ session_id: sid, model, started_at: startedAt, ...t });
@@ -664,8 +833,12 @@ export function toRows(parsed, path) {
 
 // ------------------------------------------------------------- filesystem ----
 
-function walkJsonl(dir, sinceMs, match) {
-    const out = [];
+function walkJsonl(
+    dir: string,
+    sinceMs: number,
+    match: (name: string) => boolean,
+): string[] {
+    const out: string[] = [];
     let entries;
     try {
         entries = readdirSync(dir, { withFileTypes: true });
@@ -691,7 +864,7 @@ function walkJsonl(dir, sinceMs, match) {
     return out;
 }
 
-function claudeDirs() {
+function claudeDirs(): string[] {
     const home = homedir();
     return [
         join(home, '.claude', 'projects'),
@@ -699,7 +872,7 @@ function claudeDirs() {
     ];
 }
 
-function codexDirs() {
+function codexDirs(): string[] {
     const home = homedir();
     return [
         join(home, '.codex', 'sessions'),
@@ -715,9 +888,9 @@ const CODEX_ROLLOUT_FILE = /^rollout-.*\.jsonl$/iu;
 // rollout-2026-07-18T09-00-00-<uuid>.jsonl; keys are lowercased so lookups
 // by parent_thread_id are case-insensitive. Files without a trailing UUID
 // are keyed by their stripped name minus any leading timestamp.
-let codexRolloutsById = null;
+let codexRolloutsById: Map<string, string> | null = null;
 
-function fileSize(path) {
+function fileSize(path: string): number {
     try {
         return statSync(path).size;
     } catch {
@@ -727,7 +900,7 @@ function fileSize(path) {
 
 // True when both paths name the same on-disk file, regardless of path
 // spelling (case-insensitive filesystems, symlinks, ./ prefixes).
-function isSameFile(a, b) {
+function isSameFile(a: string, b: string): boolean {
     try {
         const sa = statSync(a);
         const sb = statSync(b);
@@ -737,7 +910,7 @@ function isSameFile(a, b) {
     }
 }
 
-function addCodexRolloutToIndex(map, f) {
+function addCodexRolloutToIndex(map: Map<string, string>, f: string): void {
     const m = basename(f).match(
         /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/iu,
     );
@@ -761,13 +934,16 @@ function addCodexRolloutToIndex(map, f) {
 
 // Backfill already enumerates every rollout; let it seed the index instead
 // of paying a second full directory walk on the first parent lookup.
-function seedCodexRolloutIndex(files) {
+function seedCodexRolloutIndex(files: string[]): void {
     if (codexRolloutsById !== null) return;
     codexRolloutsById = new Map();
     for (const f of files) addCodexRolloutToIndex(codexRolloutsById, f);
 }
 
-function codexRolloutPathById(id, nearDir) {
+function codexRolloutPathById(
+    id: string,
+    nearDir: string | null,
+): string | null {
     if (typeof id !== 'string' || !id) return null;
     const lower = id.toLowerCase();
     // Session-end hooks handle a single file; a parent usually sits in the
@@ -779,7 +955,7 @@ function codexRolloutPathById(id, nearDir) {
             // truncated copy of the session may sit beside the complete one,
             // and matching against it would count replayed events past the
             // truncation point. Larger file wins; -1 for an unstattable one.
-            let bestPath = null;
+            let bestPath: string | null = null;
             let bestSize = -1;
             for (const n of readdirSync(nearDir)) {
                 if (
@@ -806,7 +982,7 @@ function codexRolloutPathById(id, nearDir) {
             ),
         );
     }
-    return codexRolloutsById.get(lower) ?? null;
+    return codexRolloutsById?.get(lower) ?? null;
 }
 
 // Parent token sequences by session id, memoized so a parent that spawned
@@ -814,8 +990,11 @@ function codexRolloutPathById(id, nearDir) {
 // referenced as a parent are ever loaded. Read failures are not cached, so a
 // transient error on one child does not leave every later sibling resolving
 // against nothing.
-const codexSequencesById = new Map();
-export function codexParentSequenceById(parentId, childPath) {
+const codexSequencesById = new Map<string, string[]>();
+export function codexParentSequenceById(
+    parentId: string | null | undefined,
+    childPath?: string | null,
+): string[] | null {
     if (typeof parentId !== 'string' || !parentId) return null;
     const id = parentId.toLowerCase();
     const path = codexRolloutPathById(
@@ -833,7 +1012,7 @@ export function codexParentSequenceById(parentId, childPath) {
     if (childPath && isSameFile(path, childPath)) return null;
     const cached = codexSequencesById.get(id);
     if (cached) return cached;
-    let keys;
+    let keys: string[];
     try {
         keys = codexTokenSequence(readFileSync(path, 'utf8'));
     } catch {
@@ -844,8 +1023,8 @@ export function codexParentSequenceById(parentId, childPath) {
 }
 
 // opencode stores one JSON file per message under storage/message/<sessionID>/.
-function opencodeMessageRoots() {
-    const roots = [];
+function opencodeMessageRoots(): string[] {
+    const roots: string[] = [];
     if (process.env.OPENCODE_DATA_DIR)
         roots.push(join(process.env.OPENCODE_DATA_DIR, 'storage', 'message'));
     if (process.env.XDG_DATA_HOME)
@@ -859,7 +1038,7 @@ function opencodeMessageRoots() {
 }
 
 // pi stores one JSONL file per session, nested under a per-directory slug.
-function piDirs() {
+function piDirs(): string[] {
     const explicit =
         process.env.PI_CODING_AGENT_SESSION_DIR ?? process.env.PI_AGENT_DIR;
     const dirs = explicit ? [explicit] : [];
@@ -867,8 +1046,11 @@ function piDirs() {
     return dirs;
 }
 
-function parseOpencodeFiles(texts, opts) {
-    const messages = [];
+function parseOpencodeFiles(
+    texts: string[],
+    opts: ParseOpts,
+): ParsedTranscript {
+    const messages: unknown[] = [];
     for (const text of texts) {
         try {
             messages.push(JSON.parse(text));
@@ -880,7 +1062,9 @@ function parseOpencodeFiles(texts, opts) {
 }
 
 // Read every message JSON in one opencode session dir, tracking the newest mtime.
-function readOpencodeSessionTexts(dir) {
+function readOpencodeSessionTexts(
+    dir: string,
+): { texts: string[]; newest: number } | null {
     let files;
     try {
         files = readdirSync(dir, { withFileTypes: true });
@@ -888,7 +1072,7 @@ function readOpencodeSessionTexts(dir) {
         return null;
     }
     let newest = 0;
-    const texts = [];
+    const texts: string[] = [];
     for (const f of files) {
         if (!f.isFile() || !/\.json$/iu.test(f.name)) continue;
         const full = join(dir, f.name);
@@ -908,8 +1092,8 @@ function readOpencodeSessionTexts(dir) {
  * sessions (one session = one directory). A session is included when any of its
  * message files was modified at/after `sinceMs`.
  */
-function collectOpencodeRows(sinceMs) {
-    const rows = [];
+function collectOpencodeRows(sinceMs: number): ReporterRow[] {
+    const rows: ReporterRow[] = [];
     for (const root of opencodeMessageRoots()) {
         let sessions;
         try {
@@ -932,7 +1116,7 @@ function collectOpencodeRows(sinceMs) {
     return rows;
 }
 
-function opencodeSessionCandidates(sessionArg) {
+function opencodeSessionCandidates(sessionArg: string): string[] {
     // Accept either an absolute session directory or a bare sessionID.
     try {
         if (statSync(sessionArg).isDirectory()) return [sessionArg];
@@ -942,7 +1126,7 @@ function opencodeSessionCandidates(sessionArg) {
     return opencodeMessageRoots().map((root) => join(root, sessionArg));
 }
 
-function reportOneOpencodeSession(sessionArg) {
+function reportOneOpencodeSession(sessionArg: string): ReporterRow[] {
     for (const dir of opencodeSessionCandidates(sessionArg)) {
         const res = readOpencodeSessionTexts(dir);
         if (!res || res.texts.length === 0) continue;
@@ -956,19 +1140,22 @@ function reportOneOpencodeSession(sessionArg) {
 
 // ------------------------------------------------------------------ io -------
 
-function readConfigFile(dirName) {
+function readConfigFile(dirName: string): JsonObject | null {
     try {
         const raw = readFileSync(
             join(homedir(), dirName, 'config.json'),
             'utf8',
         );
-        return JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
+        return parsed !== null && typeof parsed === 'object'
+            ? (parsed as JsonObject)
+            : null;
     } catch {
         return null;
     }
 }
 
-export function loadConfig() {
+export function loadConfig(): ReporterConfig {
     // Prefer ~/.tokenmaxer; fall back to legacy ~/.tokentally.
     const file =
         readConfigFile('.tokenmaxer') ?? readConfigFile('.tokentally') ?? {};
@@ -989,7 +1176,10 @@ export function loadConfig() {
                     '',
                 ),
                 token: String(token ?? 'DRY_RUN'),
-                cursorCookie: file.cursorCookie,
+                cursorCookie:
+                    typeof file.cursorCookie === 'string'
+                        ? file.cursorCookie
+                        : undefined,
             };
         }
         throw new Error(
@@ -999,12 +1189,15 @@ export function loadConfig() {
     return {
         apiBase: String(apiBase).replace(/\/+$/u, ''),
         token: String(token),
-        cursorCookie: file.cursorCookie,
+        cursorCookie:
+            typeof file.cursorCookie === 'string'
+                ? file.cursorCookie
+                : undefined,
     };
 }
 
 // Cursor stores its auth JWT in the app's global state SQLite DB.
-function cursorDbPaths() {
+function cursorDbPaths(): string[] {
     const home = homedir();
     return [
         join(
@@ -1028,11 +1221,12 @@ function cursorDbPaths() {
 }
 
 // Older Cursor builds store the value JSON-quoted; current builds store the raw JWT.
-function normalizeCursorToken(value) {
+function normalizeCursorToken(value: unknown): string | null {
     let token = typeof value === 'string' ? value : null;
     if (token?.startsWith('"')) {
         try {
-            token = JSON.parse(token);
+            const parsed: unknown = JSON.parse(token);
+            token = typeof parsed === 'string' ? parsed : token;
         } catch {
             /* keep raw */
         }
@@ -1042,14 +1236,14 @@ function normalizeCursorToken(value) {
 
 // Read cursorAuth/accessToken from one state.vscdb and build the session cookie.
 // Cookie format is {userId}::{jwt}; userId comes from the JWT sub claim.
-function cursorTokenFromDb(path) {
+function cursorTokenFromDb(path: string): string | null {
     const db = new DatabaseSync(path, { readOnly: true });
     try {
         const row = db
             .prepare(
                 "SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken'",
             )
-            .get();
+            .get() as { value?: unknown } | undefined;
         const token = normalizeCursorToken(row?.value);
         if (!token) return null;
         const sub = jwtSub(token);
@@ -1060,7 +1254,7 @@ function cursorTokenFromDb(path) {
 }
 
 // Try each known state.vscdb location; fall back to cfg.cursorCookie.
-function cursorSessionToken(cfg) {
+function cursorSessionToken(cfg: ReporterConfig): string | null {
     for (const path of cursorDbPaths()) {
         try {
             const token = cursorTokenFromDb(path);
@@ -1074,27 +1268,34 @@ function cursorSessionToken(cfg) {
         : null;
 }
 
-function jwtSub(jwt) {
+function jwtSub(jwt: string): string | null {
     try {
-        const payload = JSON.parse(
-            Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8'),
+        const segment = jwt.split('.')[1];
+        if (!segment) return null;
+        const payload: unknown = JSON.parse(
+            Buffer.from(segment, 'base64url').toString('utf8'),
         );
         // sub looks like "auth0|user_xxx"; the cookie wants the trailing id part.
-        const sub = String(payload.sub ?? '');
-        return sub.includes('|') ? sub.split('|').pop() : sub || null;
+        const sub = String(asObject(payload).sub ?? '');
+        return sub.includes('|') ? (sub.split('|').pop() ?? null) : sub || null;
     } catch {
         return null;
     }
 }
 
-async function readStdin() {
+async function readStdin(): Promise<string> {
     if (process.stdin.isTTY) return '';
-    const chunks = [];
-    for await (const chunk of process.stdin) chunks.push(chunk);
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
     return Buffer.concat(chunks).toString('utf8');
 }
 
-async function postBatch(cfg, source, batch, path) {
+async function postBatch(
+    cfg: ReporterConfig,
+    source: string,
+    batch: ReporterRow[],
+    path: string,
+): Promise<number> {
     if (DRY_RUN) {
         process.stdout.write(
             `${JSON.stringify(
@@ -1122,10 +1323,9 @@ async function postBatch(cfg, source, batch, path) {
             signal: controller.signal,
         });
         if (res.ok) {
-            const data = await res.json().catch(() => ({}));
-            return typeof data.accepted === 'number'
-                ? data.accepted
-                : batch.length;
+            const data: unknown = await res.json().catch(() => ({}));
+            const accepted = asObject(data).accepted;
+            return typeof accepted === 'number' ? accepted : batch.length;
         }
         process.stderr.write(`tokenmaxer: ingest failed (${res.status})\n`);
         return 0;
@@ -1134,11 +1334,16 @@ async function postBatch(cfg, source, batch, path) {
     }
 }
 
-async function postSessions(cfg, source, rows, opts = {}) {
+async function postSessions(
+    cfg: ReporterConfig,
+    source: string,
+    rows: ReporterRow[],
+    opts: PostOpts = {},
+): Promise<{ accepted: number }> {
     if (rows.length === 0) return { accepted: 0 };
     const path = opts.path ?? '/api/ingest';
     const chunkSize = opts.chunkSize ?? MAX_SESSIONS_PER_REQUEST;
-    const batches = [];
+    const batches: ReporterRow[][] = [];
     for (let i = 0; i < rows.length; i += chunkSize) {
         batches.push(rows.slice(i, i + chunkSize));
     }
@@ -1148,32 +1353,33 @@ async function postSessions(cfg, source, rows, opts = {}) {
     return { accepted: acceptedCounts.reduce((sum, n) => sum + n, 0) };
 }
 
-function parseFile(path, source) {
+function parseFile(path: string, source: string): ReporterRow[] {
     const text = readFileSync(path, 'utf8');
-    let fallbackStartedAt = null;
+    let fallbackStartedAt: number | null = null;
     try {
         fallbackStartedAt = statSync(path).mtimeMs;
     } catch {
         /* ignore */
     }
-    let parsed;
+    let parsed: ParsedTranscript | ParsedCodexRollout;
     if (source === 'codex') {
-        parsed = parseCodexRollout(text, { fallbackStartedAt });
-        if (parsed.pending_inherited.length > 0) {
+        const codexParsed = parseCodexRollout(text, { fallbackStartedAt });
+        if (codexParsed.pending_inherited.length > 0) {
             // A session naming itself as parent is bogus metadata — treat
             // as parent-not-found (count everything) rather than matching
             // the child against its own history.
             const selfParent =
-                typeof parsed.session_id === 'string' &&
-                parsed.parent_id?.toLowerCase() ===
-                    parsed.session_id.toLowerCase();
+                typeof codexParsed.session_id === 'string' &&
+                codexParsed.parent_id?.toLowerCase() ===
+                    codexParsed.session_id.toLowerCase();
             resolveCodexInherited(
-                parsed,
+                codexParsed,
                 selfParent
                     ? null
-                    : codexParentSequenceById(parsed.parent_id, path),
+                    : codexParentSequenceById(codexParsed.parent_id, path),
             );
         }
+        parsed = codexParsed;
     } else if (source === 'pi')
         parsed = parsePiRollout(text, { fallbackStartedAt });
     else parsed = parseClaudeTranscript(text, { fallbackStartedAt });
@@ -1182,7 +1388,9 @@ function parseFile(path, source) {
 
 // --------------------------------------------------------------- commands ----
 
-export function parseSetProfileUrlArgs(argv) {
+export function parseSetProfileUrlArgs(
+    argv: string[],
+): { clear: true } | { clear: false; url: string } {
     const args = argv.filter((a) => a !== '--dry-run');
     if (args.length === 1 && args[0] === '--clear') return { clear: true };
     if (
@@ -1197,25 +1405,47 @@ export function parseSetProfileUrlArgs(argv) {
     );
 }
 
-export function buildProfileUrlBody(parsed) {
-    return { url: parsed.clear ? null : parsed.url };
+export function buildProfileUrlBody(parsed: { clear: true }): { url: null };
+export function buildProfileUrlBody(parsed: { clear: false; url: string }): {
+    url: string;
+};
+export function buildProfileUrlBody(
+    parsed: { clear: true } | { clear: false; url: string },
+): { url: string | null } {
+    return parsed.clear ? { url: null } : { url: parsed.url };
 }
 
-export function buildProfileUrlDryRun({ endpoint, body }) {
+export function buildProfileUrlDryRun(args: {
+    endpoint: string;
+    body: { url: string | null };
+}): {
+    method: 'POST';
+    url: string;
+    headers: {
+        'Content-Type': 'application/json';
+        Authorization: 'Bearer <redacted>';
+    };
+    body: { url: string | null };
+} {
     return {
         method: 'POST',
-        url: endpoint,
+        url: args.endpoint,
         headers: {
             'Content-Type': 'application/json',
             Authorization: 'Bearer <redacted>',
         },
-        body,
+        body: args.body,
     };
 }
 
-async function setProfileUrl(cfg, argv) {
+async function setProfileUrl(
+    cfg: ReporterConfig,
+    argv: string[],
+): Promise<void> {
     const parsed = parseSetProfileUrlArgs(argv);
-    const body = buildProfileUrlBody(parsed);
+    const body: { url: string | null } = parsed.clear
+        ? buildProfileUrlBody({ clear: true })
+        : buildProfileUrlBody({ clear: false, url: parsed.url });
     const endpoint = `${cfg.apiBase}/api/profile`;
     if (DRY_RUN) {
         process.stdout.write(
@@ -1231,39 +1461,51 @@ async function setProfileUrl(cfg, argv) {
         },
         body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
+    const data: unknown = await res.json().catch(() => ({}));
+    const payload = asObject(data);
     if (!res.ok) {
-        throw new Error(data.error ?? `profile update failed (${res.status})`);
+        throw new Error(
+            typeof payload.error === 'string'
+                ? payload.error
+                : `profile update failed (${res.status})`,
+        );
     }
-    if (data.url) {
-        process.stdout.write(`profile url: ${data.url}\n`);
+    if (payload.url) {
+        process.stdout.write(`profile url: ${payload.url}\n`);
     } else {
         process.stdout.write('profile url: cleared\n');
     }
 }
 
-async function runSetProfileUrl(argv) {
+async function runSetProfileUrl(argv: string[]): Promise<void> {
     try {
         await setProfileUrl(loadConfig(), argv);
     } catch (err) {
-        process.stderr.write(`tokenmaxer: ${err?.message ?? err}\n`);
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`tokenmaxer: ${message}\n`);
         process.exit(1);
     }
 }
 
-async function claudeSessionEnd(cfg) {
+async function claudeSessionEnd(cfg: ReporterConfig): Promise<void> {
     const stdin = await readStdin();
-    let hook = {};
+    let hook: JsonObject = {};
     try {
-        hook = JSON.parse(stdin);
+        const parsed: unknown = JSON.parse(stdin);
+        if (parsed !== null && typeof parsed === 'object') {
+            hook = parsed as JsonObject;
+        }
     } catch {
         /* no hook payload */
     }
     const path = hook.transcript_path;
     // fall back to a scan when no transcript path is provided
-    if (!path) return claudeCatchup(cfg);
+    if (typeof path !== 'string' || !path) return claudeCatchup(cfg);
     const text = readFileSync(path, 'utf8');
-    const parsed = parseClaudeTranscript(text, { sessionId: hook.session_id });
+    const parsed = parseClaudeTranscript(text, {
+        sessionId:
+            typeof hook.session_id === 'string' ? hook.session_id : undefined,
+    });
     const rows = toRows(parsed, path);
     const { accepted } = await postSessions(cfg, 'claude_code', rows);
     process.stderr.write(
@@ -1271,7 +1513,7 @@ async function claudeSessionEnd(cfg) {
     );
 }
 
-async function claudeCatchup(cfg) {
+async function claudeCatchup(cfg: ReporterConfig): Promise<void> {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const files = claudeDirs().flatMap((d) =>
         walkJsonl(d, since, (n) => n.endsWith('.jsonl')),
@@ -1283,7 +1525,7 @@ async function claudeCatchup(cfg) {
     );
 }
 
-async function codexCatchup(cfg) {
+async function codexCatchup(cfg: ReporterConfig): Promise<void> {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const files = codexDirs().flatMap((d) =>
         walkJsonl(d, since, (n) => CODEX_ROLLOUT_FILE.test(n)),
@@ -1295,14 +1537,14 @@ async function codexCatchup(cfg) {
     );
 }
 
-async function opencodeCatchup(cfg) {
+async function opencodeCatchup(cfg: ReporterConfig): Promise<void> {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const rows = collectOpencodeRows(since);
     const { accepted } = await postSessions(cfg, 'opencode', rows);
     process.stderr.write(`tokenmaxer: caught up ${accepted} opencode row(s)\n`);
 }
 
-async function piCatchup(cfg) {
+async function piCatchup(cfg: ReporterConfig): Promise<void> {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const files = piDirs().flatMap((d) =>
         walkJsonl(d, since, (n) => n.endsWith('.jsonl')),
@@ -1314,15 +1556,25 @@ async function piCatchup(cfg) {
     );
 }
 
-async function reportOneOpencode(cfg, sessionArg) {
+async function reportOneOpencode(
+    cfg: ReporterConfig,
+    sessionArg: string | undefined,
+): Promise<void> {
+    if (!sessionArg) {
+        process.stderr.write('tokenmaxer: missing opencode session id\n');
+        return;
+    }
     const rows = reportOneOpencodeSession(sessionArg);
     const { accepted } = await postSessions(cfg, 'opencode', rows);
     process.stderr.write(`tokenmaxer: reported ${accepted} opencode row(s)\n`);
 }
 
 // Unofficial dashboard endpoint — the only individual route to Cursor usage.
-async function cursorFetchEvents(sessionToken, sinceMs) {
-    const events = [];
+async function cursorFetchEvents(
+    sessionToken: string,
+    sinceMs: number,
+): Promise<unknown[] | null> {
+    const events: unknown[] = [];
     for (let page = 1; page <= 200; page += 1) {
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const res = await fetch(
@@ -1350,9 +1602,10 @@ async function cursorFetchEvents(sessionToken, sinceMs) {
             return null;
         }
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
-        const data = await res.json().catch(() => null);
+        const data: unknown = await res.json().catch(() => null);
         if (data === null) return null;
-        const batch = data?.usageEvents ?? data?.usageEventsDisplay ?? [];
+        const payload = asObject(data);
+        const batch = payload.usageEvents ?? payload.usageEventsDisplay ?? [];
         if (!Array.isArray(batch) || batch.length === 0) break;
         events.push(...batch);
         if (batch.length < 1000) break;
@@ -1360,7 +1613,10 @@ async function cursorFetchEvents(sessionToken, sinceMs) {
     return events;
 }
 
-async function cursorSync(cfg, opts = {}) {
+async function cursorSync(
+    cfg: ReporterConfig,
+    opts: CursorSyncOpts = {},
+): Promise<void> {
     const sessionToken = cursorSessionToken(cfg);
     if (!sessionToken) {
         process.stderr.write(
@@ -1391,7 +1647,7 @@ async function cursorSync(cfg, opts = {}) {
     );
 }
 
-function safeParse(path, source) {
+function safeParse(path: string, source: string): ReporterRow[] {
     try {
         return parseFile(path, source);
     } catch {
@@ -1405,7 +1661,13 @@ function safeParse(path, source) {
  * run alongside the normal hooks and safe to re-run. Pass 'claude' or 'codex' to
  * limit the scan to one tool.
  */
-async function backfillFiles(cfg, source, rows, label, fileCount) {
+async function backfillFiles(
+    cfg: ReporterConfig,
+    source: string,
+    rows: ReporterRow[],
+    label: string,
+    fileCount: number,
+): Promise<number> {
     const { accepted } = await postSessions(cfg, source, rows, {
         path: '/api/history',
         chunkSize: HISTORY_CHUNK,
@@ -1416,7 +1678,10 @@ async function backfillFiles(cfg, source, rows, label, fileCount) {
     return accepted;
 }
 
-async function backfill(cfg, only) {
+async function backfill(
+    cfg: ReporterConfig,
+    only: string | undefined,
+): Promise<void> {
     let total = 0;
     if (!only || only === 'claude') {
         const files = claudeDirs().flatMap((d) =>
@@ -1470,14 +1735,22 @@ async function backfill(cfg, only) {
     );
 }
 
-async function reportOne(cfg, path, source) {
+async function reportOne(
+    cfg: ReporterConfig,
+    path: string | undefined,
+    source: string,
+): Promise<void> {
+    if (!path) {
+        process.stderr.write(`tokenmaxer: missing path for ${source} report\n`);
+        return;
+    }
     const rows = parseFile(path, source);
     const { accepted } = await postSessions(cfg, source, rows);
     process.stderr.write(`tokenmaxer: reported ${accepted} row(s)\n`);
 }
 
 // Commands you run yourself.
-const USER_COMMANDS = [
+const USER_COMMANDS: Array<[string, string]> = [
     [
         'backfill [claude|codex|opencode|pi|cursor]',
         'one-time: upload ALL past history (optionally scoped to one source)',
@@ -1489,7 +1762,7 @@ const USER_COMMANDS = [
 ];
 
 // Commands wired into agent hooks (SessionStart/SessionEnd) — not run by hand.
-const HOOK_COMMANDS = [
+const HOOK_COMMANDS: Array<[string, string]> = [
     [
         'claude-sessionend',
         'parse the just-ended Claude transcript (stdin JSON)',
@@ -1504,11 +1777,11 @@ const HOOK_COMMANDS = [
     ['pi-report <path>', 'parse and report one pi session file'],
 ];
 
-function printHelp() {
+function printHelp(): void {
     const pad = Math.max(
         ...[...USER_COMMANDS, ...HOOK_COMMANDS].map(([c]) => c.length),
     );
-    function fmt(rows) {
+    function fmt(rows: Array<[string, string]>): string[] {
         return rows.map(([c, d]) => `  ${c.padEnd(pad)}  ${d}`);
     }
     process.stdout.write(
@@ -1533,9 +1806,14 @@ function printHelp() {
     );
 }
 
-const HELP_FLAGS = new Set(['help', '--help', '-h', undefined]);
+const HELP_FLAGS = new Set<string | undefined>([
+    'help',
+    '--help',
+    '-h',
+    undefined,
+]);
 
-async function main() {
+async function main(): Promise<void> {
     const cmd = process.argv[2];
     if (HELP_FLAGS.has(cmd)) {
         printHelp();
@@ -1582,14 +1860,15 @@ async function main() {
             break;
         case 'backfill': {
             // Optional scope: `backfill claude|codex|opencode|pi|cursor`.
+            const scope = process.argv[3];
             const only = [
                 'claude',
                 'codex',
                 'opencode',
                 'pi',
                 'cursor',
-            ].includes(process.argv[3])
-                ? process.argv[3]
+            ].includes(scope ?? '')
+                ? scope
                 : undefined;
             await backfill(cfg, only);
             break;
@@ -1603,7 +1882,7 @@ async function main() {
 
 // Only run as a CLI when executed directly — importing (tests) must not trigger it.
 // argv[1] may be a symlink (global/npx bin); resolve it so import.meta.url matches.
-function invokedDirectlyAs(argvPath) {
+function invokedDirectlyAs(argvPath: string | undefined): boolean {
     if (typeof argvPath !== 'string') return false;
     let resolved = argvPath;
     try {
@@ -1615,9 +1894,10 @@ function invokedDirectlyAs(argvPath) {
 }
 const invokedDirectly = invokedDirectlyAs(process.argv[1]);
 if (invokedDirectly) {
-    main().catch((err) => {
+    main().catch((err: unknown) => {
         // Never break the host session — hooks must exit cleanly.
-        process.stderr.write(`tokenmaxer: ${err?.message ?? err}\n`);
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`tokenmaxer: ${message}\n`);
         process.exit(0);
     });
 }
