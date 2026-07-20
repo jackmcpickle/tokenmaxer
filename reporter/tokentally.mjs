@@ -668,6 +668,18 @@ function fileSize(path) {
     }
 }
 
+// True when both paths name the same on-disk file, regardless of path
+// spelling (case-insensitive filesystems, symlinks, ./ prefixes).
+function isSameFile(a, b) {
+    try {
+        const sa = statSync(a);
+        const sb = statSync(b);
+        return sa.dev === sb.dev && sa.ino === sb.ino;
+    } catch {
+        return resolve(a) === resolve(b);
+    }
+}
+
 function addCodexRolloutToIndex(map, f) {
     const m = basename(f).match(
         /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/iu,
@@ -746,9 +758,10 @@ function codexParentSequenceById(parentId, childPath) {
     // colliding metadata) must not be matched against — the child's whole
     // sequence would match itself and every token would be dropped. This
     // check must run before the cache (a hit for a legitimate earlier child
-    // must not bypass it) and on resolve()d paths (the index and the
-    // same-dir probe produce normalized paths; the hook may not).
-    if (childPath && resolve(path) === resolve(childPath)) return null;
+    // must not bypass it) and on file identity rather than path spelling:
+    // the hook may supply an unnormalized or case-variant path (APFS is
+    // case-insensitive) that names the same file under a different string.
+    if (childPath && isSameFile(path, childPath)) return null;
     const cached = codexSequencesById.get(id);
     if (cached) return cached;
     let keys;
