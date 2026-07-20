@@ -57,9 +57,7 @@ function boardHref(q: BoardQuery): string {
     return `/footprint?${params.toString()}`;
 }
 
-function entryTotals(
-    entries: FootprintEntry[],
-): Record<ImpactMetric, number> {
+function entryTotals(entries: FootprintEntry[]): Record<ImpactMetric, number> {
     const totals = { energy: 0, water: 0, co2: 0 } satisfies Record<
         ImpactMetric,
         number

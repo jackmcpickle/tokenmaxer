@@ -22,34 +22,36 @@
 
 ## File map
 
-| File | Role |
-| ---- | ---- |
-| `src/lib/impact.ts` | Constants, estimateImpact, household %, formatters, parsers |
-| `src/__tests__/impact.test.ts` | Unit tests for math + household |
-| `src/pages/footprint-chart.tsx` | Chart + window/metric/scenario/region |
-| `src/pages/footprint.tsx` | Page: hero, filters, chart, methodology, references |
-| `src/index.tsx` | `GET /footprint` |
-| `src/pages/layout.tsx` | Footer link |
-| `src/__tests__/footprint-page.test.ts` | Route HTML smoke (footer + references) |
+| File                                   | Role                                                        |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `src/lib/impact.ts`                    | Constants, estimateImpact, household %, formatters, parsers |
+| `src/__tests__/impact.test.ts`         | Unit tests for math + household                             |
+| `src/pages/footprint-chart.tsx`        | Chart + window/metric/scenario/region                       |
+| `src/pages/footprint.tsx`              | Page: hero, filters, chart, methodology, references         |
+| `src/index.tsx`                        | `GET /footprint`                                            |
+| `src/pages/layout.tsx`                 | Footer link                                                 |
+| `src/__tests__/footprint-page.test.ts` | Route HTML smoke (footer + references)                      |
 
 ---
 
 ### Task 1: `impact.ts` math library
 
 **Files:**
+
 - Create: `src/lib/impact.ts`
 - Create: `src/__tests__/impact.test.ts`
 
 **Interfaces:**
+
 - Produces:
-  - `ImpactScenario = 'low' | 'central' | 'high'`
-  - `ImpactRegion = 'global' | 'us' | 'eu' | 'china' | 'india' | 'au' | 'low_water'`
-  - `ImpactMetric = 'energy' | 'water' | 'co2'`
-  - `estimateImpact(tokens, scenario, region) -> { energy_kwh, water_l, co2_kg }`
-  - `householdBaseline(region, window, metric) -> number` (same units as metric)
-  - `householdPercent(impact, household) -> number`
-  - `formatImpact(metric, n)`, `formatHouseholdPercent(pct, window)`
-  - `parseImpactMetric|Scenario|Region`, labels maps
+    - `ImpactScenario = 'low' | 'central' | 'high'`
+    - `ImpactRegion = 'global' | 'us' | 'eu' | 'china' | 'india' | 'au' | 'low_water'`
+    - `ImpactMetric = 'energy' | 'water' | 'co2'`
+    - `estimateImpact(tokens, scenario, region) -> { energy_kwh, water_l, co2_kg }`
+    - `householdBaseline(region, window, metric) -> number` (same units as metric)
+    - `householdPercent(impact, household) -> number`
+    - `formatImpact(metric, n)`, `formatHouseholdPercent(pct, window)`
+    - `parseImpactMetric|Scenario|Region`, labels maps
 
 - [x] **Step 1: Write failing tests** for central global 1e6 tokens hand-calc; low < central < high; AU ≠ global; household 7d scaling; all→30d
 - [x] **Step 2: Implement `impact.ts` per design spec constants**
@@ -64,6 +66,7 @@ npx vitest run src/__tests__/impact.test.ts
 ### Task 2: Footprint page + chart + route + footer
 
 **Files:**
+
 - Create: `src/pages/footprint-chart.tsx`, `src/pages/footprint.tsx`
 - Modify: `src/index.tsx`, `src/pages/layout.tsx`
 - Create: `src/__tests__/footprint-page.test.ts`

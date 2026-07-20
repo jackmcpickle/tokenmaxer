@@ -10,16 +10,16 @@ Let invitees optionally set their **external** public profile URL when claiming 
 
 ## Decisions
 
-| Topic | Choice |
-| ----- | ------ |
-| Approach | Optional `url` on `POST /api/register` (single round-trip) |
-| Required? | No — omit / `""` / `null` → `profile_url = NULL` |
-| Validation | Reuse `validateProfileUrl` (https, ≤2048, no credentials) |
-| Invite gate | Unchanged (`tt_invite` cookie + Turnstile) |
-| Response | Still `{ id, username, token }` (do not echo `url`) |
-| Later edits | Existing `POST /api/profile` + CLI |
-| Browser UI | Optional field on invite-unlocked `/start` claim form only |
-| Schema | No migration — `users.profile_url` already exists |
+| Topic       | Choice                                                     |
+| ----------- | ---------------------------------------------------------- |
+| Approach    | Optional `url` on `POST /api/register` (single round-trip) |
+| Required?   | No — omit / `""` / `null` → `profile_url = NULL`           |
+| Validation  | Reuse `validateProfileUrl` (https, ≤2048, no credentials)  |
+| Invite gate | Unchanged (`tt_invite` cookie + Turnstile)                 |
+| Response    | Still `{ id, username, token }` (do not echo `url`)        |
+| Later edits | Existing `POST /api/profile` + CLI                         |
+| Browser UI  | Optional field on invite-unlocked `/start` claim form only |
+| Schema      | No migration — `users.profile_url` already exists          |
 
 ## API
 
@@ -29,9 +29,9 @@ Let invitees optionally set their **external** public profile URL when claiming 
 
 ```json
 {
-  "username": "yourname",
-  "turnstileToken": "…",
-  "url": "https://example.com/me"
+    "username": "yourname",
+    "turnstileToken": "…",
+    "url": "https://example.com/me"
 }
 ```
 
@@ -45,12 +45,12 @@ Let invitees optionally set their **external** public profile URL when claiming 
 
 **Errors (unchanged unless noted):**
 
-| Status | When |
-| ------ | ---- |
-| 403 | Invite required / Turnstile failed |
-| 400 | Invalid username **or** invalid `url` |
-| 409 | Username taken |
-| 429 | Rate limited |
+| Status | When                                  |
+| ------ | ------------------------------------- |
+| 403    | Invite required / Turnstile failed    |
+| 400    | Invalid username **or** invalid `url` |
+| 409    | Username taken                        |
+| 429    | Rate limited                          |
 
 **Insert:** When `url` validates to a string, bind it into `INSERT INTO users (…, profile_url)`. When null, store `NULL`.
 
@@ -71,14 +71,14 @@ Update `src/content/start.md.ts` claim example to include optional `"url"`, and 
 
 ## Testing
 
-| Case | Expect |
-| ---- | ------ |
-| Register with valid `url` | `201`; insert binds validated `profile_url` |
-| Register without `url` / empty | `201`; `profile_url` null |
-| Invalid `url` | `400`; no insert |
-| No invite session | `403 invite required` |
-| `start.md` | Example JSON includes optional `url` |
-| `/start` HTML when invited | Optional profile URL input present |
+| Case                           | Expect                                      |
+| ------------------------------ | ------------------------------------------- |
+| Register with valid `url`      | `201`; insert binds validated `profile_url` |
+| Register without `url` / empty | `201`; `profile_url` null                   |
+| Invalid `url`                  | `400`; no insert                            |
+| No invite session              | `403 invite required`                       |
+| `start.md`                     | Example JSON includes optional `url`        |
+| `/start` HTML when invited     | Optional profile URL input present          |
 
 `validateProfileUrl` unit coverage already exists; reuse profile-route / invite test mocking patterns for register.
 
