@@ -1,8 +1,14 @@
 /**
  * Per-model pricing, USD per 1,000,000 tokens. These are ESTIMATES used only to
  * show an approximate spend on the board — update them by editing this file and
- * redeploying. Matching is by longest case-insensitive substring of the model id,
- * so `claude-opus-4-8-20260101` matches the `claude-opus-4` entry.
+ * redeploying. Model ids are first normalized (provider prefixes and date/version
+ * suffixes stripped, mirroring CodexBar's normalizeCodexModel/normalizeClaudeModel),
+ * then matched by longest case-insensitive substring, so
+ * `claude-opus-4-8-20260101` matches the `claude-opus-4-8` entry.
+ *
+ * Limitation: rows are session aggregates, so long-context threshold pricing
+ * (per-request >272K/200K input surcharges) and the 1h cache-write split cannot
+ * be applied here — everything is billed at the base (below-threshold) rates.
  */
 export interface ModelPrice {
     input: number;
@@ -12,12 +18,48 @@ export interface ModelPrice {
 }
 
 const PRICES: Record<string, ModelPrice> = {
-    // Anthropic — Claude
+    // Anthropic — Claude (rates from CodexBar's CostUsagePricing claude table)
+    'claude-fable-5': {
+        input: 10,
+        output: 50,
+        cacheRead: 1,
+        cacheWrite: 12.5,
+    },
+    'claude-opus-4-5': {
+        input: 5,
+        output: 25,
+        cacheRead: 0.5,
+        cacheWrite: 6.25,
+    },
+    'claude-opus-4-6': {
+        input: 5,
+        output: 25,
+        cacheRead: 0.5,
+        cacheWrite: 6.25,
+    },
+    'claude-opus-4-7': {
+        input: 5,
+        output: 25,
+        cacheRead: 0.5,
+        cacheWrite: 6.25,
+    },
+    'claude-opus-4-8': {
+        input: 5,
+        output: 25,
+        cacheRead: 0.5,
+        cacheWrite: 6.25,
+    },
     'claude-opus-4': {
         input: 15,
         output: 75,
         cacheRead: 1.5,
         cacheWrite: 18.75,
+    },
+    'claude-haiku-4-5': {
+        input: 1,
+        output: 5,
+        cacheRead: 0.1,
+        cacheWrite: 1.25,
     },
     'claude-sonnet-4': {
         input: 3,
@@ -51,7 +93,9 @@ const PRICES: Record<string, ModelPrice> = {
         cacheRead: 1.5,
         cacheWrite: 18.75,
     },
-    // OpenAI — Codex / GPT
+    // OpenAI — Codex / GPT (rates from CodexBar's CostUsagePricing codex table;
+    // where CodexBar leaves cacheRead/cacheWrite unset, OpenAI bills those
+    // tokens at the uncached input rate, so the input rate is mirrored here)
     'gpt-5-codex': {
         input: 1.25,
         output: 10,
@@ -64,6 +108,77 @@ const PRICES: Record<string, ModelPrice> = {
         cacheRead: 0.025,
         cacheWrite: 0.25,
     },
+    'gpt-5-nano': {
+        input: 0.05,
+        output: 0.4,
+        cacheRead: 0.005,
+        cacheWrite: 0.05,
+    },
+    'gpt-5-pro': { input: 15, output: 120, cacheRead: 15, cacheWrite: 15 },
+    'gpt-5.1-codex-max': {
+        input: 1.25,
+        output: 10,
+        cacheRead: 0.125,
+        cacheWrite: 1.25,
+    },
+    'gpt-5.1-codex-mini': {
+        input: 0.25,
+        output: 2,
+        cacheRead: 0.025,
+        cacheWrite: 0.25,
+    },
+    'gpt-5.1-codex': {
+        input: 1.25,
+        output: 10,
+        cacheRead: 0.125,
+        cacheWrite: 1.25,
+    },
+    'gpt-5.1': { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 1.25 },
+    'gpt-5.2-codex': {
+        input: 1.75,
+        output: 14,
+        cacheRead: 0.175,
+        cacheWrite: 1.75,
+    },
+    'gpt-5.2-pro': { input: 21, output: 168, cacheRead: 21, cacheWrite: 21 },
+    'gpt-5.2': { input: 1.75, output: 14, cacheRead: 0.175, cacheWrite: 1.75 },
+    'gpt-5.3-codex-spark': {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+    },
+    'gpt-5.3-codex': {
+        input: 1.75,
+        output: 14,
+        cacheRead: 0.175,
+        cacheWrite: 1.75,
+    },
+    'gpt-5.4-mini': {
+        input: 0.75,
+        output: 4.5,
+        cacheRead: 0.075,
+        cacheWrite: 0.75,
+    },
+    'gpt-5.4-nano': {
+        input: 0.2,
+        output: 1.25,
+        cacheRead: 0.02,
+        cacheWrite: 0.2,
+    },
+    'gpt-5.4-pro': { input: 30, output: 180, cacheRead: 30, cacheWrite: 30 },
+    'gpt-5.4': { input: 2.5, output: 15, cacheRead: 0.25, cacheWrite: 2.5 },
+    'gpt-5.5-pro': { input: 30, output: 180, cacheRead: 30, cacheWrite: 30 },
+    'gpt-5.5': { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 5 },
+    // GPT-5.6 Sol/Terra/Luna carry explicit cache-write rates (1.25x input).
+    'gpt-5.6-sol': { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 6.25 },
+    'gpt-5.6-terra': {
+        input: 2.5,
+        output: 15,
+        cacheRead: 0.25,
+        cacheWrite: 3.125,
+    },
+    'gpt-5.6-luna': { input: 1, output: 6, cacheRead: 0.1, cacheWrite: 1.25 },
     'gpt-5': { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 1.25 },
     'o4-mini': { input: 1.1, output: 4.4, cacheRead: 0.275, cacheWrite: 1.1 },
     o3: { input: 2, output: 8, cacheRead: 0.5, cacheWrite: 2 },
@@ -260,8 +375,35 @@ export function listPrices(): ListedPrice[] {
         .map(([id, price]) => ({ id, ...price }));
 }
 
+/**
+ * Normalize a raw model id before price matching, mirroring CodexBar's
+ * normalizeCodexModel/normalizeClaudeModel: strip provider prefixes
+ * (`openai/`, `anthropic.`, Bedrock region prefixes like `us.anthropic.`),
+ * Bedrock `-vN:M` version suffixes, and trailing `-YYYY-MM-DD`/`-YYYYMMDD`
+ * date suffixes. Longest-substring matching still runs afterwards, so ids
+ * this doesn't recognize behave exactly as before.
+ */
+function normalizeModelId(model: string): string {
+    let m = model.trim().toLowerCase();
+    if (m.startsWith('openai/')) m = m.slice('openai/'.length);
+    if (m.startsWith('anthropic.')) m = m.slice('anthropic.'.length);
+    // Bedrock region prefixes (`us.anthropic.claude-...`): keep the tail after
+    // the last dot when the tail is itself a claude model id.
+    const lastDot = m.lastIndexOf('.');
+    if (lastDot !== -1 && m.includes('claude-')) {
+        const tail = m.slice(lastDot + 1);
+        if (tail.startsWith('claude-')) m = tail;
+    }
+    m = m.replace(/-v\d+:\d+$/u, '');
+    m = m.replace(/-\d{4}-\d{2}-\d{2}$/u, '');
+    m = m.replace(/-\d{8}$/u, '');
+    // OpenAI routes the unsuffixed gpt-5.6 alias to Sol.
+    if (m === 'gpt-5.6') m = 'gpt-5.6-sol';
+    return m;
+}
+
 export function priceFor(model: string): ModelPrice {
-    const m = model.toLowerCase();
+    const m = normalizeModelId(model);
     let best: ModelPrice | null = null;
     let bestLen = 0;
     for (const key in PRICES) {

@@ -3,9 +3,58 @@ import { estimateCost, listPrices, priceFor } from '@/lib/pricing';
 
 describe('priceFor', () => {
     it('matches the longest substring for versioned model ids', () => {
-        expect(priceFor('claude-opus-4-8-20260101').output).toBe(75);
+        expect(priceFor('claude-opus-4-8-20260101').output).toBe(25);
         expect(priceFor('claude-sonnet-5-20260101').output).toBe(15);
         expect(priceFor('gpt-5-codex').input).toBe(1.25);
+    });
+
+    it('prices the gpt-5.x family from the CodexBar tables', () => {
+        expect(priceFor('gpt-5.4')).toEqual({
+            input: 2.5,
+            output: 15,
+            cacheRead: 0.25,
+            cacheWrite: 2.5,
+        });
+        expect(priceFor('gpt-5.4-mini').input).toBe(0.75);
+        expect(priceFor('gpt-5.5').output).toBe(30);
+        expect(priceFor('gpt-5.5-pro').output).toBe(180);
+        expect(priceFor('gpt-5.6-sol')).toEqual({
+            input: 5,
+            output: 30,
+            cacheRead: 0.5,
+            cacheWrite: 6.25,
+        });
+        expect(priceFor('gpt-5.6-terra').cacheWrite).toBe(3.125);
+        expect(priceFor('gpt-5.6-luna').input).toBe(1);
+    });
+
+    it('prices current Claude models from the CodexBar tables', () => {
+        expect(priceFor('claude-fable-5')).toEqual({
+            input: 10,
+            output: 50,
+            cacheRead: 1,
+            cacheWrite: 12.5,
+        });
+        expect(priceFor('claude-opus-4-8').input).toBe(5);
+        expect(priceFor('claude-haiku-4-5').input).toBe(1);
+        // Older opus generations keep their original rates.
+        expect(priceFor('claude-opus-4-20250514').output).toBe(75);
+    });
+
+    it('normalizes provider prefixes and date/version suffixes', () => {
+        // OpenAI provider prefix + dashed date suffix.
+        expect(priceFor('openai/gpt-5.6-sol-2026-05-01')).toEqual(
+            priceFor('gpt-5.6-sol'),
+        );
+        // Unsuffixed gpt-5.6 routes to Sol, like OpenAI's alias.
+        expect(priceFor('gpt-5.6')).toEqual(priceFor('gpt-5.6-sol'));
+        // Bedrock-style region prefix + -vN:M suffix.
+        expect(priceFor('us.anthropic.claude-fable-5-v1:0')).toEqual(
+            priceFor('claude-fable-5'),
+        );
+        expect(priceFor('anthropic.claude-opus-4-8-v1:0').output).toBe(25);
+        // Compact date suffix.
+        expect(priceFor('claude-haiku-4-5-20251001').input).toBe(1);
     });
 
     it('falls back for unknown models', () => {
@@ -44,14 +93,14 @@ describe('listPrices', () => {
 
 describe('estimateCost', () => {
     it('computes USD from per-million pricing', () => {
-        // 1M output tokens on opus @ $75/M = $75
+        // 1M output tokens on opus 4.8 @ $25/M = $25
         const cost = estimateCost('claude-opus-4-8', {
             input_tokens: 0,
             output_tokens: 1_000_000,
             cache_read_tokens: 0,
             cache_creation_tokens: 0,
         });
-        expect(cost).toBeCloseTo(75, 5);
+        expect(cost).toBeCloseTo(25, 5);
     });
 
     it('adds all categories', () => {

@@ -81,9 +81,11 @@ export function validateModelFamily(
     return { ok: true, value: raw };
 }
 
-// Guardrails: reject physically implausible reports.
-// 2e9 tokens in a single session category
-const MAX_TOKENS_PER_CATEGORY = 2_000_000_000;
+// Guardrails: reject only structurally broken reports. Legitimate long-running
+// sessions can exceed 2B tokens in a category (a 16-day Codex session hit 2.13B
+// input, 98.7% cached — see issue #21), so the only per-category bound is the
+// safe-integer range the store can represent losslessly.
+const MAX_TOKENS_PER_CATEGORY = Number.MAX_SAFE_INTEGER;
 const MAX_MODEL_LEN = 128;
 const MAX_SESSION_ID_LEN = 200;
 
@@ -154,9 +156,16 @@ function coerceCount(v: unknown): number {
     return Math.floor(v);
 }
 
+export interface RejectedSession {
+    /** Position of the rejected row in the submitted `sessions` array. */
+    index: number;
+    error: string;
+}
+
 export interface IngestPayload {
     source: Source;
     sessions: SessionUsageInput[];
+    rejected: RejectedSession[];
 }
 
 function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
@@ -203,7 +212,10 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
         row.reasoning_tokens,
     ]) {
         if (n > MAX_TOKENS_PER_CATEGORY) {
-            return { ok: false, error: 'implausible token count rejected' };
+            return {
+                ok: false,
+                error: 'token count exceeds safe integer range',
+            };
         }
     }
     return { ok: true, value: row };
@@ -238,16 +250,23 @@ export function parseIngestBody(
         };
     }
 
+    // Structurally invalid rows are rejected individually (by their index in
+    // the submitted array) instead of failing the whole batch, so one bad row
+    // never blocks the rest of a report.
     const sessions: SessionUsageInput[] = [];
-    for (const raw of b.sessions) {
+    const rejected: RejectedSession[] = [];
+    for (const [index, raw] of b.sessions.entries()) {
         const parsed = parseSessionEntry(raw);
-        if (!parsed.ok) return parsed;
+        if (!parsed.ok) {
+            rejected.push({ index, error: parsed.error });
+            continue;
+        }
         // Skip Claude Code `<synthetic>` rows; all-synthetic batches still succeed.
         if (isSyntheticModel(parsed.value.model)) continue;
         sessions.push(parsed.value);
     }
 
-    return { ok: true, value: { source: b.source, sessions } };
+    return { ok: true, value: { source: b.source, sessions, rejected } };
 }
 
 /** Same shape as ingest, but with the larger bulk-backfill session cap. */

@@ -53,7 +53,10 @@ describe('parseIngestBody', () => {
     it('accepts a well-formed payload', () => {
         const r = parseIngestBody(good);
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.value.sessions[0]?.input_tokens).toBe(10);
+        if (r.ok) {
+            expect(r.value.sessions[0]?.input_tokens).toBe(10);
+            expect(r.value.rejected).toEqual([]);
+        }
     });
 
     it('rejects unknown source', () => {
@@ -101,25 +104,75 @@ describe('parseIngestBody', () => {
             expect(r.value.sessions[0]?.output_tokens).toBe(0);
         }
     });
-    it('rejects implausible token counts', () => {
+    it('accepts multi-billion token counts from long-running sessions', () => {
+        // Issue #21: a legitimate 16-day Codex session reported 2.13B input.
         const r = parseIngestBody({
             source: 'codex',
             sessions: [
-                { session_id: 's', model: 'm', input_tokens: 5_000_000_000 },
+                { session_id: 's', model: 'm', input_tokens: 2_130_000_000 },
             ],
         });
-        expect(r.ok).toBe(false);
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions[0]?.input_tokens).toBe(2_130_000_000);
+            expect(r.value.rejected).toEqual([]);
+        }
     });
-    it('requires session_id and model', () => {
-        expect(
-            parseIngestBody({ source: 'codex', sessions: [{ model: 'm' }] }).ok,
-        ).toBe(false);
-        expect(
-            parseIngestBody({
-                source: 'codex',
-                sessions: [{ session_id: 's' }],
-            }).ok,
-        ).toBe(false);
+    it('rejects rows beyond the safe integer range per-row', () => {
+        const r = parseIngestBody({
+            source: 'codex',
+            sessions: [{ session_id: 's', model: 'm', input_tokens: 2 ** 53 }],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toEqual([]);
+            expect(r.value.rejected).toEqual([
+                { index: 0, error: 'token count exceeds safe integer range' },
+            ]);
+        }
+    });
+    it('rejects rows missing session_id or model per-row', () => {
+        const r = parseIngestBody({
+            source: 'codex',
+            sessions: [{ model: 'm' }, { session_id: 's' }],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toEqual([]);
+            expect(r.value.rejected).toEqual([
+                { index: 0, error: 'session_id is required' },
+                { index: 1, error: 'model is required' },
+            ]);
+        }
+    });
+    it('rejects a bad row without blocking the rest of the batch', () => {
+        const rows: unknown[] = Array.from({ length: 5 }, (_, i) => ({
+            session_id: `s${i}`,
+            model: 'm',
+            input_tokens: i,
+        }));
+        rows[2] = { session_id: 's2' }; // missing model
+        const r = parseIngestBody({ source: 'codex', sessions: rows });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toHaveLength(4);
+            expect(r.value.rejected).toEqual([
+                { index: 2, error: 'model is required' },
+            ]);
+        }
+    });
+    it('rejects non-object entries per-row', () => {
+        const r = parseIngestBody({
+            source: 'codex',
+            sessions: [{ session_id: 's0', model: 'm' }, 'not-an-object'],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toHaveLength(1);
+            expect(r.value.rejected).toEqual([
+                { index: 1, error: 'each session must be an object' },
+            ]);
+        }
     });
 
     it('drops synthetic model sessions', () => {
@@ -213,10 +266,17 @@ describe('parseHistoryBody', () => {
         expect(parseHistoryBody({ source: 'nope', sessions: many(1) }).ok).toBe(
             false,
         );
-        expect(
-            parseHistoryBody({ source: 'codex', sessions: [{ model: 'm' }] })
-                .ok,
-        ).toBe(false);
+        const r = parseHistoryBody({
+            source: 'codex',
+            sessions: [{ model: 'm' }],
+        });
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.sessions).toEqual([]);
+            expect(r.value.rejected).toEqual([
+                { index: 0, error: 'session_id is required' },
+            ]);
+        }
     });
 });
 

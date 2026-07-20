@@ -12,6 +12,8 @@ const app = new Hono<{ Bindings: Env }>();
 // { source, sessions: [{ session_id, model, started_at, input_tokens, output_tokens,
 //   cache_read_tokens, cache_creation_tokens, reasoning_tokens }] }
 // Upserts each session row; re-reporting the same session REPLACEs it (idempotent).
+// Structurally invalid rows are reported per-index in `rejected` while the
+// valid rows are still upserted; `accepted` counts the rows actually written.
 app.post('/ingest', async (c) => {
     const user = await authenticate(c.env.DB, c.req.header('Authorization'));
     if (!user) return c.json({ error: 'unauthorized' }, 401);
@@ -30,11 +32,11 @@ app.post('/ingest', async (c) => {
     const parsed = parseIngestBody(body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
-    const { source, sessions } = parsed.value;
+    const { source, sessions, rejected } = parsed.value;
     await upsertSessions(c.env.DB, user.id, source, sessions, Date.now());
     await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
 
-    return c.json({ accepted: sessions.length });
+    return c.json({ accepted: sessions.length, rejected });
 });
 
 export { app as ingestRoutes };
