@@ -408,6 +408,42 @@ describe('parseCodexRollout thread-spawn children', () => {
         expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(11);
     });
 
+    it('resolveCodexInherited emits zero rows when everything was inherited', () => {
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                tokenCount(200, 160, 20, 4),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, PARENT_ROLLOUT);
+        const rows = toRows(parsed, '/x/rollout-child-1.jsonl');
+        expect(rows.map((r) => r.model)).toEqual(['gpt-5-codex']);
+        expect(rows[0]?.input_tokens).toBe(0);
+        expect(rows[0]?.output_tokens).toBe(0);
+    });
+
+    it('resolveCodexInherited keeps an anchored match of only non-distinctive tuples', () => {
+        // All-zero-input tuples repeat by coincidence (heartbeats, retries);
+        // an anchored run with no real input is not evidence of replay.
+        const zeroParent = [
+            codexLine('session_meta', { id: 'parent-1', model: 'gpt-5-codex' }),
+            tokenCount(0, 0, 5, 1),
+            tokenCount(0, 0, 5, 1),
+        ].join('\n');
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(0, 0, 5, 1),
+                tokenCount(0, 0, 5, 1),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, zeroParent);
+        expect(parsed.models.get('gpt-5-codex')?.output_tokens).toBe(10);
+    });
+
     it('resolveCodexInherited keeps a single-event match (may be coincidence)', () => {
         const parsed = parseCodexRollout(
             [
