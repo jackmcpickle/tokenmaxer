@@ -41,6 +41,10 @@ declare module '*/tokentally.mjs' {
         parsed: ParsedCodexRollout,
         parent?: string | string[] | null,
     ): ParsedCodexRollout;
+    export function codexParentSequenceById(
+        parentId: string | null | undefined,
+        childPath?: string | null,
+    ): string[] | null;
     export function parseOpencodeMessages(
         messages: unknown[],
         opts?: { sessionId?: string; fallbackStartedAt?: number },

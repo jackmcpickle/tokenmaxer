@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // The reporter is a plain .mjs module; import its exported pure functions.
 import {
+    codexParentSequenceById,
     loadConfig,
     parseClaudeTranscript,
     parseCodexRollout,
@@ -468,6 +469,113 @@ describe('parseCodexRollout thread-spawn children', () => {
         );
         resolveCodexInherited(parsed, null);
         expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(111);
+    });
+
+    it('resolveCodexInherited drops a replayed prefix containing an adjacent duplicated row', () => {
+        // Replay occasionally writes a token_count row twice back-to-back
+        // even though the parent's own file has it once; the duplicate is
+        // still replayed history and must be dropped with the rest.
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                tokenCount(100, 80, 10, 2),
+                tokenCount(200, 160, 20, 4),
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, PARENT_ROLLOUT);
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(11);
+        expect(t?.output_tokens).toBe(5);
+        expect(parsed.pending_inherited).toHaveLength(0);
+    });
+
+    it('resolveCodexInherited keeps a duplicated row backed by only one real parent match', () => {
+        // The duplicate tolerance must not lower the evidence bar: a genuine
+        // parent match plus its own adjacent duplicate is still a
+        // single-event match and may be coincidence, so nothing is dropped.
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                tokenCount(100, 80, 10, 2),
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, PARENT_ROLLOUT);
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(211);
+    });
+
+    it('resolveCodexInherited drops a duplicated row inside an interior match', () => {
+        // Parent starts with its own inherited replay, so the child's prefix
+        // matches only from the parent's second event; the duplicate
+        // tolerance applies on the interior path too.
+        const nestedParent = [
+            codexLine('session_meta', { id: 'parent-1', model: 'gpt-5-codex' }),
+            tokenCount(50, 0, 5, 1),
+            tokenCount(100, 80, 10, 2),
+            tokenCount(200, 160, 20, 4),
+            tokenCount(300, 240, 30, 6),
+        ].join('\n');
+        const parsed = parseCodexRollout(
+            [
+                CHILD_META,
+                TURN_CONTEXT,
+                tokenCount(100, 80, 10, 2),
+                tokenCount(100, 80, 10, 2),
+                tokenCount(200, 160, 20, 4),
+                tokenCount(300, 240, 30, 6),
+                tokenCount(11, 0, 5, 1),
+            ].join('\n'),
+        );
+        resolveCodexInherited(parsed, nestedParent);
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(11);
+    });
+});
+
+describe('codexParentSequenceById', () => {
+    let dir: string;
+
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), 'tokenmaxer-codex-'));
+    });
+
+    afterEach(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('prefers the larger duplicate rollout in the near-dir probe', () => {
+        const uuid = '0f9a41f2-1111-4222-8333-abcdefabcdef';
+        // Stale truncated copy of the same session sits beside the complete
+        // one and sorts first in the directory listing; the near-dir probe
+        // must apply the same larger-file-wins rule as the full index.
+        writeFileSync(
+            join(dir, `rollout-2026-07-18T08-00-00-${uuid}.jsonl`),
+            [
+                codexLine('session_meta', { id: uuid, model: 'gpt-5-codex' }),
+                tokenCount(100, 80, 10, 2),
+            ].join('\n'),
+        );
+        writeFileSync(
+            join(dir, `rollout-2026-07-18T09-00-00-${uuid}.jsonl`),
+            [
+                codexLine('session_meta', { id: uuid, model: 'gpt-5-codex' }),
+                tokenCount(100, 80, 10, 2),
+                tokenCount(200, 160, 20, 4),
+                tokenCount(300, 240, 30, 6),
+            ].join('\n'),
+        );
+        const childPath = join(
+            dir,
+            'rollout-2026-07-18T09-05-00-1e9a41f2-1111-4222-8333-abcdefabcdef.jsonl',
+        );
+        writeFileSync(childPath, CHILD_META);
+        const keys = codexParentSequenceById(uuid, childPath);
+        expect(keys).toHaveLength(3);
+        expect(keys?.[2]).toBe('300|240|0|30|6');
     });
 });
 

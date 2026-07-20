@@ -306,6 +306,37 @@ function isDistinctiveKey(key) {
     return !key.startsWith('0|');
 }
 
+// Walk childKeys against parentKeys starting at parentKeys[start]. Replayed
+// prefixes occasionally carry a token_count row duplicated back-to-back that
+// the parent's own file has only once; a strict positional walk would stop at
+// the duplicate and leave the whole inherited prefix counted. A child tuple
+// equal to the immediately preceding child tuple is therefore consumed
+// without advancing the parent. Skipped duplicates count toward `consumed`
+// (they are replayed rows and must be dropped with the rest) but never
+// toward `matched` — the evidence thresholds and the distinctive-tuple
+// requirement are measured on genuine parent matches only, so the tolerance
+// does not weaken the bar. Every comparison, including a skip, is charged
+// one step against `budget`.
+function matchInheritedRun(parentKeys, childKeys, start, budget) {
+    const run = { consumed: 0, matched: 0, distinctive: false, steps: 0 };
+    let p = start;
+    while (run.consumed < childKeys.length && run.steps < budget) {
+        run.steps += 1;
+        const key = childKeys[run.consumed];
+        if (p < parentKeys.length && parentKeys[p] === key) {
+            run.matched += 1;
+            if (isDistinctiveKey(key)) run.distinctive = true;
+            run.consumed += 1;
+            p += 1;
+        } else if (run.consumed > 0 && key === childKeys[run.consumed - 1]) {
+            run.consumed += 1;
+        } else {
+            break;
+        }
+    }
+    return run;
+}
+
 // Replayed history is the parent's rollout from its beginning up to the
 // spawn/fork point, so a genuine replay normally matches the parent's own
 // initial token sequence — the comparison is anchored at the parent's start
@@ -314,46 +345,40 @@ function isDistinctiveKey(key) {
 // anchor misses (parent file compacted since the spawn, or the parent is
 // itself a subagent whose file starts with its own inherited replay), an
 // interior match is accepted only with stronger evidence: at least three
-// consecutive tuples. Either way the matched run must contain a distinctive
+// matched tuples. Either way the matched run must contain a distinctive
 // tuple — real replay always carries input-bearing turns, while all-zero or
 // output-only tuples are exactly the ones that repeat by coincidence. A
 // single-event match may always be coincidence and is never dropped — the
 // cost is at most one duplicated turn for a parent that spawned after a
 // single turn, which the source audit also treated as unconfirmable.
+// Adjacent duplicate child tuples are tolerated (see matchInheritedRun); the
+// returned length counts child events consumed, duplicates included, while
+// the thresholds count genuine parent matches only.
 function inheritedPrefixLength(parentKeys, childKeys) {
-    let k = 0;
-    while (
-        k < childKeys.length &&
-        k < parentKeys.length &&
-        parentKeys[k] === childKeys[k]
-    ) {
-        k += 1;
-    }
-    if (k >= 2 && childKeys.slice(0, k).some(isDistinctiveKey)) return k;
+    const anchored = matchInheritedRun(parentKeys, childKeys, 0, Infinity);
+    if (anchored.matched >= 2 && anchored.distinctive) return anchored.consumed;
 
     // Bound the interior scan: a pathological parent full of repeated
     // non-distinctive tuples must not turn a session-end hook quadratic.
     // On exhaustion, fall through with the best run found so far (counting
     // is the safe direction).
     let steps = 200_000;
-    let best = 0;
+    let best = null;
     for (let i = 1; i < parentKeys.length && steps > 0; i += 1) {
         steps -= 1;
         if (parentKeys[i] !== childKeys[0]) continue;
-        let n = 0;
-        while (
-            n < childKeys.length &&
-            i + n < parentKeys.length &&
-            parentKeys[i + n] === childKeys[n] &&
-            steps > 0
+        const run = matchInheritedRun(parentKeys, childKeys, i, steps);
+        steps -= run.steps;
+        if (
+            best === null ||
+            run.matched > best.matched ||
+            (run.matched === best.matched && run.consumed > best.consumed)
         ) {
-            n += 1;
-            steps -= 1;
+            best = run;
         }
-        if (n > best) best = n;
     }
-    if (best >= 3 && childKeys.slice(0, best).some(isDistinctiveKey))
-        return best;
+    if (best !== null && best.matched >= 3 && best.distinctive)
+        return best.consumed;
     return 0;
 }
 
@@ -718,14 +743,26 @@ function codexRolloutPathById(id, nearDir) {
     // full recursive walk of every session directory for one lookup.
     if (codexRolloutsById === null && nearDir) {
         try {
+            // Same duplicate rule as addCodexRolloutToIndex: a stale
+            // truncated copy of the session may sit beside the complete one,
+            // and matching against it would count replayed events past the
+            // truncation point. Larger file wins; -1 for an unstattable one.
+            let bestPath = null;
+            let bestSize = -1;
             for (const n of readdirSync(nearDir)) {
                 if (
-                    CODEX_ROLLOUT_FILE.test(n) &&
-                    n.toLowerCase().includes(lower)
-                ) {
-                    return join(nearDir, n);
+                    !CODEX_ROLLOUT_FILE.test(n) ||
+                    !n.toLowerCase().includes(lower)
+                )
+                    continue;
+                const full = join(nearDir, n);
+                const size = fileSize(full);
+                if (bestPath === null || size > bestSize) {
+                    bestPath = full;
+                    bestSize = size;
                 }
             }
+            if (bestPath !== null) return bestPath;
         } catch {
             /* fall through to the full index */
         }
@@ -746,7 +783,7 @@ function codexRolloutPathById(id, nearDir) {
 // transient error on one child does not leave every later sibling resolving
 // against nothing.
 const codexSequencesById = new Map();
-function codexParentSequenceById(parentId, childPath) {
+export function codexParentSequenceById(parentId, childPath) {
     if (typeof parentId !== 'string' || !parentId) return null;
     const id = parentId.toLowerCase();
     const path = codexRolloutPathById(
