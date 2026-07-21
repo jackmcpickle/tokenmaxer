@@ -153,7 +153,14 @@ export function cursorSessionToken(cfg: ReporterConfig): string | null {
 // over per-page counts because the API can return short non-final pages.
 function cursorTotalCount(payload: JsonObject): number | null {
     const v = payload.totalUsageEventsCount;
-    const n = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN;
+    // Number('') is 0 — a blank string must read as "no total reported",
+    // not as an authoritative zero that fails every non-empty window.
+    const n =
+        typeof v === 'number'
+            ? v
+            : typeof v === 'string' && v.trim()
+              ? Number(v)
+              : NaN;
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
 }
 

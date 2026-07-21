@@ -283,6 +283,18 @@ describe('cursorFetchEvents pagination', () => {
         expect(bodies).toHaveLength(1);
     });
 
+    it('treats a blank string total as absent, not zero', async () => {
+        // Number('') === 0 — an authoritative zero would fail every
+        // non-empty window forever.
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: '', usageEventsDisplay: batch(3) },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toHaveLength(3);
+        expect(bodies).toHaveLength(1);
+    });
+
     it('aborts when the reported total changes between pages', async () => {
         // A moving total means rows shifted across pages mid-fetch; the
         // surplus-based reconciliation can no longer prove duplicates.

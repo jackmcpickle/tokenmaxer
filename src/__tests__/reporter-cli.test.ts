@@ -518,6 +518,69 @@ describe('tokenmaxer CLI', () => {
         },
     );
 
+    it.skipIf(userInfo().uid === 0)(
+        'unlistable dir withholds a session whose embedded id is beyond the peek',
+        () => {
+            writeConfig();
+            // Root's first line exceeds the 16KB head peek and carries no
+            // sessionId; the real id sits on line 2. The unlistable dir's
+            // attribution must reach the full-scan id, not just peeks.
+            writeTranscript(
+                '.claude/projects/demo/sess-peek.jsonl',
+                [
+                    JSON.stringify({ type: 'user', pad: 'x'.repeat(20_000) }),
+                    claudeUsage({
+                        sid: 'sess-embed-deep',
+                        input: 44,
+                        output: 4,
+                    }),
+                ].join('\n'),
+            );
+            const hidden = join(
+                home,
+                '.claude/projects/demo/sess-peek/subagents/hidden',
+            );
+            mkdirSync(hidden, { recursive: true });
+            chmodSync(hidden, 0o000);
+            try {
+                const res = runCli(['claude-sessionstart', '--dry-run'], {
+                    home,
+                });
+                expect(res.status).toBe(0);
+                const ids = (
+                    res.stdout.trim()
+                        ? (JSON.parse(res.stdout.trim()).body.sessions as {
+                              session_id: string;
+                          }[])
+                        : []
+                ).map((s) => s.session_id);
+                expect(ids).not.toContain('sess-embed-deep');
+            } finally {
+                chmodSync(hidden, 0o755);
+            }
+        },
+    );
+
+    it('survives a transcript with an extreme number of unkeyed rows', () => {
+        writeConfig();
+        // 140k unkeyed usage rows: a spread-based push would blow the call
+        // stack and lose the whole run to one pathological file.
+        const line = claudeUsage({ sid: 'sess-many', input: 1 });
+        writeTranscript(
+            '.claude/projects/demo/sess-many.jsonl',
+            Array.from({ length: 140_000 }, () => line).join('\n'),
+        );
+        const res = runCli(['claude-sessionstart', '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        const payload = JSON.parse(res.stdout.trim());
+        expect(payload.body.sessions).toEqual([
+            expect.objectContaining({
+                session_id: 'sess-many',
+                input_tokens: 140_000,
+            }),
+        ]);
+    });
+
     it('claude-report on a missing path fails loudly', () => {
         writeConfig();
         const res = runCli(

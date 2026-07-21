@@ -501,6 +501,24 @@ function claudeRowWins(a: KeyedClaudeRow, b: KeyedClaudeRow): boolean {
  * Files are read one at a time; a file that cannot be read is recorded in
  * stats (missing vs failed split so the caller can decide what each means).
  */
+function mergeScanIntoState(
+    state: SessionState,
+    scan: ClaudeFileScan,
+    path: string,
+): void {
+    const subagentPath = path.toLowerCase().includes(`${sep}subagents${sep}`);
+    for (const [k, row] of scan.keyed) {
+        const candidate = { row, subagentPath, path };
+        const incumbent = state.keyed.get(k);
+        if (!incumbent || claudeRowWins(candidate, incumbent)) {
+            state.keyed.set(k, candidate);
+        }
+    }
+    // No spread: a pathological transcript with 100k+ unkeyed rows would
+    // blow the call stack and crash the whole collection run.
+    for (const row of scan.unkeyed) state.unkeyed.push(row);
+}
+
 function aggregateClaudeFiles(
     files: WalkedFile[],
     stats: ReadStats,
@@ -544,17 +562,7 @@ function aggregateClaudeFiles(
             state = { sid, startedAt: null, keyed: new Map(), unkeyed: [] };
             sessions.set(stateKey, state);
         }
-        const subagentPath = file.path
-            .toLowerCase()
-            .includes(`${sep}subagents${sep}`);
-        for (const [k, row] of scan.keyed) {
-            const candidate = { row, subagentPath, path: file.path };
-            const incumbent = state.keyed.get(k);
-            if (!incumbent || claudeRowWins(candidate, incumbent)) {
-                state.keyed.set(k, candidate);
-            }
-        }
-        state.unkeyed.push(...scan.unkeyed);
+        mergeScanIntoState(state, scan, file.path);
         const fileStart =
             scan.startedAt ??
             (Number.isFinite(file.mtimeMs) ? file.mtimeMs : null);
@@ -650,19 +658,11 @@ export interface ClaudeSessionRowsResult {
  * of last resort; `extraFailedSids` are withheld unconditionally (the hook's
  * own tree reported a listing failure).
  */
-// Files from a failed file's session TREE may have fed sessions keyed by a
-// different embedded id (a readable root carrying a divergent sessionId,
-// while the unreadable sibling could not be peeked and fell back to its
-// path-derived id). Those aggregates are missing the failed file's usage and
-// must be withheld too — never upload a partial over a fuller stored row.
-// Mirrors what claudeAttributeFailedDir does for unlistable directories.
-// One tree-id pass keeps this O(files), not O(withheld × files).
-function addWithheldSids(
-    withheld: string[],
-    sidByPath: Map<string, string>,
+// Which sessions each session TREE (path-derived id) fed, from the
+// full-file scans. One pass keeps tree lookups O(files) overall.
+function buildSessionKeysByTree(
     sessionKeyByPath: Map<string, string>,
-    failedSids: Set<string>,
-): void {
+): Map<string, Set<string>> {
     const sessionKeysByTree = new Map<string, Set<string>>();
     for (const [fpath, sessionKey] of sessionKeyByPath) {
         const tree = claudeSessionIdFromPath(fpath).toLowerCase();
@@ -670,6 +670,21 @@ function addWithheldSids(
         keys.add(sessionKey);
         sessionKeysByTree.set(tree, keys);
     }
+    return sessionKeysByTree;
+}
+
+// Files from a failed file's session TREE may have fed sessions keyed by a
+// different embedded id (a readable root carrying a divergent sessionId,
+// while the unreadable sibling could not be peeked and fell back to its
+// path-derived id). Those aggregates are missing the failed file's usage and
+// must be withheld too — never upload a partial over a fuller stored row.
+// Mirrors what claudeAttributeFailedDir does for unlistable directories.
+function addWithheldSids(
+    withheld: string[],
+    sidByPath: Map<string, string>,
+    sessionKeysByTree: Map<string, Set<string>>,
+    failedSids: Set<string>,
+): void {
     for (const path of withheld) {
         const sid = sidByPath.get(path);
         if (!sid) continue;
@@ -679,6 +694,26 @@ function addWithheldSids(
             failedSids.add(key);
         }
     }
+}
+
+// Withholding through the session-tree association: an unlistable dir's
+// layout sid names its session TREE, and sessions fed by that tree can key
+// on embedded ids the dir attribution's head peeks missed (first line
+// beyond the peek window); unreadable files withhold analogously.
+function applyTreeWithholding(
+    withheld: string[],
+    failedDirSids: Set<string>,
+    sidByPath: Map<string, string>,
+    sessionKeyByPath: Map<string, string>,
+    failedSids: Set<string>,
+): void {
+    const sessionKeysByTree = buildSessionKeysByTree(sessionKeyByPath);
+    for (const dirSid of failedDirSids) {
+        for (const key of sessionKeysByTree.get(dirSid) ?? []) {
+            failedSids.add(key);
+        }
+    }
+    addWithheldSids(withheld, sidByPath, sessionKeysByTree, failedSids);
 }
 
 // Withhold every session the hook-provided extras fed, keyed on the
@@ -756,8 +791,14 @@ export function collectClaudeSessionRows(
     if (withholdExtraSessions) {
         addExtraSessionSids(extras, sessionKeyByPath, failedSids);
     }
-    if (withheld.length > 0) {
-        addWithheldSids(withheld, sidByPath, sessionKeyByPath, failedSids);
+    if (withheld.length > 0 || failedDirSids.size > 0) {
+        applyTreeWithholding(
+            withheld,
+            failedDirSids,
+            sidByPath,
+            sessionKeyByPath,
+            failedSids,
+        );
     }
     if (withheld.length > 0 || failedSids.size > 0) {
         process.stderr.write(
