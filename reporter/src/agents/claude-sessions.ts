@@ -413,6 +413,14 @@ function claudeAttributeFailedDir(
     }
 }
 
+function claudeIsDirectory(path: string): boolean {
+    try {
+        return statSync(path).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 /**
  * All local Claude transcripts grouped by session: each file's first embedded
  * sessionId when present, else its path-derived id. Grouping on the embedded
@@ -422,14 +430,6 @@ function claudeAttributeFailedDir(
  * returned in failedDirSids — their rows must be withheld, not uploaded as
  * partials.
  */
-function claudeIsDirectory(path: string): boolean {
-    try {
-        return statSync(path).isDirectory();
-    } catch {
-        return false;
-    }
-}
-
 function claudeSessionGroups(): {
     groups: SessionGroups;
     failedDirSids: Set<string>;

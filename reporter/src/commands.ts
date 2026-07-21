@@ -155,13 +155,11 @@ function collectCodexRows(
 }
 
 export async function codexCatchup(cfg: ReporterConfig): Promise<void> {
-    await catchupJsonlSource(
-        cfg,
-        'codex',
-        codexDirs(),
-        (n) => CODEX_ROLLOUT_FILE.test(n),
-        '',
-        (files) => dedupeCodexRolloutFiles(files),
+    const since = Date.now() - CATCHUP_DAYS * 86_400_000;
+    const { files, rows } = collectCodexRows(since, false);
+    const { accepted } = await postSessions(cfg, 'codex', rows);
+    process.stderr.write(
+        `tokenmaxer: caught up ${accepted} row(s) from ${files.length} file(s)\n`,
     );
 }
 
