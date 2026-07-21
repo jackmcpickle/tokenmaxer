@@ -104,12 +104,29 @@ function claudeRealIndex(groups: SessionGroups): Map<string, WalkedFile> {
     return byReal;
 }
 
+// Physical file identity. dev:ino is immune to path spelling — APFS is
+// case-insensitive but realpathSync does not canonicalize case, so a
+// case-variant hook path would otherwise read the same transcript twice and
+// double-count its unkeyed rows. Memoized for the run: identity is stable
+// for the process lifetime and this sits on the collector's hot path.
+const realKeyMemo = new Map<string, string>();
+
 function claudeRealKey(path: string): string {
+    const memo = realKeyMemo.get(path);
+    if (memo !== undefined) return memo;
+    let key: string;
     try {
-        return realpathSync(path);
+        const st = statSync(path);
+        key = `${st.dev}:${st.ino}`;
     } catch {
-        return path;
+        try {
+            key = realpathSync(path);
+        } catch {
+            key = path;
+        }
     }
+    realKeyMemo.set(path, key);
+    return key;
 }
 
 // -------------------------------------------------------------- walking ----
@@ -451,6 +468,7 @@ function aggregateClaudeFiles(
     files: WalkedFile[],
     stats: ReadStats,
     scanCache?: Map<string, ClaudeFileScan>,
+    sessionKeyByPath?: Map<string, string>,
 ): Map<string, SessionState> {
     const sessions = new Map<string, SessionState>();
     const seenPaths = new Set<string>();
@@ -480,6 +498,10 @@ function aggregateClaudeFiles(
         }
         const sid = scan.sessionId || file.sid;
         const stateKey = sid.toLowerCase();
+        // Which session each read file fed: a failed sibling from the same
+        // session tree must withhold that session even when its key is an
+        // embedded id the failed file's own sid never named.
+        sessionKeyByPath?.set(file.path, stateKey);
         let state = sessions.get(stateKey);
         if (!state) {
             state = { sid, startedAt: null, keyed: new Map(), unkeyed: [] };
@@ -615,12 +637,19 @@ export function collectClaudeSessionRows(
     let sessions: Map<string, SessionState>;
     let withheld: string[];
     let sidByPath: Map<string, string>;
+    let sessionKeyByPath: Map<string, string>;
     for (;;) {
         const files = [...extras];
         for (const key of selected) files.push(...(groups.get(key) ?? []));
         sidByPath = new Map(files.map((f) => [f.path, f.sid]));
         const stats: ReadStats = { failedPaths: [], missingPaths: [] };
-        sessions = aggregateClaudeFiles(files, stats, scanCache);
+        sessionKeyByPath = new Map();
+        sessions = aggregateClaudeFiles(
+            files,
+            stats,
+            scanCache,
+            sessionKeyByPath,
+        );
         // Unreadable files withhold their session. So does ANY file that
         // vanished between discovery and read — including a sessionend
         // sibling listed moments earlier (a transient race; the next run
@@ -640,7 +669,21 @@ export function collectClaudeSessionRows(
     for (const sid of extraFailedSids) failedSids.add(sid.toLowerCase());
     for (const path of withheld) {
         const sid = sidByPath.get(path);
-        if (sid) failedSids.add(sid.toLowerCase());
+        if (!sid) continue;
+        failedSids.add(sid.toLowerCase());
+        // Files from the failed file's session TREE may have fed sessions
+        // keyed by a different embedded id (a readable root carrying a
+        // divergent sessionId, while the unreadable sibling could not be
+        // peeked and fell back to its path-derived id). Those aggregates
+        // are missing this file's usage and must be withheld too — never
+        // upload a partial over a fuller stored row. Mirrors what
+        // claudeAttributeFailedDir does for unlistable directories.
+        const pd = claudeSessionIdFromPath(path).toLowerCase();
+        for (const [fpath, sessionKey] of sessionKeyByPath) {
+            if (claudeSessionIdFromPath(fpath).toLowerCase() === pd) {
+                failedSids.add(sessionKey);
+            }
+        }
     }
     if (withheld.length > 0 || failedSids.size > 0) {
         process.stderr.write(

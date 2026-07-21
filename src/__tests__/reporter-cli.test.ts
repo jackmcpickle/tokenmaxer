@@ -709,6 +709,121 @@ describe('tokenmaxer CLI', () => {
     );
 
     it.skipIf(userInfo().uid === 0)(
+        'withholds a session keyed by a divergent embedded id when a tree sibling is unreadable',
+        () => {
+            writeConfig();
+            // The root's embedded sessionId differs from its filename (a
+            // resumed/copied transcript); the unreadable subagent sibling
+            // cannot be peeked, so it groups under the path-derived id.
+            // The session aggregated under the embedded id is missing the
+            // sibling's usage and must be withheld.
+            writeTranscript(
+                '.claude/projects/demo/sess-div.jsonl',
+                claudeUsage({
+                    sid: 'real-div-id',
+                    messageId: 'msg_d',
+                    input: 100,
+                    output: 10,
+                }),
+            );
+            const bad = writeTranscript(
+                '.claude/projects/demo/sess-div/subagents/agent-a.jsonl',
+                claudeUsage({ sid: 'real-div-id', input: 999, output: 99 }),
+            );
+            chmodSync(bad, 0o000);
+            try {
+                const res = runCli(['claude-sessionstart', '--dry-run'], {
+                    home,
+                });
+                expect(res.status).toBe(0);
+                const ids = (
+                    res.stdout.trim()
+                        ? (JSON.parse(res.stdout.trim()).body.sessions as {
+                              session_id: string;
+                          }[])
+                        : []
+                ).map((s) => s.session_id);
+                expect(ids).not.toContain('real-div-id');
+                expect(res.stderr).toContain('withheld');
+            } finally {
+                chmodSync(bad, 0o644);
+            }
+        },
+    );
+
+    it('reports a marker-less legacy spawn child minus the matched parent prefix', () => {
+        writeConfig();
+        const uuid = 'aaaa41f2-1111-4222-8333-abcdefabcd10';
+        const childUuid = 'bbbb41f2-1111-4222-8333-abcdefabcd10';
+        function lastUsage(input: number, output: number): string {
+            return JSON.stringify({
+                type: 'event_msg',
+                timestamp: '2026-07-18T09:00:10Z',
+                payload: {
+                    type: 'token_count',
+                    info: {
+                        last_token_usage: {
+                            input_tokens: input,
+                            cached_input_tokens: 0,
+                            output_tokens: output,
+                            reasoning_output_tokens: 0,
+                        },
+                    },
+                },
+            });
+        }
+        writeTranscript(
+            `.codex/sessions/2026/07/18/rollout-2026-07-18T08-00-00-${uuid}.jsonl`,
+            [
+                JSON.stringify({
+                    type: 'session_meta',
+                    timestamp: '2026-07-18T08:00:00Z',
+                    payload: { id: uuid, model: 'gpt-5-codex' },
+                }),
+                lastUsage(100, 10),
+                lastUsage(200, 20),
+            ].join('\n'),
+        );
+        const childPath = writeTranscript(
+            `.codex/sessions/2026/07/18/rollout-2026-07-18T09-00-00-${childUuid}.jsonl`,
+            [
+                JSON.stringify({
+                    type: 'session_meta',
+                    timestamp: '2026-07-18T09:00:00Z',
+                    payload: {
+                        id: childUuid,
+                        model: 'gpt-5-codex',
+                        source: {
+                            subagent: {
+                                thread_spawn: {
+                                    parent_thread_id: uuid,
+                                    depth: 1,
+                                },
+                            },
+                        },
+                    },
+                }),
+                // Replayed parent history (no marker, last-only)…
+                lastUsage(100, 10),
+                lastUsage(200, 20),
+                // …then the child's own turn.
+                lastUsage(11, 5),
+            ].join('\n'),
+        );
+        const res = runCli(['codex-report', childPath, '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        const payload = JSON.parse(res.stdout.trim());
+        expect(payload.body.sessions).toEqual([
+            expect.objectContaining({
+                session_id: childUuid,
+                model: 'gpt-5-codex',
+                input_tokens: 11,
+                output_tokens: 5,
+            }),
+        ]);
+    });
+
+    it.skipIf(userInfo().uid === 0)(
         'claude-sessionstart withholds a session whose subagents dir is unlistable',
         () => {
             writeConfig();

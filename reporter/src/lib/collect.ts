@@ -6,10 +6,14 @@ export function collectRowsFromJsonlDirs(options: {
     sinceMs: number;
     match: (name: string) => boolean;
     parseFile: (path: string) => ReporterRow[];
+    // Optional pre-parse pass over the walked list (e.g. dropping duplicate
+    // copies of one session before their rows can race on the upsert).
+    prepareFiles?: (files: string[]) => string[];
 }): { files: string[]; rows: ReporterRow[] } {
-    const files = options.dirs.flatMap((d) =>
+    let files = options.dirs.flatMap((d) =>
         walkJsonl(d, options.sinceMs, options.match),
     );
+    if (options.prepareFiles) files = options.prepareFiles(files);
     const rows: ReporterRow[] = [];
     for (const file of files) {
         try {

@@ -24,7 +24,6 @@ import { piDirs } from './agents/pi';
 import { postSessions, readStdin } from './api';
 import { collectRowsFromJsonlDirs } from './lib/collect';
 import { CATCHUP_DAYS, HISTORY_CHUNK } from './lib/flags';
-import { walkJsonl } from './lib/fs-walk';
 import type {
     JsonObject,
     PostOpts,
@@ -81,12 +80,17 @@ async function reportClaudeSession(
                 claudeSessionIdFromPath(path),
         );
     }
+    // Exempt the hooked path from the missing-file withholding rule only
+    // when it is ALREADY absent here: then there was never a contribution
+    // to protect. A path that exists now but vanishes before the read is
+    // the same race class as a vanished sibling and must withhold.
+    const exemptMissing = existsSync(path) ? [] : [path];
     const { rows, sessionCount } = collectClaudeSessionRows(
         opts.sinceMs,
         siblings,
         opts.hookSid,
         extraFailedSids,
-        [path],
+        exemptMissing,
     );
     const { accepted } = await postSessions(cfg, 'claude_code', rows);
     process.stderr.write(
@@ -133,21 +137,17 @@ function collectCodexRows(
     sinceMs: number,
     seedIndex: boolean,
 ): { files: string[]; rows: ReporterRow[] } {
-    const files = dedupeCodexRolloutFiles(
-        codexDirs().flatMap((d) =>
-            walkJsonl(d, sinceMs, (n) => CODEX_ROLLOUT_FILE.test(n)),
-        ),
-    );
-    if (seedIndex) seedCodexRolloutIndex(files);
-    const rows: ReporterRow[] = [];
-    for (const file of files) {
-        try {
-            rows.push(...parseFile(file, 'codex'));
-        } catch {
-            /* skip unreadable / unparseable file */
-        }
-    }
-    return { files, rows };
+    return collectRowsFromJsonlDirs({
+        dirs: codexDirs(),
+        sinceMs,
+        match: (n) => CODEX_ROLLOUT_FILE.test(n),
+        parseFile: (path) => parseFile(path, 'codex'),
+        prepareFiles: (walked) => {
+            const files = dedupeCodexRolloutFiles(walked);
+            if (seedIndex) seedCodexRolloutIndex(files);
+            return files;
+        },
+    });
 }
 
 export async function codexCatchup(cfg: ReporterConfig): Promise<void> {

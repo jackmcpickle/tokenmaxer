@@ -1,6 +1,10 @@
 import { readFileSync, statSync } from 'node:fs';
 import { parseClaudeTranscript } from './agents/claude';
-import { codexForkResolverFor, parseCodexRollout } from './agents/codex';
+import {
+    codexForkResolverFor,
+    codexParentLastKeysFor,
+    parseCodexRollout,
+} from './agents/codex';
 import { parsePiRollout } from './agents/pi';
 import { toRows } from './lib/rows';
 import type { ParsedTranscript, ReporterRow } from './lib/types';
@@ -18,6 +22,7 @@ export function parseFile(path: string, source: string): ReporterRow[] {
         parsed = parseCodexRollout(text, {
             fallbackStartedAt,
             resolveParent: codexForkResolverFor(path),
+            resolveParentLastKeys: codexParentLastKeysFor(path),
         });
     } else if (source === 'pi')
         parsed = parsePiRollout(text, { fallbackStartedAt });

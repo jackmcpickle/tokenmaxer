@@ -686,6 +686,110 @@ function classifySubagentShape(
     };
 }
 
+// Ordered tuple key of one last_token_usage, for legacy parent-prefix
+// matching (same field order as the pre-engine reporter).
+export function codexLastKey(t: Totals): string {
+    return [
+        t.input_tokens,
+        t.cache_read_tokens,
+        t.cache_creation_tokens,
+        t.output_tokens,
+        t.reasoning_tokens,
+    ].join('|');
+}
+
+interface InheritedRun {
+    consumed: number;
+    matched: number;
+    distinctive: boolean;
+    steps: number;
+}
+
+// A tuple with real input is very unlikely to repeat by coincidence;
+// all-zero or output-only tuples can.
+function isDistinctiveKey(key: string): boolean {
+    return !key.startsWith('0|');
+}
+
+// Walk childKeys against parentKeys starting at parentKeys[start]. Replayed
+// prefixes occasionally carry a token_count row duplicated back-to-back that
+// the parent's own file has only once; a child tuple equal to the
+// immediately preceding child tuple is consumed without advancing the
+// parent. Skipped duplicates count toward `consumed` (they are replayed rows
+// and must be dropped with the rest) but never toward `matched` — the
+// evidence thresholds are measured on genuine parent matches only. Every
+// comparison, including a skip, is charged one step against `budget`.
+function matchInheritedRun(
+    parentKeys: string[],
+    childKeys: string[],
+    start: number,
+    budget: number,
+): InheritedRun {
+    const run: InheritedRun = {
+        consumed: 0,
+        matched: 0,
+        distinctive: false,
+        steps: 0,
+    };
+    let p = start;
+    while (run.consumed < childKeys.length && run.steps < budget) {
+        run.steps += 1;
+        const key = childKeys[run.consumed];
+        if (key === undefined) break;
+        if (p < parentKeys.length && parentKeys[p] === key) {
+            run.matched += 1;
+            if (isDistinctiveKey(key)) run.distinctive = true;
+            run.consumed += 1;
+            p += 1;
+        } else if (run.consumed > 0 && key === childKeys[run.consumed - 1]) {
+            run.consumed += 1;
+        } else {
+            break;
+        }
+    }
+    return run;
+}
+
+// Replayed history is the parent's rollout from its beginning up to the
+// spawn point, so a genuine replay normally matches the parent's own initial
+// token sequence — the comparison is anchored at the parent's start so a
+// coincidental value match elsewhere cannot silently discard genuine child
+// usage. When the anchor misses (parent compacted since the spawn, or the
+// parent is itself a subagent starting with its own replay), an interior
+// match needs stronger evidence: at least three matched tuples. Either way
+// the run must contain a distinctive tuple. A single-event match may always
+// be coincidence and is never dropped.
+function inheritedPrefixLength(
+    parentKeys: string[],
+    childKeys: string[],
+): number {
+    const anchored = matchInheritedRun(parentKeys, childKeys, 0, Infinity);
+    if (anchored.matched >= 2 && anchored.distinctive) return anchored.consumed;
+
+    // Bound the interior scan: a pathological parent full of repeated
+    // non-distinctive tuples must not turn a session-end hook quadratic.
+    // On exhaustion, fall through with the best run found (counting is the
+    // safe direction).
+    let steps = 200_000;
+    let best: InheritedRun | null = null;
+    for (let i = 1; i < parentKeys.length && steps > 0; i += 1) {
+        steps -= 1;
+        if (parentKeys[i] !== childKeys[0]) continue;
+        const run = matchInheritedRun(parentKeys, childKeys, i, steps);
+        steps -= run.steps;
+        if (
+            best === null ||
+            run.matched > best.matched ||
+            (run.matched === best.matched && run.consumed > best.consumed)
+        ) {
+            best = run;
+        }
+    }
+    if (best !== null && best.matched >= 3 && best.distinctive)
+        return best.consumed;
+    return 0;
+}
+
 // Legacy thread-spawn shape (#15): last-only replayed parent history carries
 // no markers, ancestor metas, or cumulative totals for the classifier to key
 // on, so the first trigger_turn in an explicit spawn child's file is its
@@ -693,6 +797,40 @@ function classifySubagentShape(
 // classifier real evidence — if it still judged the counters independent,
 // trust it: a mid-session marker there is the child's own inter-agent
 // traffic, not the spawn boundary.
+// Marker-less legacy spawn children (pre-marker era): the replayed prefix
+// is identified by matching the child's initial last-tuple sequence against
+// the parent rollout's (fetched lazily — only files matching the shape pay
+// the parent read).
+function legacyPrefixBoundary(
+    buffered: BufferedLine[],
+    parentKeys: () => string[],
+): OwnedSuffix | null {
+    const tokenLines = buffered.filter((b) => b.line.kind === 'tokenCount');
+    const lastOnly =
+        tokenLines.length > 0 &&
+        tokenLines.every(
+            (b) =>
+                b.line.kind === 'tokenCount' &&
+                b.line.rec.total === null &&
+                b.line.rec.last !== null,
+        );
+    const hasMarker = buffered.some(
+        (b) => b.line.kind === 'interAgent' && b.line.triggerTurn,
+    );
+    if (!lastOnly || hasMarker) return null;
+    const childKeys = tokenLines.map((b) =>
+        b.line.kind === 'tokenCount' && b.line.rec.last
+            ? codexLastKey(b.line.rec.last)
+            : '',
+    );
+    const drop = inheritedPrefixLength(parentKeys(), childKeys);
+    if (drop === 0) return null;
+    return {
+        startLineIndex: tokenLines[drop]?.lineIndex ?? Number.MAX_SAFE_INTEGER,
+        rawTotalsBaseline: emptyTotals(),
+    };
+}
+
 function legacySpawnBoundary(buffered: BufferedLine[]): OwnedSuffix | null {
     let sawTotalsBeforeMarker = false;
     for (const b of buffered) {
@@ -727,6 +865,10 @@ export interface CodexEngineOpts {
     sessionId?: string;
     fallbackStartedAt?: number | null;
     resolveParent?: CodexForkResolver;
+    // Ordered last_token_usage tuple keys of a parent rollout, for the
+    // legacy marker-less spawn shape that predates both trigger_turn
+    // markers and cumulative totals. null when the parent isn't local.
+    resolveParentLastKeys?: (parentSessionId: string) => string[] | null;
 }
 
 export interface ParsedCodexRollout {
@@ -1134,6 +1276,17 @@ export function parseCodexRollout(
             if (legacy !== null) {
                 ownedSuffix = legacy;
                 legacyBoundary = true;
+            } else if (forkedFromId !== null && opts.resolveParentLastKeys) {
+                const parentId = forkedFromId;
+                const resolveKeys = opts.resolveParentLastKeys;
+                const boundary = legacyPrefixBoundary(
+                    pendingSubagentLines,
+                    () => resolveKeys(parentId) ?? [],
+                );
+                if (boundary !== null) {
+                    ownedSuffix = boundary;
+                    legacyBoundary = true;
+                }
             }
         }
         suppressUnownedCopiedPrefix =
@@ -1205,10 +1358,12 @@ export interface CodexSnapshot {
 export function codexTokenSnapshots(text: string): {
     sessionId: string | null;
     snapshots: CodexSnapshot[];
+    lastKeys: string[];
 } {
     let snapSessionId: string | null = null;
     const acc = newSnapshotAccumulator();
     const snapshots: CodexSnapshot[] = [];
+    const lastKeys: string[] = [];
     for (const obj of jsonlObjects(text)) {
         const line = codexLineFrom(obj);
         if (line === null) continue;
@@ -1217,6 +1372,9 @@ export function codexTokenSnapshots(text: string): {
             continue;
         }
         if (line.kind !== 'tokenCount') continue;
+        // The last-tuple sequence feeds legacy prefix matching and keeps
+        // every event, timestamped or not, in file order.
+        if (line.rec.last !== null) lastKeys.push(codexLastKey(line.rec.last));
         // A snapshot without a timestamp cannot be ordered against the fork
         // point; an empty string would lexically sort before every cutoff
         // and silently promote post-fork parent usage into the baseline.
@@ -1228,5 +1386,5 @@ export function codexTokenSnapshots(text: string): {
             totals: accumulatorApply(acc, line.rec.last, line.rec.total),
         });
     }
-    return { sessionId: snapSessionId, snapshots };
+    return { sessionId: snapSessionId, snapshots, lastKeys };
 }

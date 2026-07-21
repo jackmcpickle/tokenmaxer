@@ -143,10 +143,49 @@ function codexRolloutPathById(
 // referenced as a parent are ever loaded. Read failures are not cached, so a
 // transient error on one child does not pin every later sibling to
 // "unresolved parent".
-const codexSnapshotsById = new Map<
-    string,
-    { sessionId: string | null; snapshots: CodexSnapshot[] }
->();
+interface ParentStream {
+    sessionId: string | null;
+    snapshots: CodexSnapshot[];
+    lastKeys: string[];
+}
+
+const codexSnapshotsById = new Map<string, ParentStream>();
+
+// Locate, read, and replay the parent rollout. Returns null when the parent
+// isn't locally resolvable, resolves to the child's own file
+// (self-referential or colliding metadata — the child would inherit its own
+// totals and zero itself out; file identity, not path spelling, because the
+// hook may supply a case-variant path on APFS), or the resolved file's
+// embedded id doesn't match (a filename collision replaying someone else's
+// totals would fabricate a baseline).
+function codexParentStream(
+    parentSessionId: string,
+    childPath: string | null,
+): ParentStream | null {
+    if (!parentSessionId) return null;
+    const id = parentSessionId.toLowerCase();
+    const path = codexRolloutPathById(
+        id,
+        childPath ? dirname(childPath) : null,
+    );
+    if (path === null) return null;
+    if (childPath !== null && isSameFile(path, childPath)) return null;
+    let parent = codexSnapshotsById.get(id);
+    if (parent === undefined) {
+        let text: string;
+        try {
+            text = readFileSync(path, 'utf8');
+        } catch {
+            return null;
+        }
+        parent = codexTokenSnapshots(text);
+        codexSnapshotsById.set(id, parent);
+    }
+    if (parent.sessionId === null || parent.sessionId.toLowerCase() !== id) {
+        return null;
+    }
+    return parent;
+}
 
 function codexForkBaseline(
     parentSessionId: string,
@@ -156,36 +195,9 @@ function codexForkBaseline(
     // No usable fork timestamp: the parent's counted totals at the fork
     // point cannot be selected, so the child falls to conservative
     // accounting rather than guessing a baseline.
-    if (!parentSessionId || !forkedAt) return { unresolved: true };
-    const id = parentSessionId.toLowerCase();
-    const path = codexRolloutPathById(
-        id,
-        childPath ? dirname(childPath) : null,
-    );
-    if (path === null) return { unresolved: true };
-    // A parent that resolves to the child's own file (self-referential or
-    // colliding metadata) must not be replayed — the child would inherit
-    // its own totals and zero itself out. File identity, not path spelling:
-    // the hook may supply a case-variant path on APFS.
-    if (childPath !== null && isSameFile(path, childPath)) {
-        return { unresolved: true };
-    }
-    let parent = codexSnapshotsById.get(id);
-    if (parent === undefined) {
-        let text: string;
-        try {
-            text = readFileSync(path, 'utf8');
-        } catch {
-            return { unresolved: true };
-        }
-        parent = codexTokenSnapshots(text);
-        codexSnapshotsById.set(id, parent);
-    }
-    // The resolved file must actually be the requested session — a filename
-    // collision replaying someone else's totals would fabricate a baseline.
-    if (parent.sessionId === null || parent.sessionId.toLowerCase() !== id) {
-        return { unresolved: true };
-    }
+    if (!forkedAt) return { unresolved: true };
+    const parent = codexParentStream(parentSessionId, childPath);
+    if (parent === null) return { unresolved: true };
     const cutoffMs = toMs(forkedAt);
     let inherited: ReporterTotals | null = null;
     for (const snap of parent.snapshots) {
@@ -212,4 +224,17 @@ export function codexForkResolverFor(
 ): CodexForkResolver {
     return (parentSessionId, forkedAt) =>
         codexForkBaseline(parentSessionId, forkedAt, childPath);
+}
+
+/**
+ * Parent last-tuple sequence for legacy marker-less spawn children (files
+ * that predate both trigger_turn markers and cumulative totals): the child's
+ * replayed prefix is identified by matching against this sequence, read
+ * locally from the parent rollout.
+ */
+export function codexParentLastKeysFor(
+    childPath: string | null,
+): (parentSessionId: string) => string[] | null {
+    return (parentSessionId) =>
+        codexParentStream(parentSessionId, childPath)?.lastKeys ?? null;
 }
