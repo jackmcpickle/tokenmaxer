@@ -190,7 +190,12 @@ function walkClaudeTranscripts(
         } else if (kind.file && CLAUDE_JSONL.test(e.name)) {
             let mtimeMs = -Infinity;
             try {
-                mtimeMs = statSync(full).mtimeMs;
+                const st = statSync(full);
+                mtimeMs = st.mtimeMs;
+                // The same stat also yields the file's identity key —
+                // seeding the memo here halves stat traffic on the
+                // collector's hot path.
+                realKeyMemo.set(full, `${st.dev}:${st.ino}`);
             } catch {
                 /* keep the file; the read step decides */
             }
@@ -321,12 +326,27 @@ export function claudeSessionSiblings(
 const CLAUDE_PEEK_BYTES = 16 * 1024;
 const CLAUDE_PEEK_BUF = Buffer.alloc(CLAUDE_PEEK_BYTES);
 
+// One sessionend run can peek the same head from several call sites
+// (sibling layout validation, failure attribution, extras resolution); file
+// identity is treated as stable for the process lifetime, like realKeyMemo.
+// Unreadable results are cached too — a transient-read distinction buys
+// nothing here because grouping falls back to the path-derived id either way.
+const embeddedSidMemo = new Map<string, string | null>();
+
 /**
  * The first non-empty embedded sessionId within the head of the file, or null.
  * Grouping by this (instead of the filename) keeps a copied or renamed
  * transcript in the same session as the files it duplicates.
  */
 export function claudeEmbeddedSessionId(path: string): string | null {
+    const memo = embeddedSidMemo.get(path);
+    if (memo !== undefined) return memo;
+    const sid = claudePeekSessionId(path);
+    embeddedSidMemo.set(path, sid);
+    return sid;
+}
+
+function claudePeekSessionId(path: string): string | null {
     let fd: number | null = null;
     try {
         fd = openSync(path, 'r');
@@ -661,12 +681,30 @@ function addWithheldSids(
     }
 }
 
+// Withhold every session the hook-provided extras fed, keyed on the
+// full-scan session ids the collector actually used.
+function addExtraSessionSids(
+    extras: WalkedFile[],
+    sessionKeyByPath: Map<string, string>,
+    failedSids: Set<string>,
+): void {
+    for (const extra of extras) {
+        const key = sessionKeyByPath.get(extra.path);
+        if (key) failedSids.add(key);
+    }
+}
+
 export function collectClaudeSessionRows(
     sinceMs: number,
     extraPaths: string[] = [],
     extraFallbackSid?: string,
     extraFailedSids: string[] = [],
     exemptMissingPaths: string[] = [],
+    // When the caller knows part of the hooked session's tree was
+    // unreachable (an unlistable sibling dir), every session the extras fed
+    // must be withheld — keyed on the full-scan session ids the collector
+    // actually used, not on head peeks that can miss deep or absent ids.
+    withholdExtraSessions = false,
 ): ClaudeSessionRowsResult {
     const { groups, failedDirSids } = claudeSessionGroups();
     const selected = new Set<string>();
@@ -715,6 +753,9 @@ export function collectClaudeSessionRows(
     }
     const failedSids = new Set<string>(failedDirSids);
     for (const sid of extraFailedSids) failedSids.add(sid.toLowerCase());
+    if (withholdExtraSessions) {
+        addExtraSessionSids(extras, sessionKeyByPath, failedSids);
+    }
     if (withheld.length > 0) {
         addWithheldSids(withheld, sidByPath, sessionKeyByPath, failedSids);
     }

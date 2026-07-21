@@ -535,6 +535,16 @@ export function sameConcreteSessionId(
     return na !== null && nb !== null && na === nb;
 }
 
+// The parent-resolver layer matches ids case-insensitively (uuids in
+// filenames), so the self-parent guard must fold case too — a case-variant
+// self-reference would otherwise resolve to a duplicate copy of the same
+// session and hand it its own history.
+function selfParentId(parentId: string | null, ownId: string | null): boolean {
+    const np = normalizedSessionId(parentId);
+    const no = normalizedSessionId(ownId);
+    return np !== null && no !== null && np.toLowerCase() === no.toLowerCase();
+}
+
 function classifySubagentShape(
     leafSessionId: string | null,
     buffered: BufferedLine[],
@@ -967,7 +977,7 @@ export function parseCodexRollout(
             if (
                 forkedFromId === null &&
                 meta.forkedFromId !== null &&
-                !sameConcreteSessionId(meta.forkedFromId, sessionId)
+                !selfParentId(meta.forkedFromId, sessionId)
             ) {
                 forkedFromId = meta.forkedFromId;
                 spawnParent = meta.spawnParent;
@@ -981,7 +991,7 @@ export function parseCodexRollout(
         // A session naming itself as parent is bogus metadata — resolving it
         // would hand the child its own history (possibly via a duplicate
         // copy with a different inode) as the inherited baseline.
-        forkedFromId = sameConcreteSessionId(meta.forkedFromId, meta.sessionId)
+        forkedFromId = selfParentId(meta.forkedFromId, meta.sessionId)
             ? null
             : meta.forkedFromId;
         spawnParent = forkedFromId === null ? false : meta.spawnParent;
@@ -1241,7 +1251,7 @@ export function parseCodexRollout(
             if (
                 forkedFromId === null &&
                 meta.forkedFromId !== null &&
-                !sameConcreteSessionId(meta.forkedFromId, sessionId)
+                !selfParentId(meta.forkedFromId, sessionId)
             ) {
                 forkedFromId = meta.forkedFromId;
                 spawnParent = meta.spawnParent;
@@ -1284,7 +1294,19 @@ export function parseCodexRollout(
             }
         }
         let legacyBoundary = false;
-        if (spawnParent && ownedSuffix === null) {
+        // For copied-prefix classifications the marker cut is only safe when
+        // the WHOLE file is last-only: totals anywhere give fork-baseline
+        // accounting the counters it needs, and a replayed marker ahead of
+        // totals-bearing replay would otherwise re-count the parent history
+        // from a zero baseline.
+        const anyTotals = pendingSubagentLines.some(
+            (b) => b.line.kind === 'tokenCount' && b.line.rec.total !== null,
+        );
+        if (
+            spawnParent &&
+            ownedSuffix === null &&
+            !(subagentCopiedPrefix && anyTotals)
+        ) {
             // The classifier cannot find a boundary in a last-only file
             // (its adjacency rule needs a totals baseline), so the marker
             // cut applies to copied-prefix classifications too — a spawn

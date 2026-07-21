@@ -641,6 +641,52 @@ describe('parseCodexRollout subagent rollouts', () => {
         expect(t?.output_tokens).toBe(5);
     });
 
+    it('leaves a totals-bearing copied prefix to fork accounting despite a replayed marker', () => {
+        // A replayed marker sits ahead of totals-bearing replay: the marker
+        // cut must not fire (it would re-count the replay from a zero
+        // baseline); fork-baseline subtraction handles the file instead.
+        const parsed = parseCodexRollout(
+            [
+                codexLine('session_meta', {
+                    id: 'child-1',
+                    source: {
+                        subagent: {
+                            thread_spawn: {
+                                parent_thread_id: 'parent-1',
+                                depth: 1,
+                            },
+                        },
+                    },
+                }),
+                EMBEDDED_PARENT_META,
+                tc(null, codexUsage(100, 0, 10)),
+                TRIGGER_TURN,
+                tc(codexUsage(5000, 0, 500), codexUsage(4900, 0, 490)),
+                tc(codexUsage(5030, 0, 505), codexUsage(30, 0, 5)),
+            ].join('\n'),
+            { resolveParent: () => ({ resolved: usageTotals(5000, 0, 500) }) },
+        );
+        const t = parsed.models.get('unknown');
+        expect(t?.input_tokens).toBe(30);
+        expect(t?.output_tokens).toBe(5);
+    });
+
+    it('treats a case-variant self-parent id as bogus metadata', () => {
+        const parsed = parseCodexRollout(
+            [
+                codexLine('session_meta', {
+                    id: 'ABC-1',
+                    model: 'gpt-5-codex',
+                    source: { forked_from_id: 'abc-1' },
+                }),
+                tc(null, codexUsage(100, 0, 10)),
+            ].join('\n'),
+            { resolveParent: () => ({ resolved: usageTotals(100, 0, 10) }) },
+        );
+        expect(parsed.parent_id).toBeNull();
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(100);
+    });
+
     it('counts a genuinely independent subagent rollout in full', () => {
         const parsed = parseCodexRollout(
             [

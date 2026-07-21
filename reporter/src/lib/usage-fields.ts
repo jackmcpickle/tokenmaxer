@@ -7,14 +7,6 @@ export const CLAUDE_USAGE_FIELDS = {
     cache_creation: 'cache_creation_input_tokens',
 } as const;
 
-export const CODEX_USAGE_FIELDS = {
-    input: 'input_tokens',
-    output: 'output_tokens',
-    cache_read: 'cached_input_tokens',
-    cache_creation: 'cache_write_input_tokens',
-    reasoning: 'reasoning_output_tokens',
-} as const;
-
 export const OPENCODE_USAGE_FIELDS = {
     input: 'input',
     output: 'output',

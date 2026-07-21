@@ -42,6 +42,7 @@ async function catchupJsonlSource(
     dirs: string[],
     match: (name: string) => boolean,
     label: string,
+    prepareFiles?: (files: string[]) => string[],
 ): Promise<void> {
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
     const { files, rows } = collectRowsFromJsonlDirs({
@@ -49,6 +50,7 @@ async function catchupJsonlSource(
         sinceMs: since,
         match,
         parseFile: (path) => parseFile(path, source),
+        prepareFiles,
     });
     const { accepted } = await postSessions(cfg, source, rows);
     process.stderr.write(
@@ -72,20 +74,18 @@ async function reportClaudeSession(
     const failedSiblingDirs: string[] = [];
     const siblings = claudeSessionSiblings(path, failedSiblingDirs);
     const extraFailedSids: string[] = [];
-    if (failedSiblingDirs.length > 0) {
+    // An unlistable directory hides an unknown part of the tree, and
+    // out-of-corpus trees have no walk to attribute the failure: the
+    // collector withholds every session the siblings fed (by full-scan
+    // session id); the id fallbacks below cover a hooked file that could
+    // not be read at all.
+    const treeFailed = failedSiblingDirs.length > 0;
+    if (treeFailed) {
         extraFailedSids.push(
             claudeEmbeddedSessionId(path) ??
                 opts.hookSid ??
                 claudeSessionIdFromPath(path),
         );
-        // An unlistable directory hides an unknown part of the tree, and
-        // out-of-corpus trees have no walk to attribute the failure — every
-        // session the VISIBLE siblings feed must be withheld too (mirrors
-        // claudeAttributeFailedDir for in-corpus unlistable dirs).
-        for (const sibling of siblings) {
-            const sid = claudeEmbeddedSessionId(sibling);
-            if (sid) extraFailedSids.push(sid);
-        }
     }
     // Exempt the hooked path from the missing-file withholding rule only
     // when it is ALREADY absent here: then there was never a contribution
@@ -98,6 +98,7 @@ async function reportClaudeSession(
         opts.hookSid,
         extraFailedSids,
         exemptMissing,
+        treeFailed,
     );
     const { accepted } = await postSessions(cfg, 'claude_code', rows);
     process.stderr.write(
@@ -154,11 +155,13 @@ function collectCodexRows(
 }
 
 export async function codexCatchup(cfg: ReporterConfig): Promise<void> {
-    const since = Date.now() - CATCHUP_DAYS * 86_400_000;
-    const { files, rows } = collectCodexRows(since, false);
-    const { accepted } = await postSessions(cfg, 'codex', rows);
-    process.stderr.write(
-        `tokenmaxer: caught up ${accepted} row(s) from ${files.length} file(s)\n`,
+    await catchupJsonlSource(
+        cfg,
+        'codex',
+        codexDirs(),
+        (n) => CODEX_ROLLOUT_FILE.test(n),
+        '',
+        (files) => dedupeCodexRolloutFiles(files),
     );
 }
 

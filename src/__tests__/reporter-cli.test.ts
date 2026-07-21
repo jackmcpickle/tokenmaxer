@@ -469,6 +469,55 @@ describe('tokenmaxer CLI', () => {
         },
     );
 
+    it.skipIf(userInfo().uid === 0)(
+        'unlistable out-of-corpus tree withholds sessions with beyond-peek ids',
+        () => {
+            writeConfig();
+            writeTranscript(
+                'elsewhere2/sess-deep.jsonl',
+                claudeUsage({ sid: 'sess-deep', input: 10, output: 1 }),
+            );
+            const root = join(home, 'elsewhere2/sess-deep.jsonl');
+            // The sibling's embedded id sits beyond the 16KB head peek, so
+            // withholding must key on the collector's full-file scan.
+            writeTranscript(
+                'elsewhere2/sess-deep/subagents/agent-big.jsonl',
+                [
+                    JSON.stringify({ type: 'user', pad: 'x'.repeat(20_000) }),
+                    claudeUsage({
+                        sid: 'sess-hidden',
+                        input: 77,
+                        output: 7,
+                    }),
+                ].join('\n'),
+            );
+            const hidden = join(
+                home,
+                'elsewhere2/sess-deep/subagents/workflows',
+            );
+            mkdirSync(hidden, { recursive: true });
+            chmodSync(hidden, 0o000);
+            try {
+                const res = runCli(['claude-sessionend', '--dry-run'], {
+                    home,
+                    stdin: JSON.stringify({ transcript_path: root }),
+                });
+                expect(res.status).toBe(0);
+                const ids = (
+                    res.stdout.trim()
+                        ? (JSON.parse(res.stdout.trim()).body.sessions as {
+                              session_id: string;
+                          }[])
+                        : []
+                ).map((s) => s.session_id);
+                expect(ids).not.toContain('sess-hidden');
+                expect(ids).not.toContain('sess-deep');
+            } finally {
+                chmodSync(hidden, 0o755);
+            }
+        },
+    );
+
     it('claude-report on a missing path fails loudly', () => {
         writeConfig();
         const res = runCli(
