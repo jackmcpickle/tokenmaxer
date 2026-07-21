@@ -302,6 +302,7 @@ export function accumulatorApply(
 export interface CodexSessionMeta {
     sessionId: string | null;
     forkedFromId: string | null;
+    spawnParent: boolean;
     forkTimestamp: string | null;
     isSubagentThread: boolean;
     // CodexBar reads models from turn_context only; session_meta model is
@@ -333,6 +334,9 @@ function turnContextModel(payload: JsonObject): string | null {
     const candidates = [
         payload.model,
         payload.model_name,
+        // Older rollouts nest the model under payload.turn_context; the
+        // shipped reporter read it, so keep it as extra evidence.
+        asObject(payload.turn_context).model,
         info.model,
         info.model_name,
     ];
@@ -346,24 +350,38 @@ function turnContextModel(payload: JsonObject): string | null {
     return sawCandidate ? '' : null;
 }
 
-function forkParentId(payload: JsonObject): string | null {
+interface ForkParent {
+    id: string;
+    // True when the parent came from thread-spawn subagent metadata rather
+    // than a fork key — spawn children get the legacy marker fallback.
+    spawn: boolean;
+}
+
+function forkParent(payload: JsonObject): ForkParent | null {
     const source = asObject(payload.source);
-    // CodexBar reads the flat fork keys; real thread-spawn subagent metadata
-    // additionally nests the parent under source.subagent(.thread_spawn).
+    // Real thread-spawn subagent metadata nests the parent under
+    // source.subagent(.thread_spawn); CodexBar reads the flat fork keys.
     const subagent = asObject(source.subagent);
-    const candidates = [
+    const spawnCandidates = [
+        asObject(subagent.thread_spawn).parent_thread_id,
+        subagent.parent_thread_id,
+    ];
+    for (const candidate of spawnCandidates) {
+        if (typeof candidate !== 'string') continue;
+        const trimmed = candidate.trim();
+        if (trimmed) return { id: trimmed, spawn: true };
+    }
+    const forkCandidates = [
         payload.forked_from_id,
         payload.forkedFromId,
         payload.parent_session_id,
         payload.parentSessionId,
         source.forked_from_id,
-        asObject(subagent.thread_spawn).parent_thread_id,
-        subagent.parent_thread_id,
     ];
-    for (const candidate of candidates) {
+    for (const candidate of forkCandidates) {
         if (typeof candidate !== 'string') continue;
         const trimmed = candidate.trim();
-        if (trimmed) return trimmed;
+        if (trimmed) return { id: trimmed, spawn: false };
     }
     return null;
 }
@@ -400,9 +418,11 @@ function sessionMetaFrom(
         }
     }
     const ts = payload.timestamp ?? obj.timestamp;
+    const parent = forkParent(payload);
     return {
         sessionId,
-        forkedFromId: forkParentId(payload),
+        forkedFromId: parent?.id ?? null,
+        spawnParent: parent?.spawn ?? false,
         forkTimestamp: typeof ts === 'string' ? ts : null,
         isSubagentThread: isSubagentThread(payload),
         model:
@@ -704,6 +724,7 @@ export function parseCodexRollout(
     let previousTotals: Totals | null = null;
     let sessionId: string | null = null;
     let forkedFromId: string | null = null;
+    let spawnParent = false;
     let subagentThread = false;
     let didCaptureLeafMetadata = false;
     let forkTimestamp: string | null = null;
@@ -778,6 +799,7 @@ export function parseCodexRollout(
             if (meta.model !== null) currentModel = meta.model;
             if (forkedFromId === null && meta.forkedFromId !== null) {
                 forkedFromId = meta.forkedFromId;
+                spawnParent = meta.spawnParent;
                 forkTimestamp = meta.forkTimestamp ?? forkTimestamp;
                 configureForkAccountingIfReady();
             }
@@ -786,6 +808,7 @@ export function parseCodexRollout(
         didCaptureLeafMetadata = true;
         sessionId = meta.sessionId;
         forkedFromId = meta.forkedFromId;
+        spawnParent = meta.spawnParent;
         forkTimestamp = meta.forkTimestamp;
         subagentThread = meta.isSubagentThread;
         if (meta.model !== null) currentModel = meta.model;
@@ -1038,6 +1061,7 @@ export function parseCodexRollout(
             if (!sameConcreteSessionId(meta.sessionId, sessionId)) continue;
             if (forkedFromId === null && meta.forkedFromId !== null) {
                 forkedFromId = meta.forkedFromId;
+                spawnParent = meta.spawnParent;
                 forkTimestamp = meta.forkTimestamp ?? forkTimestamp;
             }
         }
@@ -1076,6 +1100,29 @@ export function parseCodexRollout(
                 ownedSuffix = shape.ownedSuffixCandidate.ownedSuffix;
             }
         }
+        let legacyBoundary = false;
+        if (spawnParent && !subagentCopiedPrefix && ownedSuffix === null) {
+            // Legacy thread-spawn shape (#15): the replayed parent history
+            // carries no markers of its own, so the first trigger_turn in an
+            // explicit spawn child's file is its own spawn boundary even
+            // when classification found no ancestor-meta or totals evidence
+            // (last-only replays leave nothing else to key on).
+            let lastTotalsBeforeMarker: Totals | null = null;
+            for (const b of pendingSubagentLines) {
+                if (b.line.kind === 'interAgent' && b.line.triggerTurn) {
+                    ownedSuffix = {
+                        startLineIndex: b.lineIndex + 1,
+                        rawTotalsBaseline:
+                            lastTotalsBeforeMarker ?? emptyTotals(),
+                    };
+                    legacyBoundary = true;
+                    break;
+                }
+                if (b.line.kind === 'tokenCount' && b.line.rec.total !== null) {
+                    lastTotalsBeforeMarker = b.line.rec.total;
+                }
+            }
+        }
         suppressUnownedCopiedPrefix =
             subagentCopiedPrefix &&
             ownedSuffix === null &&
@@ -1089,7 +1136,10 @@ export function parseCodexRollout(
             rawTotalsBaseline = ownedSuffix.rawTotalsBaseline;
             sawDivergentTotals = false;
             tracker = newTracker({ ...ownedSuffix.rawTotalsBaseline });
-            currentModel = null;
+            // A classified boundary starts at its own turn_context, which
+            // rebuilds model context; the legacy marker boundary starts
+            // after the marker, so pre-marker turn_context still applies.
+            if (!legacyBoundary) currentModel = null;
             unresolvedForkTotalWatermark = null;
         }
         configureForkAccountingIfReady();
@@ -1105,6 +1155,7 @@ export function parseCodexRollout(
             }
             if (b.line.kind === 'turnContext' && b.line.model !== null) {
                 droppedModel = b.line.model;
+                if (legacyBoundary) currentModel = b.line.model;
             } else if (b.line.kind === 'tokenCount') {
                 ensureModelRow(
                     modelEvidence(droppedModel) ??
@@ -1164,7 +1215,11 @@ export function codexTokenSnapshots(text: string): {
         const last = usageTotals(info.last_token_usage);
         const total = usageTotals(info.total_token_usage);
         if (last === null && total === null) continue;
-        const ts = typeof obj.timestamp === 'string' ? obj.timestamp : '';
+        // A snapshot without a timestamp cannot be ordered against the fork
+        // point; an empty string would lexically sort before every cutoff
+        // and silently promote post-fork parent usage into the baseline.
+        const ts = obj.timestamp;
+        if (typeof ts !== 'string' || !ts) continue;
         snapshots.push({
             ts,
             tsMs: toMs(ts),

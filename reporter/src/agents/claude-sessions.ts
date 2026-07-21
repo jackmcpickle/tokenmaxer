@@ -427,13 +427,14 @@ interface ReadStats {
 }
 
 // CodexBar's cross-file winner rule for one message/request key appearing in
-// several of a session's files: a sidechain row beats a non-sidechain one,
-// then a row from a subagents/ transcript beats the parent's copy, then the
-// lexicographically smaller path wins — deterministic regardless of file
-// iteration order.
+// several of a session's files: the NON-sidechain row beats a sidechain copy
+// and the parent transcript's row beats a subagents/ copy (the parent file
+// carries the final cumulative chunk; sidechain/subagent copies can be stale
+// partials), then the lexicographically smaller path wins — deterministic
+// regardless of file iteration order.
 function claudeRowWins(a: KeyedClaudeRow, b: KeyedClaudeRow): boolean {
-    if (a.row.sidechain !== b.row.sidechain) return a.row.sidechain;
-    if (a.subagentPath !== b.subagentPath) return a.subagentPath;
+    if (a.row.sidechain !== b.row.sidechain) return b.row.sidechain;
+    if (a.subagentPath !== b.subagentPath) return b.subagentPath;
     return a.path < b.path;
 }
 
@@ -476,7 +477,9 @@ function aggregateClaudeFiles(
             state = { sid, startedAt: null, keyed: new Map(), unkeyed: [] };
             sessions.set(stateKey, state);
         }
-        const subagentPath = file.path.toLowerCase().includes('/subagents/');
+        const subagentPath = file.path
+            .toLowerCase()
+            .includes(`${sep}subagents${sep}`);
         for (const [k, row] of scan.keyed) {
             const candidate = { row, subagentPath, path: file.path };
             const incumbent = state.keyed.get(k);

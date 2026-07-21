@@ -171,7 +171,9 @@ export async function cursorFetchEvents(
     sinceMs: number,
 ): Promise<unknown[] | null> {
     const events: unknown[] = [];
+    const pages: unknown[][] = [];
     let expectedTotal: number | null = null;
+    let completed = false;
     for (let page = 1; page <= 200; page += 1) {
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const res = await fetch(
@@ -204,10 +206,82 @@ export async function cursorFetchEvents(
         const payload = asObject(data);
         expectedTotal = cursorTotalCount(payload) ?? expectedTotal;
         const batch = payload.usageEvents ?? payload.usageEventsDisplay ?? [];
-        if (!Array.isArray(batch) || batch.length === 0) break;
+        if (!Array.isArray(batch) || batch.length === 0) {
+            completed = true;
+            break;
+        }
+        pages.push(batch);
         events.push(...batch);
-        if (expectedTotal !== null && events.length >= expectedTotal) break;
-        if (expectedTotal === null && batch.length < 1000) break;
+        if (batch.length < 1000) {
+            completed = true;
+            break;
+        }
     }
-    return events;
+    // Reaching the reported total is NOT proof of completion — Cursor can
+    // repeat rows at page boundaries, so the raw count can hit the total
+    // while genuine tail events sit on an unfetched page. Only an empty or
+    // short page proves the window is complete; a partial window must not be
+    // published (day rows would replace fuller stored ones).
+    if (
+        !completed ||
+        (expectedTotal !== null && events.length < expectedTotal)
+    ) {
+        process.stderr.write(
+            `tokenmaxer: cursor pagination incomplete (${events.length}${
+                expectedTotal === null ? '' : `/${expectedTotal}`
+            } event(s))\n`,
+        );
+        return null;
+    }
+    if (expectedTotal === null || events.length <= expectedTotal) {
+        return events;
+    }
+    return reconcileCursorPages(pages, events.length - expectedTotal);
+}
+
+// The endpoint exposes no stable event id. When the raw count exceeds the
+// authoritative total, drop exactly the surplus as duplicates at adjacent
+// page boundaries (rows equal by value); equal rows stay distinct when the
+// reported count vouches for both. Ported from CodexBar's boundaryOverlap
+// reconciliation.
+function reconcileCursorPages(
+    pages: unknown[][],
+    surplus: number,
+): unknown[] | null {
+    let removals = surplus;
+    const out = [...(pages[0] ?? [])];
+    for (let i = 1; i < pages.length; i += 1) {
+        const prev = pages[i - 1] ?? [];
+        const page = pages[i] ?? [];
+        const drop = Math.min(cursorBoundaryOverlap(prev, page), removals);
+        out.push(...page.slice(drop));
+        removals -= drop;
+    }
+    if (removals !== 0) {
+        process.stderr.write(
+            'tokenmaxer: cursor pagination inconsistent (unreconciled duplicates)\n',
+        );
+        return null;
+    }
+    return out;
+}
+
+// Longest k where the previous page's last k rows equal the next page's
+// first k rows, compared by value.
+function cursorBoundaryOverlap(prev: unknown[], page: unknown[]): number {
+    const limit = Math.min(prev.length, page.length);
+    for (let count = limit; count >= 1; count -= 1) {
+        let equal = true;
+        for (let i = 0; i < count; i += 1) {
+            if (
+                JSON.stringify(prev[prev.length - count + i]) !==
+                JSON.stringify(page[i])
+            ) {
+                equal = false;
+                break;
+            }
+        }
+        if (equal) return count;
+    }
+    return 0;
 }

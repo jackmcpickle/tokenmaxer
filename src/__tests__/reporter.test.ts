@@ -477,6 +477,38 @@ describe('parseCodexRollout subagent rollouts', () => {
         expect(rows.length).toBeGreaterThan(0);
     });
 
+    it('drops last-only replay before the marker in a legacy spawn child', () => {
+        // Old-format thread-spawn children: an explicit parent id, replayed
+        // last-only token events, and a trigger_turn marker with no embedded
+        // ancestor metas or totals to classify on. The marker alone is the
+        // spawn boundary (#15 semantics).
+        const spawnMeta = codexLine('session_meta', {
+            id: 'child-1',
+            source: {
+                subagent: {
+                    thread_spawn: { parent_thread_id: 'parent-1', depth: 1 },
+                },
+            },
+        });
+        const parsed = parseCodexRollout(
+            [
+                spawnMeta,
+                tc(null, codexUsage(100, 80, 10, 2)),
+                tc(null, codexUsage(200, 160, 20, 4)),
+                TURN_CONTEXT,
+                TRIGGER_TURN,
+                tc(null, codexUsage(11, 0, 5, 1)),
+            ].join('\n'),
+            { resolveParent: () => ({ unresolved: true }) },
+        );
+        expect(parsed.parent_id).toBe('parent-1');
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(11);
+        expect(t?.output_tokens).toBe(5);
+        // Dropped replay pins a zero row for overwrite repair.
+        expect(parsed.models.get('unknown')?.input_tokens).toBe(0);
+    });
+
     it('counts a genuinely independent subagent rollout in full', () => {
         const parsed = parseCodexRollout(
             [

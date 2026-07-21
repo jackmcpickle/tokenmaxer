@@ -22,8 +22,9 @@ export interface ClaudeUsageRow {
     key: string | null;
     model: string;
     usage: ReporterTotals;
-    // Sidechain copies carry the authoritative usage when the same message
-    // chunk appears in several of a session's files (CodexBar's winner rule).
+    // When the same message chunk appears in several of a session's files,
+    // the non-sidechain copy is authoritative (CodexBar's winner rule) —
+    // sidechain copies can be stale partials of the final cumulative chunk.
     sidechain: boolean;
 }
 

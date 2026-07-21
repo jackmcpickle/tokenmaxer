@@ -202,14 +202,12 @@ describe('cursorFetchEvents pagination', () => {
         vi.unstubAllGlobals();
     });
 
-    it('continues past a short non-final page until the reported total', async () => {
+    it('does not stop at the reported total — only an empty page proves completion', async () => {
+        // Raw count can hit the total early when Cursor repeats rows at page
+        // boundaries, so reaching it must not end pagination.
         const { bodies } = stubFetchPages([
-            { totalUsageEventsCount: 1000, usageEventsDisplay: batch(600) },
-            // Total may arrive string-encoded on later pages.
-            {
-                totalUsageEventsCount: '1000',
-                usageEventsDisplay: batch(400, 600),
-            },
+            { totalUsageEventsCount: 1000, usageEventsDisplay: batch(1000) },
+            { totalUsageEventsCount: '1000', usageEventsDisplay: [] },
         ]);
 
         const events = await cursorFetchEvents('user::jwt', 0);
@@ -218,18 +216,36 @@ describe('cursorFetchEvents pagination', () => {
         expect(bodies[1]?.page).toBe(2);
     });
 
-    it('stops on an empty batch even when the total promises more', async () => {
+    it('aborts when completion arrives before the reported total', async () => {
+        // A short page ends pagination, but a window that never reached the
+        // authoritative total must not be published — day rows would replace
+        // fuller stored ones.
         const { bodies } = stubFetchPages([
             { totalUsageEventsCount: 2000, usageEventsDisplay: batch(500) },
-            { totalUsageEventsCount: 2000, usageEventsDisplay: [] },
         ]);
 
         const events = await cursorFetchEvents('user::jwt', 0);
-        expect(events).toHaveLength(500);
+        expect(events).toBeNull();
+        expect(bodies).toHaveLength(1);
+    });
+
+    it('drops boundary duplicates when the raw count exceeds the total', async () => {
+        const first = batch(1000);
+        const dupe = first[first.length - 1];
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 1002, usageEventsDisplay: first },
+            {
+                totalUsageEventsCount: 1002,
+                usageEventsDisplay: [dupe, ...batch(2, 5000)],
+            },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toHaveLength(1002);
         expect(bodies).toHaveLength(2);
     });
 
-    it('stops once the collected events reach the total', async () => {
+    it('completes on a short page that satisfies the total', async () => {
         const { bodies } = stubFetchPages([
             { totalUsageEventsCount: 3, usageEventsDisplay: batch(3) },
         ]);

@@ -10,13 +10,21 @@ export interface PostResult {
     failed: number;
 }
 
-function describeRejections(data: Record<string, unknown>): number {
+// `baseIndex` converts the server's per-batch indices back into positions in
+// the caller's full row list — batches post in parallel, so a bare per-chunk
+// index would point at the wrong row.
+function describeRejections(
+    data: Record<string, unknown>,
+    baseIndex: number,
+): number {
     const rejected = data.rejected;
     if (!Array.isArray(rejected) || rejected.length === 0) return 0;
     for (const entry of rejected.slice(0, 3)) {
         const r = asObject(entry);
+        const index =
+            typeof r.index === 'number' ? baseIndex + r.index : r.index;
         process.stderr.write(
-            `tokenmaxer: server rejected row ${String(r.index)}: ${String(
+            `tokenmaxer: server rejected row ${String(index)}: ${String(
                 r.error,
             )}\n`,
         );
@@ -34,6 +42,7 @@ async function postBatch(
     source: string,
     batch: ReporterRow[],
     path: string,
+    baseIndex: number,
 ): Promise<PostResult> {
     if (DRY_RUN) {
         process.stdout.write(
@@ -64,7 +73,7 @@ async function postBatch(
         if (res.ok) {
             const data: unknown = await res.json().catch(() => ({}));
             const obj = asObject(data);
-            const rejected = describeRejections(obj);
+            const rejected = describeRejections(obj, baseIndex);
             const accepted =
                 typeof obj.accepted === 'number'
                     ? obj.accepted
@@ -96,12 +105,14 @@ export async function postSessions(
     if (rows.length === 0) return { accepted: 0, rejected: 0, failed: 0 };
     const path = opts.path ?? '/api/ingest';
     const chunkSize = opts.chunkSize ?? MAX_SESSIONS_PER_REQUEST;
-    const batches: ReporterRow[][] = [];
+    const batches: { rows: ReporterRow[]; baseIndex: number }[] = [];
     for (let i = 0; i < rows.length; i += chunkSize) {
-        batches.push(rows.slice(i, i + chunkSize));
+        batches.push({ rows: rows.slice(i, i + chunkSize), baseIndex: i });
     }
     const results = await Promise.all(
-        batches.map((batch) => postBatch(cfg, source, batch, path)),
+        batches.map((batch) =>
+            postBatch(cfg, source, batch.rows, path, batch.baseIndex),
+        ),
     );
     return results.reduce(
         (sum, r) => ({

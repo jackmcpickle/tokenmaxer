@@ -384,17 +384,18 @@ describe('tokenmaxer CLI', () => {
 
     it('claude cross-file copies resolve by winner rule, not file order', () => {
         writeConfig();
-        // The parent transcript carries a stale non-sidechain copy of the
-        // same message chunk; the subagent file's sidechain row must win
-        // regardless of which file the walk visits first.
+        // The subagents/ file carries a stale sidechain copy of the same
+        // message chunk; the parent transcript's non-sidechain row holds the
+        // final cumulative chunk and must win regardless of which file the
+        // walk visits first (CodexBar's winner rule).
         writeTranscript(
             '.claude/projects/demo/sess-win.jsonl',
             [
                 claudeUsage({
                     sid: 'sess-win',
                     messageId: 'msg_w',
-                    input: 999,
-                    output: 999,
+                    input: 100,
+                    output: 30,
                 }),
             ].join('\n'),
         );
@@ -403,8 +404,8 @@ describe('tokenmaxer CLI', () => {
             claudeUsage({
                 sid: 'sess-win',
                 messageId: 'msg_w',
-                input: 40,
-                output: 4,
+                input: 100,
+                output: 5,
                 sidechain: true,
             }),
         );
@@ -414,8 +415,8 @@ describe('tokenmaxer CLI', () => {
         expect(payload.body.sessions).toEqual([
             expect.objectContaining({
                 session_id: 'sess-win',
-                input_tokens: 40,
-                output_tokens: 4,
+                input_tokens: 100,
+                output_tokens: 30,
             }),
         ]);
     });
