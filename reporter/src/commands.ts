@@ -278,14 +278,16 @@ export async function backfill(
 ): Promise<void> {
     let total = 0;
     let problems = 0;
+    let withheldSessions = 0;
     if (!only || only === 'claude') {
-        const { rows, fileCount } = collectClaudeSessionRows(0);
+        const collected = collectClaudeSessionRows(0);
+        withheldSessions += collected.withheldSessions;
         const r = await backfillFiles(
             cfg,
             'claude_code',
-            rows,
+            collected.rows,
             'Claude Code',
-            fileCount,
+            collected.fileCount,
         );
         total += r.accepted;
         problems += r.problems;
@@ -331,14 +333,17 @@ export async function backfill(
         problems += r.problems;
         cursorAborted = r.aborted;
     }
-    if (problems > 0 || cursorAborted) {
+    if (problems > 0 || withheldSessions > 0 || cursorAborted) {
         // A partial upload must not masquerade as success: report what was
         // lost and exit non-zero so scripts and humans notice. An aborted
-        // cursor window is a whole unsynced range, not a row count.
+        // cursor window is a whole unsynced range, not a row count;
+        // withheld sessions were never sent at all.
         process.stderr.write(
             `tokenmaxer: backfill finished with errors — ${total} row(s) stored, ${problems} row(s) rejected or failed${
-                cursorAborted ? ', cursor window not synced' : ''
-            }\n`,
+                withheldSessions > 0
+                    ? `, ${withheldSessions} session(s) withheld`
+                    : ''
+            }${cursorAborted ? ', cursor window not synced' : ''}\n`,
         );
         process.exitCode = 1;
         return;

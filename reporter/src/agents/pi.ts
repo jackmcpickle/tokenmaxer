@@ -57,11 +57,14 @@ function piSessionId(obj: JsonObject): string | null {
     return null;
 }
 
-// Blank or oversized ids don't identify a record; treat them as unkeyed.
+// A blank id doesn't identify a record; treat it as unkeyed. Any non-blank
+// id dedupes, whatever its length — a repeated oversized-id record summed
+// twice would inflate totals, which is worse than an unbounded id set
+// (bounded by the session file's own size anyway).
 function piEntryId(obj: JsonObject): string | null {
     if (typeof obj.id !== 'string') return null;
     const id = obj.id.trim();
-    return id && id.length <= 1024 ? id : null;
+    return id || null;
 }
 
 function processPiLine(

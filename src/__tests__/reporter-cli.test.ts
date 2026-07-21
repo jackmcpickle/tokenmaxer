@@ -581,6 +581,69 @@ describe('tokenmaxer CLI', () => {
         ]);
     });
 
+    it.skipIf(userInfo().uid === 0)(
+        'an unlistable dir in one project leaves same-named sessions elsewhere intact',
+        () => {
+            writeConfig();
+            // proj-a's shared-name tree is unreachable; proj-b's healthy
+            // session under the same directory name must still upload —
+            // withholding scopes by full session-dir path, not basename.
+            const hiddenParent = join(
+                home,
+                '.claude/projects/proj-a/shared-name/subagents',
+            );
+            mkdirSync(hiddenParent, { recursive: true });
+            writeTranscript(
+                '.claude/projects/proj-b/shared-name.jsonl',
+                claudeUsage({ sid: 'sess-b-side', input: 25, output: 2 }),
+            );
+            writeTranscript(
+                '.claude/projects/proj-b/shared-name/subagents/agent-1.jsonl',
+                claudeUsage({ sid: 'sess-b-side', input: 5, output: 1 }),
+            );
+            chmodSync(hiddenParent, 0o000);
+            try {
+                const res = runCli(['claude-sessionstart', '--dry-run'], {
+                    home,
+                });
+                expect(res.status).toBe(0);
+                const payload = JSON.parse(res.stdout.trim());
+                expect(payload.body.sessions).toEqual([
+                    expect.objectContaining({
+                        session_id: 'sess-b-side',
+                        input_tokens: 30,
+                        output_tokens: 3,
+                    }),
+                ]);
+            } finally {
+                chmodSync(hiddenParent, 0o755);
+            }
+        },
+    );
+
+    it.skipIf(userInfo().uid === 0)(
+        'backfill exits non-zero when sessions were withheld client-side',
+        () => {
+            writeConfig();
+            writeTranscript('.claude/projects/demo/sess-cli.jsonl', CLAUDE);
+            const bad = writeTranscript(
+                '.claude/projects/demo/sess-held.jsonl',
+                claudeUsage({ sid: 'sess-held', input: 9, output: 9 }),
+            );
+            chmodSync(bad, 0o000);
+            try {
+                const res = runCli(['backfill', 'claude', '--dry-run'], {
+                    home,
+                });
+                expect(res.status).toBe(1);
+                expect(res.stderr).toContain('session(s) withheld');
+                expect(res.stderr).not.toContain('backfill complete');
+            } finally {
+                chmodSync(bad, 0o644);
+            }
+        },
+    );
+
     it('claude-report on a missing path fails loudly', () => {
         writeConfig();
         const res = runCli(

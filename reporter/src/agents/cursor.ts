@@ -249,7 +249,9 @@ export async function cursorFetchEvents(
             break;
         }
         pages.push(batch);
-        events.push(...batch);
+        // No spread: the batch size is server-controlled and a huge page
+        // must take the abort path, not blow the call stack.
+        for (const e of batch) events.push(e);
         if (batch.length < 1000) {
             completed = true;
             break;
@@ -292,7 +294,7 @@ function reconcileCursorPages(
         const prev = pages[i - 1] ?? [];
         const page = pages[i] ?? [];
         const drop = Math.min(cursorBoundaryOverlap(prev, page), removals);
-        out.push(...page.slice(drop));
+        for (const e of page.slice(drop)) out.push(e);
         removals -= drop;
     }
     if (removals !== 0) {

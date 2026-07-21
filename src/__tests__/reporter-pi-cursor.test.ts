@@ -169,15 +169,29 @@ describe('parsePiRollout id dedup', () => {
             // Blank id: not an identity, must not dedupe against itself.
             JSON.stringify({ type: 'message', id: '   ', message }),
             JSON.stringify({ type: 'message', id: '   ', message }),
-            // Oversized id (> 1024 chars): treated the same way.
-            JSON.stringify({ type: 'message', id: 'x'.repeat(1025), message }),
-            JSON.stringify({ type: 'message', id: 'x'.repeat(1025), message }),
         ].join('\n');
 
         const parsed = parsePiRollout(lines);
         expect(parsed.models.get('kimi-k2')).toMatchObject({
-            input_tokens: 60,
-            output_tokens: 30,
+            input_tokens: 40,
+            output_tokens: 20,
+        });
+    });
+
+    it('dedupes repeated oversized ids like any other id', () => {
+        // A repeated record must never sum twice just because its id is
+        // long — inflated totals are worse than an unbounded id set.
+        const usage = { input: 100, output: 5 };
+        const message = { role: 'assistant', model: 'kimi-k2', usage };
+        const lines = [
+            JSON.stringify({ type: 'message', id: 'x'.repeat(1100), message }),
+            JSON.stringify({ type: 'message', id: 'x'.repeat(1100), message }),
+        ].join('\n');
+
+        const parsed = parsePiRollout(lines);
+        expect(parsed.models.get('kimi-k2')).toMatchObject({
+            input_tokens: 100,
+            output_tokens: 5,
         });
     });
 });

@@ -425,9 +425,11 @@ function claudeAttributeFailedDir(
 function claudeSessionGroups(): {
     groups: SessionGroups;
     failedDirSids: Set<string>;
+    failedDirPaths: string[];
 } {
     const groups: SessionGroups = new Map();
     const failedDirSids = new Set<string>();
+    const failedDirPaths: string[] = [];
     // Symlinked roots (~/.config/claude -> ~/.claude) must not double-walk;
     // one shared seenDirs also dedups subtrees shared between roots.
     const seenRoots = new Set<string>();
@@ -453,10 +455,22 @@ function claudeSessionGroups(): {
             if (group) group.push(f);
             else groups.set(key, [f]);
         }
-        for (const failed of failedDirs)
+        for (const failed of failedDirs) {
+            failedDirPaths.push(failed);
             claudeAttributeFailedDir(failed, d, walked, failedDirSids);
+            // A project-level (or root-level) unlistable dir can hide files
+            // of ANY session; nothing can attribute it, so it stays best
+            // effort — but silently would be worse.
+            if (claudeTreePathOfDir(failed) === null) {
+                process.stderr.write(
+                    'tokenmaxer: an unlistable folder above the session ' +
+                        'level may hide transcripts; its sessions cannot ' +
+                        'be withheld precisely\n',
+                );
+            }
+        }
     }
-    return { groups, failedDirSids };
+    return { groups, failedDirSids, failedDirPaths };
 }
 
 // ----------------------------------------------------------- aggregation ----
@@ -636,6 +650,9 @@ export interface ClaudeSessionRowsResult {
     rows: ReporterRow[];
     fileCount: number;
     sessionCount: number;
+    // Sessions dropped from the upload because part of their tree was
+    // unreadable — backfill must not report clean success over them.
+    withheldSessions: number;
 }
 
 /**
@@ -658,14 +675,35 @@ export interface ClaudeSessionRowsResult {
  * of last resort; `extraFailedSids` are withheld unconditionally (the hook's
  * own tree reported a listing failure).
  */
-// Which sessions each session TREE (path-derived id) fed, from the
+// Session-tree key for scoping withholding: the session directory's FULL
+// path, so an unlistable dir in one project can never withhold a healthy,
+// identically-named session tree in another project.
+function claudeTreePathOfFile(path: string): string {
+    const sessionDir =
+        claudeSessionDirOf(path, claudeStopDirFor(path)) ??
+        join(dirname(path), claudeStem(path));
+    return sessionDir.toLowerCase();
+}
+
+// The session tree a directory belongs to, or null for a project-level (or
+// root-level) directory that no session-tree rule can attribute.
+function claudeTreePathOfDir(dir: string): string | null {
+    return (
+        claudeSessionDirOf(
+            join(dir, 'x.jsonl'),
+            claudeStopDirFor(dir),
+        )?.toLowerCase() ?? null
+    );
+}
+
+// Which sessions each session TREE (full session-dir path) fed, from the
 // full-file scans. One pass keeps tree lookups O(files) overall.
 function buildSessionKeysByTree(
     sessionKeyByPath: Map<string, string>,
 ): Map<string, Set<string>> {
     const sessionKeysByTree = new Map<string, Set<string>>();
     for (const [fpath, sessionKey] of sessionKeyByPath) {
-        const tree = claudeSessionIdFromPath(fpath).toLowerCase();
+        const tree = claudeTreePathOfFile(fpath);
         const keys = sessionKeysByTree.get(tree) ?? new Set<string>();
         keys.add(sessionKey);
         sessionKeysByTree.set(tree, keys);
@@ -689,31 +727,64 @@ function addWithheldSids(
         const sid = sidByPath.get(path);
         if (!sid) continue;
         failedSids.add(sid.toLowerCase());
-        const tree = claudeSessionIdFromPath(path).toLowerCase();
-        for (const key of sessionKeysByTree.get(tree) ?? []) {
+        for (const key of sessionKeysByTree.get(claudeTreePathOfFile(path)) ??
+            []) {
             failedSids.add(key);
         }
     }
 }
 
-// Withholding through the session-tree association: an unlistable dir's
-// layout sid names its session TREE, and sessions fed by that tree can key
-// on embedded ids the dir attribution's head peeks missed (first line
-// beyond the peek window); unreadable files withhold analogously.
+// Withholding through the session-tree association: an unlistable dir
+// belongs to a session TREE whose sessions can key on embedded ids the dir
+// attribution's head peeks missed (first line beyond the peek window);
+// unreadable files withhold analogously. Trees are full session-dir paths —
+// project-scoped, so identically-named sessions elsewhere stay unaffected.
+// An unlistable PROJECT-level dir cannot be attributed to any tree and
+// stays best effort (surfaced on stderr by the caller).
 function applyTreeWithholding(
     withheld: string[],
-    failedDirSids: Set<string>,
+    failedDirPaths: string[],
     sidByPath: Map<string, string>,
     sessionKeyByPath: Map<string, string>,
     failedSids: Set<string>,
 ): void {
     const sessionKeysByTree = buildSessionKeysByTree(sessionKeyByPath);
-    for (const dirSid of failedDirSids) {
-        for (const key of sessionKeysByTree.get(dirSid) ?? []) {
+    for (const dir of failedDirPaths) {
+        const tree = claudeTreePathOfDir(dir);
+        if (tree === null) continue;
+        for (const key of sessionKeysByTree.get(tree) ?? []) {
             failedSids.add(key);
         }
     }
     addWithheldSids(withheld, sidByPath, sessionKeysByTree, failedSids);
+}
+
+// Delete withheld sessions and count everything this run could not upload.
+// A session whose only file(s) were unreadable never formed an aggregate to
+// delete, but it still represents usage the run is missing — callers must
+// not report clean success over it.
+function countWithheldSessions(
+    sessions: Map<string, SessionState>,
+    failedSids: Set<string>,
+    withheld: string[],
+    sidByPath: Map<string, string>,
+): number {
+    let count = 0;
+    const deletedKeys = new Set<string>();
+    for (const key of failedSids) {
+        if (sessions.delete(key)) {
+            count += 1;
+            deletedKeys.add(key);
+        }
+    }
+    const ghostSids = new Set<string>();
+    for (const path of withheld) {
+        const sid = sidByPath.get(path)?.toLowerCase();
+        if (sid && !deletedKeys.has(sid) && !sessions.has(sid)) {
+            ghostSids.add(sid);
+        }
+    }
+    return count + ghostSids.size;
 }
 
 // Withhold every session the hook-provided extras fed, keyed on the
@@ -741,7 +812,7 @@ export function collectClaudeSessionRows(
     // actually used, not on head peeks that can miss deep or absent ids.
     withholdExtraSessions = false,
 ): ClaudeSessionRowsResult {
-    const { groups, failedDirSids } = claudeSessionGroups();
+    const { groups, failedDirSids, failedDirPaths } = claudeSessionGroups();
     const selected = new Set<string>();
     for (const [key, group] of groups) {
         if (sinceMs <= 0 || group.some((f) => f.mtimeMs >= sinceMs))
@@ -761,7 +832,10 @@ export function collectClaudeSessionRows(
     let sessionKeyByPath: Map<string, string>;
     for (;;) {
         const files = [...extras];
-        for (const key of selected) files.push(...(groups.get(key) ?? []));
+        // No spread: a group with 100k+ files would blow the call stack.
+        for (const key of selected) {
+            for (const f of groups.get(key) ?? []) files.push(f);
+        }
         sidByPath = new Map(files.map((f) => [f.path, f.sid]));
         const stats: ReadStats = { failedPaths: [], missingPaths: [] };
         sessionKeyByPath = new Map();
@@ -791,27 +865,33 @@ export function collectClaudeSessionRows(
     if (withholdExtraSessions) {
         addExtraSessionSids(extras, sessionKeyByPath, failedSids);
     }
-    if (withheld.length > 0 || failedDirSids.size > 0) {
+    if (withheld.length > 0 || failedDirPaths.length > 0) {
         applyTreeWithholding(
             withheld,
-            failedDirSids,
+            failedDirPaths,
             sidByPath,
             sessionKeyByPath,
             failedSids,
         );
     }
+    const withheldSessions = countWithheldSessions(
+        sessions,
+        failedSids,
+        withheld,
+        sidByPath,
+    );
     if (withheld.length > 0 || failedSids.size > 0) {
         process.stderr.write(
             `tokenmaxer: ${withheld.length} unreadable transcript(s), ` +
-                `${failedDirSids.size} unlistable session folder(s); ` +
-                `withheld ${failedSids.size} session(s) from this upload\n`,
+                `${failedDirPaths.length} unlistable folder(s); ` +
+                `withheld ${withheldSessions} session(s) from this upload\n`,
         );
     }
-    for (const key of failedSids) sessions.delete(key);
     const rows = sessionRows(sessions);
     return {
         rows,
         fileCount: sidByPath.size,
         sessionCount: sessions.size,
+        withheldSessions,
     };
 }
