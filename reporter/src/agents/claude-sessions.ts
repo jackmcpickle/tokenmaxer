@@ -251,7 +251,24 @@ export function claudeSessionSiblings(
     path: string,
     failedDirs?: string[],
 ): string[] {
-    const subagentSessionDir = claudeSessionDirOf(path, claudeStopDirFor(path));
+    const stopDir = claudeStopDirFor(path);
+    let subagentSessionDir = claudeSessionDirOf(path, stopDir);
+    if (subagentSessionDir !== null && stopDir === null) {
+        // Out-of-corpus paths have no walk root to bound the ancestor scan,
+        // so a directory merely NAMED subagents (a backup folder) would make
+        // its parent the presumed session dir and sweep unrelated
+        // transcripts into the upload. Trust the layout only when the
+        // hooked file's embedded session id names that dir; a file with no
+        // embedded id keeps the layout rule (nothing better to key on).
+        const embedded = claudeEmbeddedSessionId(path);
+        if (
+            embedded !== null &&
+            embedded.toLowerCase() !==
+                basename(subagentSessionDir).toLowerCase()
+        ) {
+            subagentSessionDir = null;
+        }
+    }
     const sessionDir =
         subagentSessionDir ?? join(dirname(path), claudeStem(path));
     const stem = basename(sessionDir).toLowerCase();
@@ -613,6 +630,37 @@ export interface ClaudeSessionRowsResult {
  * of last resort; `extraFailedSids` are withheld unconditionally (the hook's
  * own tree reported a listing failure).
  */
+// Files from a failed file's session TREE may have fed sessions keyed by a
+// different embedded id (a readable root carrying a divergent sessionId,
+// while the unreadable sibling could not be peeked and fell back to its
+// path-derived id). Those aggregates are missing the failed file's usage and
+// must be withheld too — never upload a partial over a fuller stored row.
+// Mirrors what claudeAttributeFailedDir does for unlistable directories.
+// One tree-id pass keeps this O(files), not O(withheld × files).
+function addWithheldSids(
+    withheld: string[],
+    sidByPath: Map<string, string>,
+    sessionKeyByPath: Map<string, string>,
+    failedSids: Set<string>,
+): void {
+    const sessionKeysByTree = new Map<string, Set<string>>();
+    for (const [fpath, sessionKey] of sessionKeyByPath) {
+        const tree = claudeSessionIdFromPath(fpath).toLowerCase();
+        const keys = sessionKeysByTree.get(tree) ?? new Set<string>();
+        keys.add(sessionKey);
+        sessionKeysByTree.set(tree, keys);
+    }
+    for (const path of withheld) {
+        const sid = sidByPath.get(path);
+        if (!sid) continue;
+        failedSids.add(sid.toLowerCase());
+        const tree = claudeSessionIdFromPath(path).toLowerCase();
+        for (const key of sessionKeysByTree.get(tree) ?? []) {
+            failedSids.add(key);
+        }
+    }
+}
+
 export function collectClaudeSessionRows(
     sinceMs: number,
     extraPaths: string[] = [],
@@ -667,23 +715,8 @@ export function collectClaudeSessionRows(
     }
     const failedSids = new Set<string>(failedDirSids);
     for (const sid of extraFailedSids) failedSids.add(sid.toLowerCase());
-    for (const path of withheld) {
-        const sid = sidByPath.get(path);
-        if (!sid) continue;
-        failedSids.add(sid.toLowerCase());
-        // Files from the failed file's session TREE may have fed sessions
-        // keyed by a different embedded id (a readable root carrying a
-        // divergent sessionId, while the unreadable sibling could not be
-        // peeked and fell back to its path-derived id). Those aggregates
-        // are missing this file's usage and must be withheld too — never
-        // upload a partial over a fuller stored row. Mirrors what
-        // claudeAttributeFailedDir does for unlistable directories.
-        const pd = claudeSessionIdFromPath(path).toLowerCase();
-        for (const [fpath, sessionKey] of sessionKeyByPath) {
-            if (claudeSessionIdFromPath(fpath).toLowerCase() === pd) {
-                failedSids.add(sessionKey);
-            }
-        }
+    if (withheld.length > 0) {
+        addWithheldSids(withheld, sidByPath, sessionKeyByPath, failedSids);
     }
     if (withheld.length > 0 || failedSids.size > 0) {
         process.stderr.write(

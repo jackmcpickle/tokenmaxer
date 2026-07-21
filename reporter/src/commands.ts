@@ -9,7 +9,6 @@ import {
     CODEX_ROLLOUT_FILE,
     codexDirs,
     dedupeCodexRolloutFiles,
-    seedCodexRolloutIndex,
 } from './agents/codex';
 import {
     cursorFetchEvents,
@@ -79,6 +78,14 @@ async function reportClaudeSession(
                 opts.hookSid ??
                 claudeSessionIdFromPath(path),
         );
+        // An unlistable directory hides an unknown part of the tree, and
+        // out-of-corpus trees have no walk to attribute the failure — every
+        // session the VISIBLE siblings feed must be withheld too (mirrors
+        // claudeAttributeFailedDir for in-corpus unlistable dirs).
+        for (const sibling of siblings) {
+            const sid = claudeEmbeddedSessionId(sibling);
+            if (sid) extraFailedSids.push(sid);
+        }
     }
     // Exempt the hooked path from the missing-file withholding rule only
     // when it is ALREADY absent here: then there was never a contribution
@@ -142,11 +149,7 @@ function collectCodexRows(
         sinceMs,
         match: (n) => CODEX_ROLLOUT_FILE.test(n),
         parseFile: (path) => parseFile(path, 'codex'),
-        prepareFiles: (walked) => {
-            const files = dedupeCodexRolloutFiles(walked);
-            if (seedIndex) seedCodexRolloutIndex(files);
-            return files;
-        },
+        prepareFiles: (walked) => dedupeCodexRolloutFiles(walked, seedIndex),
     });
 }
 
@@ -189,16 +192,23 @@ export async function reportOneOpencode(
     process.stderr.write(`tokenmaxer: reported ${accepted} opencode row(s)\n`);
 }
 
+export interface CursorSyncResult {
+    problems: number;
+    // True when the whole window was abandoned (fetch/pagination failure) —
+    // a different magnitude of loss than N rejected rows.
+    aborted: boolean;
+}
+
 export async function cursorSync(
     cfg: ReporterConfig,
     opts: CursorSyncOpts = {},
-): Promise<number> {
+): Promise<CursorSyncResult> {
     const sessionToken = cursorSessionToken(cfg);
     if (!sessionToken) {
         process.stderr.write(
             'tokenmaxer: Cursor not configured (no state.vscdb token or cursorCookie)\n',
         );
-        return 0;
+        return { problems: 0, aborted: false };
     }
     const since = opts.sinceMs ?? Date.now() - CATCHUP_DAYS * 86_400_000;
     // Floor to UTC day start: rows are whole-day sums and the server upsert
@@ -214,14 +224,20 @@ export async function cursorSync(
         process.stderr.write(
             'tokenmaxer: cursor sync aborted (fetch failed)\n',
         );
-        return 1;
+        return { problems: 0, aborted: true };
     }
     const rows = parseCursorEvents(events);
     const result = await postSessions(cfg, 'cursor', rows, opts.post);
     process.stderr.write(
         `tokenmaxer: cursor synced ${result.accepted} row(s) from ${events.length} event(s)\n`,
     );
-    return result.rejected + result.failed;
+    return { problems: result.rejected + result.failed, aborted: false };
+}
+
+// User-run cursor-sync command (not a hook): a lost upload must not exit 0.
+export async function cursorSyncCommand(cfg: ReporterConfig): Promise<void> {
+    const result = await cursorSync(cfg);
+    if (result.problems > 0 || result.aborted) process.exitCode = 1;
 }
 
 async function postHistory(
@@ -303,17 +319,23 @@ export async function backfill(
         total += r.accepted;
         problems += r.problems;
     }
+    let cursorAborted = false;
     if (!only || only === 'cursor') {
-        problems += await cursorSync(cfg, {
+        const r = await cursorSync(cfg, {
             sinceMs: Date.now() - 90 * 86_400_000,
             post: { path: '/api/history', chunkSize: HISTORY_CHUNK },
         });
+        problems += r.problems;
+        cursorAborted = r.aborted;
     }
-    if (problems > 0) {
+    if (problems > 0 || cursorAborted) {
         // A partial upload must not masquerade as success: report what was
-        // lost and exit non-zero so scripts and humans notice.
+        // lost and exit non-zero so scripts and humans notice. An aborted
+        // cursor window is a whole unsynced range, not a row count.
         process.stderr.write(
-            `tokenmaxer: backfill finished with errors — ${total} row(s) stored, ${problems} row(s) rejected or failed\n`,
+            `tokenmaxer: backfill finished with errors — ${total} row(s) stored, ${problems} row(s) rejected or failed${
+                cursorAborted ? ', cursor window not synced' : ''
+            }\n`,
         );
         process.exitCode = 1;
         return;

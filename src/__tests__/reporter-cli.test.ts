@@ -405,6 +405,70 @@ describe('tokenmaxer CLI', () => {
         ]);
     });
 
+    it('claude-report under a dir merely named subagents reports only the named session', () => {
+        writeConfig();
+        // A backup folder named "subagents" must not make its parent look
+        // like a session dir and sweep unrelated transcripts into the
+        // upload.
+        const target = writeTranscript(
+            'backups/subagents/demo/sess-swp.jsonl',
+            claudeUsage({ sid: 'sess-swp', input: 12, output: 3 }),
+        );
+        writeTranscript(
+            'backups/subagents/other/sess-other.jsonl',
+            claudeUsage({ sid: 'sess-other', input: 7777, output: 1 }),
+        );
+        const res = runCli(['claude-report', target, '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        const payload = JSON.parse(res.stdout.trim());
+        expect(
+            payload.body.sessions.map(
+                (s: { session_id: string }) => s.session_id,
+            ),
+        ).toEqual(['sess-swp']);
+    });
+
+    it.skipIf(userInfo().uid === 0)(
+        'sessionend withholds an out-of-corpus tree with an unlistable dir',
+        () => {
+            writeConfig();
+            // Out-of-corpus session tree: the unlistable workflows dir hides
+            // part of the session, so every session the visible siblings
+            // feed must be withheld — including one keyed by a divergent
+            // embedded id.
+            writeTranscript(
+                'elsewhere/sess-o.jsonl',
+                claudeUsage({ sid: 'root-o', input: 10, output: 1 }),
+            );
+            const root = join(home, 'elsewhere/sess-o.jsonl');
+            writeTranscript(
+                'elsewhere/sess-o/subagents/agent-b.jsonl',
+                claudeUsage({ sid: 'div-z', input: 50, output: 5 }),
+            );
+            const hidden = join(home, 'elsewhere/sess-o/subagents/workflows');
+            mkdirSync(hidden, { recursive: true });
+            chmodSync(hidden, 0o000);
+            try {
+                const res = runCli(['claude-sessionend', '--dry-run'], {
+                    home,
+                    stdin: JSON.stringify({ transcript_path: root }),
+                });
+                expect(res.status).toBe(0);
+                const ids = (
+                    res.stdout.trim()
+                        ? (JSON.parse(res.stdout.trim()).body.sessions as {
+                              session_id: string;
+                          }[])
+                        : []
+                ).map((s) => s.session_id);
+                expect(ids).not.toContain('root-o');
+                expect(ids).not.toContain('div-z');
+            } finally {
+                chmodSync(hidden, 0o755);
+            }
+        },
+    );
+
     it('claude-report on a missing path fails loudly', () => {
         writeConfig();
         const res = runCli(

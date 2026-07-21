@@ -41,6 +41,9 @@ declare module '*/tokentally.mjs' {
             sessionId?: string;
             fallbackStartedAt?: number;
             resolveParent?: CodexForkResolver;
+            resolveParentLastKeys?: (
+                parentSessionId: string,
+            ) => string[] | null;
         },
     ): ParsedCodexRollout;
     export function codexForkResolverFor(

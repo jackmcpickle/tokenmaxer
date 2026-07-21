@@ -581,6 +581,66 @@ describe('parseCodexRollout subagent rollouts', () => {
         expect(parsed.models.has('unknown')).toBe(false);
     });
 
+    it('treats a self-referential parent id as bogus metadata', () => {
+        const parsed = parseCodexRollout(
+            [
+                codexLine('session_meta', {
+                    id: 'self-1',
+                    model: 'gpt-5-codex',
+                    source: {
+                        subagent: {
+                            thread_spawn: {
+                                parent_thread_id: 'self-1',
+                                depth: 1,
+                            },
+                        },
+                    },
+                }),
+                tc(null, codexUsage(100, 80, 10, 2)),
+                tc(null, codexUsage(11, 0, 5, 1)),
+            ].join('\n'),
+            {
+                // A resolver that would hand the session its own history
+                // (e.g. via a duplicate copy) must never be consulted.
+                resolveParent: () => ({ resolved: usageTotals(111, 80, 15) }),
+                resolveParentLastKeys: () => ['100|80|0|10|2', '11|0|0|5|1'],
+            },
+        );
+        expect(parsed.parent_id).toBeNull();
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(111);
+    });
+
+    it('cuts at the marker when a last-only replay embeds the parent meta', () => {
+        // Copied-prefix classification cannot find a totals boundary in a
+        // last-only file; the marker cut must still apply so an unresolved
+        // parent cannot re-count the replayed history.
+        const parsed = parseCodexRollout(
+            [
+                codexLine('session_meta', {
+                    id: 'child-1',
+                    source: {
+                        subagent: {
+                            thread_spawn: {
+                                parent_thread_id: 'parent-1',
+                                depth: 1,
+                            },
+                        },
+                    },
+                }),
+                EMBEDDED_PARENT_META,
+                tc(null, codexUsage(100, 80, 10, 2)),
+                tc(null, codexUsage(200, 160, 20, 4)),
+                TURN_CONTEXT,
+                TRIGGER_TURN,
+                tc(null, codexUsage(11, 0, 5, 1)),
+            ].join('\n'),
+            { resolveParent: () => ({ unresolved: true }) },
+        );
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(11);
+        expect(t?.output_tokens).toBe(5);
+    });
+
     it('counts a genuinely independent subagent rollout in full', () => {
         const parsed = parseCodexRollout(
             [

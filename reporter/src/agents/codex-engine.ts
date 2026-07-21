@@ -964,7 +964,11 @@ export function parseCodexRollout(
         if (didCaptureLeafMetadata) {
             if (!sameConcreteSessionId(meta.sessionId, sessionId)) return;
             if (meta.model !== null) currentModel = meta.model;
-            if (forkedFromId === null && meta.forkedFromId !== null) {
+            if (
+                forkedFromId === null &&
+                meta.forkedFromId !== null &&
+                !sameConcreteSessionId(meta.forkedFromId, sessionId)
+            ) {
                 forkedFromId = meta.forkedFromId;
                 spawnParent = meta.spawnParent;
                 forkTimestamp = meta.forkTimestamp ?? forkTimestamp;
@@ -974,8 +978,13 @@ export function parseCodexRollout(
         }
         didCaptureLeafMetadata = true;
         sessionId = meta.sessionId;
-        forkedFromId = meta.forkedFromId;
-        spawnParent = meta.spawnParent;
+        // A session naming itself as parent is bogus metadata — resolving it
+        // would hand the child its own history (possibly via a duplicate
+        // copy with a different inode) as the inherited baseline.
+        forkedFromId = sameConcreteSessionId(meta.forkedFromId, meta.sessionId)
+            ? null
+            : meta.forkedFromId;
+        spawnParent = forkedFromId === null ? false : meta.spawnParent;
         forkTimestamp = meta.forkTimestamp;
         subagentThread = meta.isSubagentThread;
         if (meta.model !== null) currentModel = meta.model;
@@ -1229,7 +1238,11 @@ export function parseCodexRollout(
             if (b.line.kind !== 'meta') continue;
             const meta = b.line.meta;
             if (!sameConcreteSessionId(meta.sessionId, sessionId)) continue;
-            if (forkedFromId === null && meta.forkedFromId !== null) {
+            if (
+                forkedFromId === null &&
+                meta.forkedFromId !== null &&
+                !sameConcreteSessionId(meta.forkedFromId, sessionId)
+            ) {
                 forkedFromId = meta.forkedFromId;
                 spawnParent = meta.spawnParent;
                 forkTimestamp = meta.forkTimestamp ?? forkTimestamp;
@@ -1271,12 +1284,22 @@ export function parseCodexRollout(
             }
         }
         let legacyBoundary = false;
-        if (spawnParent && !subagentCopiedPrefix && ownedSuffix === null) {
+        if (spawnParent && ownedSuffix === null) {
+            // The classifier cannot find a boundary in a last-only file
+            // (its adjacency rule needs a totals baseline), so the marker
+            // cut applies to copied-prefix classifications too — a spawn
+            // child whose replay embeds the parent's session_meta must not
+            // fall to fork accounting and count the replay when the parent
+            // isn't locally resolvable.
             const legacy = legacySpawnBoundary(pendingSubagentLines);
             if (legacy !== null) {
                 ownedSuffix = legacy;
                 legacyBoundary = true;
-            } else if (forkedFromId !== null && opts.resolveParentLastKeys) {
+            } else if (
+                !subagentCopiedPrefix &&
+                forkedFromId !== null &&
+                opts.resolveParentLastKeys
+            ) {
                 const parentId = forkedFromId;
                 const resolveKeys = opts.resolveParentLastKeys;
                 const boundary = legacyPrefixBoundary(

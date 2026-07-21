@@ -5,7 +5,7 @@ import {
     claudeCatchup,
     claudeSessionEnd,
     codexCatchup,
-    cursorSync,
+    cursorSyncCommand,
     opencodeCatchup,
     piCatchup,
     reportOne,
@@ -126,12 +126,9 @@ export async function main(): Promise<void> {
         case 'pi-report':
             await reportOne(cfg, process.argv[3], 'pi');
             break;
-        case 'cursor-sync': {
-            // User-run command (not a hook): a lost upload must not exit 0.
-            const problems = await cursorSync(cfg);
-            if (problems > 0) process.exitCode = 1;
+        case 'cursor-sync':
+            await cursorSyncCommand(cfg);
             break;
-        }
         case 'backfill': {
             // Optional scope: `backfill claude|codex|opencode|pi|cursor`.
             const scope = process.argv[3];
