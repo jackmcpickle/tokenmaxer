@@ -8,7 +8,7 @@ import {
 import {
     CODEX_ROLLOUT_FILE,
     codexDirs,
-    dedupeCodexRolloutFiles,
+    seedCodexRolloutIndex,
 } from './agents/codex';
 import {
     cursorFetchEvents,
@@ -137,10 +137,8 @@ export async function claudeCatchup(cfg: ReporterConfig): Promise<void> {
     );
 }
 
-// Dedupe copies of one session across sessions/ and archived_sessions/
-// before parsing — the server upsert replaces, so a stale copy's row must
-// never race the fuller one. Backfill seeds the parent-rollout index from
-// the same walk instead of paying a second one on the first fork lookup.
+// Backfill seeds the parent-rollout index from the same walk instead of
+// paying a second one on the first fork lookup.
 function collectCodexRows(
     sinceMs: number,
     seedIndex: boolean,
@@ -150,7 +148,10 @@ function collectCodexRows(
         sinceMs,
         match: (n) => CODEX_ROLLOUT_FILE.test(n),
         parseFile: (path) => parseFile(path, 'codex'),
-        prepareFiles: (walked) => dedupeCodexRolloutFiles(walked, seedIndex),
+        prepareFiles: (walked) => {
+            if (seedIndex) seedCodexRolloutIndex(walked);
+            return walked;
+        },
     });
 }
 

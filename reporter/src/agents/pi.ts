@@ -127,12 +127,10 @@ export function parsePiRollout(
 }
 
 // pi stores one JSONL file per session, nested under a per-directory slug.
-// omp (the pi fork) uses the same layout under ~/.omp; scan both roots.
 export function piDirs(): string[] {
     const explicit =
         process.env.PI_CODING_AGENT_SESSION_DIR ?? process.env.PI_AGENT_DIR;
     const dirs = explicit ? [explicit] : [];
     dirs.push(join(homedir(), '.pi', 'agent', 'sessions'));
-    dirs.push(join(homedir(), '.omp', 'agent', 'sessions'));
     return dirs;
 }

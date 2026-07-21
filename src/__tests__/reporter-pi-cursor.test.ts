@@ -6,9 +6,6 @@ import {
     parsePiRollout,
 } from '../../reporter/tokentally.mjs';
 
-// piDirs() is not bundle-exported (commands.ts consumes it internally), so the
-// ~/.omp/agent/sessions root is covered by typecheck + source review only.
-
 describe('parsePiRollout model_change attribution', () => {
     it('attributes usage to the model from the latest model_change', () => {
         const lines = [

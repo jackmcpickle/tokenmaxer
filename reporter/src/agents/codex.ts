@@ -73,29 +73,9 @@ function addCodexRolloutToIndex(map: Map<string, string>, f: string): void {
     map.set(key, f);
 }
 
-/**
- * Drop duplicate copies of a session before parsing/uploading: the same
- * rollout can sit in both sessions/ and archived_sessions/ (or a stale
- * truncated copy beside the live one), and uploading both would let the
- * smaller copy's row race the fuller one on the server's replace-upsert.
- * Keeps the largest copy per session, preserving input order. `seedIndex`
- * reuses the map this pass already built as the parent-rollout index
- * instead of rebuilding it from the deduped list.
- */
-export function dedupeCodexRolloutFiles(
-    files: string[],
-    seedIndex = false,
-): string[] {
-    const best = new Map<string, string>();
-    for (const f of files) addCodexRolloutToIndex(best, f);
-    if (seedIndex && codexRolloutsById === null) codexRolloutsById = best;
-    const keep = new Set(best.values());
-    return files.filter((f) => keep.has(f));
-}
-
 // Backfill already enumerates every rollout; let it seed the index instead
 // of paying a second full directory walk on the first parent lookup.
-function seedCodexRolloutIndex(files: string[]): void {
+export function seedCodexRolloutIndex(files: string[]): void {
     if (codexRolloutsById !== null) return;
     codexRolloutsById = new Map();
     for (const f of files) addCodexRolloutToIndex(codexRolloutsById, f);

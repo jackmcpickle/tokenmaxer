@@ -49,10 +49,6 @@ declare module '*/tokentally.mjs' {
     export function codexForkResolverFor(
         childPath: string | null,
     ): CodexForkResolver;
-    export function dedupeCodexRolloutFiles(
-        files: string[],
-        seedIndex?: boolean,
-    ): string[];
     export function parseOpencodeMessages(
         messages: unknown[],
         opts?: { sessionId?: string; fallbackStartedAt?: number },

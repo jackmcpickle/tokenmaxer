@@ -74,8 +74,7 @@ and interleaved fork lineages can never double-count; fork and subagent
 children subtract the parent rollout's totals at the fork point, replayed
 from the parent file **locally only** — nothing extra leaves your machine.
 When the parent rollout is missing, the child is counted conservatively
-rather than double-counting replayed parent history. Duplicate copies of a
-session (`sessions/` vs `archived_sessions/`) upload once, largest copy wins.
+rather than double-counting replayed parent history.
 
 Corrected sessions still report zero-total rows for models whose usage was
 all replay, so re-running `tokenmaxer backfill codex` overwrites any rows

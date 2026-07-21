@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // The reporter is a plain .mjs module; import its exported pure functions.
 import {
     codexForkResolverFor,
-    dedupeCodexRolloutFiles,
     loadConfig,
     parseClaudeTranscript,
     parseCodexRollout,
@@ -850,32 +849,6 @@ describe('codex fork resolver and rollout dedup', () => {
         const resolve = codexForkResolverFor(path);
         const baseline = resolve(uuid, '2026-07-18T09:00:25Z');
         expect('unresolved' in baseline).toBe(true);
-    });
-
-    it('dedupes duplicate copies of one session, keeping the largest', () => {
-        const uuid = '0f9a41f2-1111-4222-8333-abcdefabcd04';
-        const small = writeParent(
-            uuid,
-            `rollout-2026-07-18T08-00-00-${uuid}.jsonl`,
-            [tc(codexUsage(100, 0, 10), null)],
-        );
-        const large = writeParent(
-            uuid,
-            `rollout-2026-07-18T09-00-00-${uuid}.jsonl`,
-            [
-                tc(codexUsage(100, 0, 10), null),
-                tc(codexUsage(200, 0, 20), null),
-            ],
-        );
-        const other = writeParent(
-            '9e9a41f2-1111-4222-8333-abcdefabcd04',
-            'rollout-2026-07-18T09-00-00-9e9a41f2-1111-4222-8333-abcdefabcd04.jsonl',
-            [tc(codexUsage(10, 0, 1), null)],
-        );
-        expect(dedupeCodexRolloutFiles([small, large, other])).toEqual([
-            large,
-            other,
-        ]);
     });
 });
 
