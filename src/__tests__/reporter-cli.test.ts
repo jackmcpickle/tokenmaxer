@@ -405,6 +405,16 @@ describe('tokenmaxer CLI', () => {
         ]);
     });
 
+    it('claude-report on a missing path fails loudly', () => {
+        writeConfig();
+        const res = runCli(
+            ['claude-report', join(home, 'no-such.jsonl'), '--dry-run'],
+            { home },
+        );
+        expect(res.status).toBe(1);
+        expect(res.stderr).toContain('no such transcript');
+    });
+
     it('backfill exits non-zero and reports errors when ingest fails', () => {
         // Unroutable address: every batch fails, so the summary must say so
         // and the process must not report success. Runs without --dry-run.

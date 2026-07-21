@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import {
     claudeEmbeddedSessionId,
     claudeSessionIdFromPath,
@@ -57,6 +58,42 @@ async function catchupJsonlSource(
     );
 }
 
+// Run the whole-session collector seeded with a hooked transcript's sibling
+// files (which may live outside the walked corpus). Rows key on embedded
+// session ids — the hook id only fills in when a transcript declares none —
+// so every uploaded row is a complete session total, never a partial that
+// the server's replace-upsert would use to erase a fuller row. A listing
+// failure inside the hooked session's own tree withholds the hooked session
+// for the same reason; only the hooked path itself may be missing without
+// withholding (it has no contribution to protect).
+async function reportClaudeSession(
+    cfg: ReporterConfig,
+    path: string,
+    opts: { sinceMs: number; hookSid?: string },
+): Promise<void> {
+    const failedSiblingDirs: string[] = [];
+    const siblings = claudeSessionSiblings(path, failedSiblingDirs);
+    const extraFailedSids: string[] = [];
+    if (failedSiblingDirs.length > 0) {
+        extraFailedSids.push(
+            claudeEmbeddedSessionId(path) ??
+                opts.hookSid ??
+                claudeSessionIdFromPath(path),
+        );
+    }
+    const { rows, sessionCount } = collectClaudeSessionRows(
+        opts.sinceMs,
+        siblings,
+        opts.hookSid,
+        extraFailedSids,
+        [path],
+    );
+    const { accepted } = await postSessions(cfg, 'claude_code', rows);
+    process.stderr.write(
+        `tokenmaxer: reported ${accepted} row(s) across ${sessionCount} session(s)\n`,
+    );
+}
+
 export async function claudeSessionEnd(cfg: ReporterConfig): Promise<void> {
     const stdin = await readStdin();
     let hook: JsonObject = {};
@@ -75,34 +112,8 @@ export async function claudeSessionEnd(cfg: ReporterConfig): Promise<void> {
         typeof hook.session_id === 'string' && hook.session_id
             ? hook.session_id
             : undefined;
-    // Run the whole-session collector seeded with the hooked transcript's
-    // sibling files (which may live outside the walked corpus). Rows key on
-    // embedded session ids — the hook id only fills in when a transcript
-    // declares none — so every uploaded row is a complete session total,
-    // never a partial that the server's replace-upsert would use to erase a
-    // fuller row. A listing failure inside the hooked session's own tree
-    // withholds the hooked session for the same reason.
-    const failedSiblingDirs: string[] = [];
-    const siblings = claudeSessionSiblings(path, failedSiblingDirs);
-    const extraFailedSids: string[] = [];
-    if (failedSiblingDirs.length > 0) {
-        extraFailedSids.push(
-            claudeEmbeddedSessionId(path) ??
-                hookSid ??
-                claudeSessionIdFromPath(path),
-        );
-    }
     const since = Date.now() - CATCHUP_DAYS * 86_400_000;
-    const { rows, sessionCount } = collectClaudeSessionRows(
-        since,
-        siblings,
-        hookSid,
-        extraFailedSids,
-    );
-    const { accepted } = await postSessions(cfg, 'claude_code', rows);
-    process.stderr.write(
-        `tokenmaxer: reported ${accepted} row(s) across ${sessionCount} session(s)\n`,
-    );
+    await reportClaudeSession(cfg, path, { sinceMs: since, hookSid });
 }
 
 export async function claudeCatchup(cfg: ReporterConfig): Promise<void> {
@@ -213,6 +224,21 @@ export async function cursorSync(
     return result.rejected + result.failed;
 }
 
+async function postHistory(
+    cfg: ReporterConfig,
+    source: string,
+    rows: ReporterRow[],
+): Promise<{ accepted: number; problems: number }> {
+    const result = await postSessions(cfg, source, rows, {
+        path: '/api/history',
+        chunkSize: HISTORY_CHUNK,
+    });
+    return {
+        accepted: result.accepted,
+        problems: result.rejected + result.failed,
+    };
+}
+
 async function backfillFiles(
     cfg: ReporterConfig,
     source: string,
@@ -220,17 +246,11 @@ async function backfillFiles(
     label: string,
     fileCount: number,
 ): Promise<{ accepted: number; problems: number }> {
-    const result = await postSessions(cfg, source, rows, {
-        path: '/api/history',
-        chunkSize: HISTORY_CHUNK,
-    });
+    const result = await postHistory(cfg, source, rows);
     process.stderr.write(
         `tokenmaxer: backfilled ${result.accepted} ${label} row(s) from ${fileCount} file(s)\n`,
     );
-    return {
-        accepted: result.accepted,
-        problems: result.rejected + result.failed,
-    };
+    return result;
 }
 
 export async function backfill(
@@ -265,14 +285,11 @@ export async function backfill(
     }
     if (!only || only === 'opencode') {
         const rows = collectOpencodeRows(0);
-        const result = await postSessions(cfg, 'opencode', rows, {
-            path: '/api/history',
-            chunkSize: HISTORY_CHUNK,
-        });
-        total += result.accepted;
-        problems += result.rejected + result.failed;
+        const r = await postHistory(cfg, 'opencode', rows);
+        total += r.accepted;
+        problems += r.problems;
         process.stderr.write(
-            `tokenmaxer: backfilled ${result.accepted} opencode row(s)\n`,
+            `tokenmaxer: backfilled ${r.accepted} opencode row(s)\n`,
         );
     }
     if (!only || only === 'pi') {
@@ -316,30 +333,20 @@ export async function reportOne(
         return;
     }
     if (source === 'claude_code') {
+        // A user command pointed at a path that doesn't exist deserves a
+        // loud failure, not "reported 0 row(s)".
+        if (!existsSync(path)) {
+            process.stderr.write(`tokenmaxer: no such transcript: ${path}\n`);
+            process.exitCode = 1;
+            return;
+        }
         // A Claude session spans several files; uploading one file's totals
         // under the shared session id would let the server's replace-upsert
-        // erase the fuller aggregate. Seed the whole-session collector with
-        // the transcript's siblings and an out-of-range window so only the
-        // named session (complete) is reported.
-        const failedSiblingDirs: string[] = [];
-        const siblings = claudeSessionSiblings(path, failedSiblingDirs);
-        const extraFailedSids: string[] = [];
-        if (failedSiblingDirs.length > 0) {
-            extraFailedSids.push(
-                claudeEmbeddedSessionId(path) ?? claudeSessionIdFromPath(path),
-            );
-        }
-        const { rows, sessionCount } = collectClaudeSessionRows(
-            Number.MAX_SAFE_INTEGER,
-            siblings,
-            undefined,
-            extraFailedSids,
-        );
-        const { accepted } = await postSessions(cfg, source, rows);
-        process.stderr.write(
-            `tokenmaxer: reported ${accepted} row(s) across ${sessionCount} session(s)\n`,
-        );
-        return;
+        // erase the fuller aggregate. The out-of-range window makes the
+        // collector report only the named session (complete).
+        return reportClaudeSession(cfg, path, {
+            sinceMs: Number.MAX_SAFE_INTEGER,
+        });
     }
     const rows = parseFile(path, source);
     const { accepted } = await postSessions(cfg, source, rows);

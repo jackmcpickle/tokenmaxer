@@ -21,7 +21,7 @@ import { basename, dirname, join, sep } from 'node:path';
 import { jsonlObjects } from '../lib/parse-utils';
 import { sessionIdFromPath, toRows } from '../lib/rows';
 import type { ReporterRow } from '../lib/types';
-import type { ClaudeUsageRow } from './claude';
+import type { ClaudeFileScan, ClaudeUsageRow } from './claude';
 import { claudeDirs, scanClaudeTranscript, sumClaudeRows } from './claude';
 
 const CLAUDE_SUBAGENT_DIR = 'subagents';
@@ -450,6 +450,7 @@ function claudeRowWins(a: KeyedClaudeRow, b: KeyedClaudeRow): boolean {
 function aggregateClaudeFiles(
     files: WalkedFile[],
     stats: ReadStats,
+    scanCache?: Map<string, ClaudeFileScan>,
 ): Map<string, SessionState> {
     const sessions = new Map<string, SessionState>();
     const seenPaths = new Set<string>();
@@ -457,19 +458,26 @@ function aggregateClaudeFiles(
         const key = claudeRealKey(file.path);
         if (seenPaths.has(key)) continue;
         seenPaths.add(key);
-        let text: string;
-        try {
-            text = readFileSync(file.path, 'utf8');
-        } catch (err) {
-            // The caller decides what a vanished file means: a missing
-            // hook path has no contribution to protect, while a walked
-            // file vanishing mid-run is a race worth withholding.
-            const code = (err as NodeJS.ErrnoException)?.code;
-            if (code === 'ENOENT') stats.missingPaths.push(file.path);
-            else stats.failedPaths.push(file.path);
-            continue;
+        // The expansion closure re-aggregates the whole selection each
+        // round; successful scans are cached so a round only reads files it
+        // hasn't seen (read errors are never cached — transient).
+        let scan = scanCache?.get(key);
+        if (!scan) {
+            let text: string;
+            try {
+                text = readFileSync(file.path, 'utf8');
+            } catch (err) {
+                // The caller decides what a vanished file means: a missing
+                // hook path has no contribution to protect, while a walked
+                // file vanishing mid-run is a race worth withholding.
+                const code = (err as NodeJS.ErrnoException)?.code;
+                if (code === 'ENOENT') stats.missingPaths.push(file.path);
+                else stats.failedPaths.push(file.path);
+                continue;
+            }
+            scan = scanClaudeTranscript(text);
+            scanCache?.set(key, scan);
         }
-        const scan = scanClaudeTranscript(text);
         const sid = scan.sessionId || file.sid;
         const stateKey = sid.toLowerCase();
         let state = sessions.get(stateKey);
@@ -588,6 +596,7 @@ export function collectClaudeSessionRows(
     extraPaths: string[] = [],
     extraFallbackSid?: string,
     extraFailedSids: string[] = [],
+    exemptMissingPaths: string[] = [],
 ): ClaudeSessionRowsResult {
     const { groups, failedDirSids } = claudeSessionGroups();
     const selected = new Set<string>();
@@ -601,7 +610,8 @@ export function collectClaudeSessionRows(
         extraFallbackSid,
         selected,
     );
-    const extraPathSet = new Set(extras.map((e) => e.path));
+    const exemptMissing = new Set(exemptMissingPaths);
+    const scanCache = new Map<string, ClaudeFileScan>();
     let sessions: Map<string, SessionState>;
     let withheld: string[];
     let sidByPath: Map<string, string>;
@@ -610,13 +620,15 @@ export function collectClaudeSessionRows(
         for (const key of selected) files.push(...(groups.get(key) ?? []));
         sidByPath = new Map(files.map((f) => [f.path, f.sid]));
         const stats: ReadStats = { failedPaths: [], missingPaths: [] };
-        sessions = aggregateClaudeFiles(files, stats);
-        // Unreadable files withhold their session. So does a walked file
-        // that vanished between walk and read (a transient race — the next
-        // run sees consistent state); a missing hook-provided extra simply
-        // has no contribution to protect.
+        sessions = aggregateClaudeFiles(files, stats, scanCache);
+        // Unreadable files withhold their session. So does ANY file that
+        // vanished between discovery and read — including a sessionend
+        // sibling listed moments earlier (a transient race; the next run
+        // sees consistent state). Only the hook-provided transcript path
+        // itself is exempt: when it never existed there is no contribution
+        // to protect.
         withheld = stats.failedPaths.concat(
-            stats.missingPaths.filter((path) => !extraPathSet.has(path)),
+            stats.missingPaths.filter((path) => !exemptMissing.has(path)),
         );
         const expand = [...sessions.keys()].filter(
             (k) => groups.has(k) && !selected.has(k),

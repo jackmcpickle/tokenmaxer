@@ -22,15 +22,6 @@ function cursorUsage(raw: JsonObject): ReporterTotals {
     return usageFromFields(coerced, CURSOR_USAGE_FIELDS);
 }
 
-function hasTokens(t: ReporterTotals): boolean {
-    return (
-        t.input_tokens > 0 ||
-        t.output_tokens > 0 ||
-        t.cache_read_tokens > 0 ||
-        t.cache_creation_tokens > 0
-    );
-}
-
 /**
  * Bucket Cursor dashboard usage events by UTC day + model into session rows.
  * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
@@ -45,9 +36,10 @@ export function parseCursorEvents(events: unknown[]): ReporterRow[] {
         const ms = Number(e.timestamp);
         if (!Number.isFinite(ms) || ms <= 0) continue;
         if (!e.tokenUsage || typeof e.tokenUsage !== 'object') continue;
-        // Zero-usage events (aborted/errored requests) carry no tokens.
+        // Zero-usage events (aborted/refunded requests) still produce a
+        // zero-total (day, model) row when a day has nothing else: the
+        // replace-upsert needs it to overwrite a stale non-zero day.
         const usage = cursorUsage(asObject(e.tokenUsage));
-        if (!hasTokens(usage)) continue;
         const day = new Date(ms).toISOString().slice(0, 10);
         const model =
             typeof e.model === 'string' && e.model ? e.model : 'unknown';
@@ -165,6 +157,45 @@ function cursorTotalCount(payload: JsonObject): number | null {
     return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
 }
 
+// One page POST. Returns the parsed body, or null on any transport or HTTP
+// failure — a network-level rejection (DNS, connection refused) must take
+// the same abort path as an HTTP error, or the uncaught throw would ride
+// the hook-safe exit(0) and mask a lost sync as success.
+async function cursorFetchPage(
+    sessionToken: string,
+    body: string,
+): Promise<JsonObject | null> {
+    let res: Response;
+    try {
+        res = await fetch(
+            'https://cursor.com/api/dashboard/get-filtered-usage-events',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Origin: 'https://cursor.com',
+                    Cookie: `WorkosCursorSessionToken=${encodeURIComponent(sessionToken)}`,
+                },
+                body,
+            },
+        );
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        process.stderr.write(
+            `tokenmaxer: cursor usage fetch failed: ${message}\n`,
+        );
+        return null;
+    }
+    if (!res.ok) {
+        process.stderr.write(
+            `tokenmaxer: cursor usage fetch failed (${res.status})\n`,
+        );
+        return null;
+    }
+    const data: unknown = await res.json().catch(() => null);
+    return data === null ? null : asObject(data);
+}
+
 // Unofficial dashboard endpoint — the only individual route to Cursor usage.
 export async function cursorFetchEvents(
     sessionToken: string,
@@ -179,34 +210,17 @@ export async function cursorFetchEvents(
     const endDate = String(Date.now());
     for (let page = 1; page <= 200; page += 1) {
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
-        const res = await fetch(
-            'https://cursor.com/api/dashboard/get-filtered-usage-events',
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Origin: 'https://cursor.com',
-                    Cookie: `WorkosCursorSessionToken=${encodeURIComponent(sessionToken)}`,
-                },
-                body: JSON.stringify({
-                    teamId: 0,
-                    startDate: String(sinceMs),
-                    endDate,
-                    page,
-                    pageSize: 1000,
-                }),
-            },
+        const payload = await cursorFetchPage(
+            sessionToken,
+            JSON.stringify({
+                teamId: 0,
+                startDate: String(sinceMs),
+                endDate,
+                page,
+                pageSize: 1000,
+            }),
         );
-        if (!res.ok) {
-            process.stderr.write(
-                `tokenmaxer: cursor usage fetch failed (${res.status})\n`,
-            );
-            return null;
-        }
-        // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
-        const data: unknown = await res.json().catch(() => null);
-        if (data === null) return null;
-        const payload = asObject(data);
+        if (payload === null) return null;
         const pageTotal = cursorTotalCount(payload);
         if (
             pageTotal !== null &&

@@ -345,7 +345,10 @@ describe('parseCursorEvents field mapping', () => {
         });
     });
 
-    it('skips events whose token usage is all zero', () => {
+    it('keeps a zero-usage day row so stale server days can be repaired', () => {
+        // A day whose events were all zeroed (aborted/refunded) must still
+        // upload a zero-total row — the replace-upsert can only correct a
+        // stale non-zero day it receives.
         const rows = parseCursorEvents([
             {
                 timestamp: String(DAY + 1000),
@@ -358,13 +361,23 @@ describe('parseCursorEvents field mapping', () => {
                     totalCents: 1.5,
                 },
             },
-            {
-                timestamp: String(DAY + 2000),
-                model: 'gpt-5',
-                tokenUsage: { inputTokens: 9 },
-            },
         ]);
         expect(rows).toHaveLength(1);
-        expect(rows[0]?.input_tokens).toBe(9);
+        expect(rows[0]).toMatchObject({
+            session_id: 'cursor-2026-07-19',
+            model: 'gpt-5',
+            input_tokens: 0,
+            output_tokens: 0,
+        });
+    });
+
+    it('aborts on a network-level fetch rejection instead of throwing', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(() => Promise.reject(new TypeError('fetch failed'))),
+        );
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toBeNull();
+        vi.unstubAllGlobals();
     });
 });

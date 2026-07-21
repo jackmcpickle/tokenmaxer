@@ -438,6 +438,23 @@ describe('parseCodexRollout subagent rollouts', () => {
         expect(replayModel?.input_tokens).toBe(0);
     });
 
+    it('boundary adjacency survives a blank line between context and marker', () => {
+        const parsed = parseCodexRollout(
+            [
+                SUBAGENT_META,
+                EMBEDDED_PARENT_META,
+                tc(codexUsage(100, 80, 10, 2), codexUsage(100, 80, 10, 2)),
+                TURN_CONTEXT,
+                '',
+                TRIGGER_TURN,
+                tc(codexUsage(130, 80, 15, 2), codexUsage(30, 0, 5)),
+            ].join('\n'),
+        );
+        // Blank lines never consume a line index (CodexBar's scanner does
+        // not emit them), so the copied prefix is still dropped.
+        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(30);
+    });
+
     it('handles an owned suffix whose counter restarts from zero', () => {
         const parsed = parseCodexRollout(
             [

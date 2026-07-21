@@ -1030,9 +1030,12 @@ export function parseCodexRollout(
     let prelude: BufferedLine[] | null = [];
     let lineIndex = -1;
     for (const raw of text.split('\n')) {
-        lineIndex += 1;
         const trimmed = raw.trim();
+        // Blank lines don't consume an index — CodexBar's scanner never
+        // emits them, and the boundary adjacency check (trigger_turn on the
+        // line right after a turn_context) must not break across one.
         if (!trimmed) continue;
+        lineIndex += 1;
         let obj: JsonObject;
         try {
             const parsed: unknown = JSON.parse(trimmed);
