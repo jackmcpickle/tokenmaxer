@@ -10,7 +10,6 @@
 import type { Dirent } from 'node:fs';
 import {
     closeSync,
-    existsSync,
     openSync,
     readdirSync,
     readFileSync,
@@ -423,6 +422,14 @@ function claudeAttributeFailedDir(
  * returned in failedDirSids — their rows must be withheld, not uploaded as
  * partials.
  */
+function claudeIsDirectory(path: string): boolean {
+    try {
+        return statSync(path).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 function claudeSessionGroups(): {
     groups: SessionGroups;
     failedDirSids: Set<string>;
@@ -437,8 +444,9 @@ function claudeSessionGroups(): {
     const seenDirs = new Set<string>();
     for (const d of claudeDirs()) {
         // An absent root (e.g. no ~/.config/claude on this machine) has
-        // nothing to walk — it must not read as an unlistable folder.
-        if (!existsSync(d)) continue;
+        // nothing to walk, and a root that isn't a directory can't hide
+        // transcripts — neither must read as an unlistable folder.
+        if (!claudeIsDirectory(d)) continue;
         const rootKey = claudeRealKey(d);
         if (seenRoots.has(rootKey)) continue;
         seenRoots.add(rootKey);
@@ -689,22 +697,23 @@ function claudeTreePathOfFile(path: string): string {
     return sessionDir.toLowerCase();
 }
 
-// The session tree a directory belongs to, or null for a project-level (or
-// root-level) directory that no session-tree rule can attribute. In-corpus,
-// the layout fixes the depth — <root>/<project>/<sessionDir>/... — so the
-// unlistable dir may BE the session dir itself (no subagents component in
-// its own path). Out-of-corpus dirs fall back to the subagents rule.
+// The session tree a directory belongs to, or null for a directory no
+// session-tree rule can attribute (project or root level — best effort).
+// The subagents component pins the session dir wherever the tree sits,
+// including sessions stored directly at the corpus root; an unlistable dir
+// that IS the session dir (no subagents component in its own path) falls
+// back to the canonical <root>/<project>/<sessionDir> layout depth.
 function claudeTreePathOfDir(dir: string): string | null {
     const stop = claudeStopDirFor(dir);
+    const bySubagents = claudeSessionDirOf(join(dir, 'x.jsonl'), stop);
+    if (bySubagents !== null) return bySubagents.toLowerCase();
     if (stop !== null) {
         const segments = dir.slice(stop.length).split(sep).filter(Boolean);
         const [projSeg, sessionSeg] = segments;
         if (!projSeg || !sessionSeg) return null;
         return join(stop, projSeg, sessionSeg).toLowerCase();
     }
-    return (
-        claudeSessionDirOf(join(dir, 'x.jsonl'), null)?.toLowerCase() ?? null
-    );
+    return null;
 }
 
 // Which sessions each session TREE (full session-dir path) fed, from the

@@ -684,6 +684,49 @@ describe('tokenmaxer CLI', () => {
         },
     );
 
+    it.skipIf(userInfo().uid === 0)(
+        'withholds a root-depth session whose subagents dir is unlistable',
+        () => {
+            writeConfig();
+            // Session stored directly at the corpus root (no project dir):
+            // the subagents component must still pin its tree.
+            writeTranscript(
+                '.claude/projects/sess-rootlv.jsonl',
+                claudeUsage({ sid: 'sess-rootlv', input: 44, output: 4 }),
+            );
+            const hidden = join(home, '.claude/projects/sess-rootlv/subagents');
+            mkdirSync(hidden, { recursive: true });
+            chmodSync(hidden, 0o000);
+            try {
+                const res = runCli(['claude-sessionstart', '--dry-run'], {
+                    home,
+                });
+                expect(res.status).toBe(0);
+                const ids = (
+                    res.stdout.trim()
+                        ? (JSON.parse(res.stdout.trim()).body.sessions as {
+                              session_id: string;
+                          }[])
+                        : []
+                ).map((s) => s.session_id);
+                expect(ids).not.toContain('sess-rootlv');
+            } finally {
+                chmodSync(hidden, 0o755);
+            }
+        },
+    );
+
+    it('a root that is a regular file prints no unlistable-folder warning', () => {
+        writeConfig();
+        writeTranscript('.claude/projects/demo/sess-cli.jsonl', CLAUDE);
+        // ~/.config/claude/projects exists but is a FILE — nothing to walk.
+        mkdirSync(join(home, '.config/claude'), { recursive: true });
+        writeFileSync(join(home, '.config/claude/projects'), 'not a dir');
+        const res = runCli(['claude-sessionstart', '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        expect(res.stderr).not.toContain('unlistable folder');
+    });
+
     it('a healthy corpus prints no unlistable-folder warning', () => {
         writeConfig();
         // Only ~/.claude/projects exists (no ~/.config/claude): an absent
