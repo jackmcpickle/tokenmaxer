@@ -174,6 +174,9 @@ export async function cursorFetchEvents(
     const pages: unknown[][] = [];
     let expectedTotal: number | null = null;
     let completed = false;
+    // Freeze the window for the whole fetch: a per-page Date.now() end bound
+    // would shift rows across pages as new events arrive mid-pagination.
+    const endDate = String(Date.now());
     for (let page = 1; page <= 200; page += 1) {
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const res = await fetch(
@@ -188,7 +191,7 @@ export async function cursorFetchEvents(
                 body: JSON.stringify({
                     teamId: 0,
                     startDate: String(sinceMs),
-                    endDate: String(Date.now()),
+                    endDate,
                     page,
                     pageSize: 1000,
                 }),
@@ -204,7 +207,21 @@ export async function cursorFetchEvents(
         const data: unknown = await res.json().catch(() => null);
         if (data === null) return null;
         const payload = asObject(data);
-        expectedTotal = cursorTotalCount(payload) ?? expectedTotal;
+        const pageTotal = cursorTotalCount(payload);
+        if (
+            pageTotal !== null &&
+            expectedTotal !== null &&
+            pageTotal !== expectedTotal
+        ) {
+            // The authoritative count changed mid-pagination: rows shifted
+            // across pages and the surplus-based reconciliation can no
+            // longer prove which rows are duplicates. Abort the window.
+            process.stderr.write(
+                `tokenmaxer: cursor pagination inconsistent (total ${expectedTotal} became ${pageTotal})\n`,
+            );
+            return null;
+        }
+        expectedTotal = pageTotal ?? expectedTotal;
         const batch = payload.usageEvents ?? payload.usageEventsDisplay ?? [];
         if (!Array.isArray(batch) || batch.length === 0) {
             completed = true;
@@ -267,16 +284,16 @@ function reconcileCursorPages(
 }
 
 // Longest k where the previous page's last k rows equal the next page's
-// first k rows, compared by value.
+// first k rows, compared by value (each row serialized once).
 function cursorBoundaryOverlap(prev: unknown[], page: unknown[]): number {
     const limit = Math.min(prev.length, page.length);
+    if (limit === 0) return 0;
+    const prevKeys = prev.slice(-limit).map((e) => JSON.stringify(e));
+    const pageKeys = page.slice(0, limit).map((e) => JSON.stringify(e));
     for (let count = limit; count >= 1; count -= 1) {
         let equal = true;
         for (let i = 0; i < count; i += 1) {
-            if (
-                JSON.stringify(prev[prev.length - count + i]) !==
-                JSON.stringify(page[i])
-            ) {
+            if (prevKeys[prevKeys.length - count + i] !== pageKeys[i]) {
                 equal = false;
                 break;
             }

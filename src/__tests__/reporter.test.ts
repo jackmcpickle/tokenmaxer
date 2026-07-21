@@ -509,6 +509,61 @@ describe('parseCodexRollout subagent rollouts', () => {
         expect(parsed.models.get('unknown')?.input_tokens).toBe(0);
     });
 
+    it('keeps a totals-bearing independent child intact across a mid-session marker', () => {
+        // Modern spawn children carry cumulative totals, so the classifier
+        // had real evidence when it judged the counters independent — a
+        // trigger_turn there is the child's own inter-agent traffic, not
+        // the spawn boundary, and pre-marker usage is genuine.
+        const spawnMeta = codexLine('session_meta', {
+            id: 'child-1',
+            source: {
+                subagent: {
+                    thread_spawn: { parent_thread_id: 'parent-1', depth: 1 },
+                },
+            },
+        });
+        const parsed = parseCodexRollout(
+            [
+                spawnMeta,
+                TURN_CONTEXT,
+                tc(codexUsage(500, 0, 100), codexUsage(500, 0, 100)),
+                TRIGGER_TURN,
+                tc(codexUsage(800, 0, 160), codexUsage(300, 0, 60)),
+            ].join('\n'),
+            { resolveParent: () => ({ unresolved: true }) },
+        );
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(800);
+        expect(t?.output_tokens).toBe(160);
+    });
+
+    it('pins dropped legacy replay under the session_meta model', () => {
+        // No turn_context in the replayed prefix: the zero row must land
+        // under the model the pre-fix reporter used (the leaf meta's), so
+        // the replace-upsert can overwrite the inflated historical row.
+        const spawnMeta = codexLine('session_meta', {
+            id: 'child-1',
+            model: 'gpt-5-codex',
+            source: {
+                subagent: {
+                    thread_spawn: { parent_thread_id: 'parent-1', depth: 1 },
+                },
+            },
+        });
+        const parsed = parseCodexRollout(
+            [
+                spawnMeta,
+                tc(null, codexUsage(100, 80, 10, 2)),
+                TRIGGER_TURN,
+                tc(null, codexUsage(11, 0, 5, 1)),
+            ].join('\n'),
+            { resolveParent: () => ({ unresolved: true }) },
+        );
+        const t = parsed.models.get('gpt-5-codex');
+        expect(t?.input_tokens).toBe(11);
+        expect(parsed.models.has('unknown')).toBe(false);
+    });
+
     it('counts a genuinely independent subagent rollout in full', () => {
         const parsed = parseCodexRollout(
             [

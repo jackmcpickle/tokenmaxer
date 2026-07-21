@@ -114,16 +114,20 @@ export async function claudeCatchup(cfg: ReporterConfig): Promise<void> {
     );
 }
 
-export async function codexCatchup(cfg: ReporterConfig): Promise<void> {
-    const since = Date.now() - CATCHUP_DAYS * 86_400_000;
-    // Dedupe copies of one session across sessions/ and archived_sessions/
-    // before parsing — the server upsert replaces, so a stale copy's row
-    // must never race the fuller one.
+// Dedupe copies of one session across sessions/ and archived_sessions/
+// before parsing — the server upsert replaces, so a stale copy's row must
+// never race the fuller one. Backfill seeds the parent-rollout index from
+// the same walk instead of paying a second one on the first fork lookup.
+function collectCodexRows(
+    sinceMs: number,
+    seedIndex: boolean,
+): { files: string[]; rows: ReporterRow[] } {
     const files = dedupeCodexRolloutFiles(
         codexDirs().flatMap((d) =>
-            walkJsonl(d, since, (n) => CODEX_ROLLOUT_FILE.test(n)),
+            walkJsonl(d, sinceMs, (n) => CODEX_ROLLOUT_FILE.test(n)),
         ),
     );
+    if (seedIndex) seedCodexRolloutIndex(files);
     const rows: ReporterRow[] = [];
     for (const file of files) {
         try {
@@ -132,6 +136,12 @@ export async function codexCatchup(cfg: ReporterConfig): Promise<void> {
             /* skip unreadable / unparseable file */
         }
     }
+    return { files, rows };
+}
+
+export async function codexCatchup(cfg: ReporterConfig): Promise<void> {
+    const since = Date.now() - CATCHUP_DAYS * 86_400_000;
+    const { files, rows } = collectCodexRows(since, false);
     const { accepted } = await postSessions(cfg, 'codex', rows);
     process.stderr.write(
         `tokenmaxer: caught up ${accepted} row(s) from ${files.length} file(s)\n`,
@@ -242,21 +252,7 @@ export async function backfill(
         problems += r.problems;
     }
     if (!only || only === 'codex') {
-        const files = dedupeCodexRolloutFiles(
-            codexDirs().flatMap((d) =>
-                walkJsonl(d, 0, (n) => CODEX_ROLLOUT_FILE.test(n)),
-            ),
-        );
-        // Seed before parse: parent lookups for subagent/fork children
-        // reuse this walk instead of paying for a second one.
-        seedCodexRolloutIndex(files);
-        const rows = files.flatMap((f) => {
-            try {
-                return parseFile(f, 'codex');
-            } catch {
-                return [];
-            }
-        });
+        const { files, rows } = collectCodexRows(0, true);
         const r = await backfillFiles(
             cfg,
             'codex',
@@ -317,6 +313,32 @@ export async function reportOne(
 ): Promise<void> {
     if (!path) {
         process.stderr.write(`tokenmaxer: missing path for ${source} report\n`);
+        return;
+    }
+    if (source === 'claude_code') {
+        // A Claude session spans several files; uploading one file's totals
+        // under the shared session id would let the server's replace-upsert
+        // erase the fuller aggregate. Seed the whole-session collector with
+        // the transcript's siblings and an out-of-range window so only the
+        // named session (complete) is reported.
+        const failedSiblingDirs: string[] = [];
+        const siblings = claudeSessionSiblings(path, failedSiblingDirs);
+        const extraFailedSids: string[] = [];
+        if (failedSiblingDirs.length > 0) {
+            extraFailedSids.push(
+                claudeEmbeddedSessionId(path) ?? claudeSessionIdFromPath(path),
+            );
+        }
+        const { rows, sessionCount } = collectClaudeSessionRows(
+            Number.MAX_SAFE_INTEGER,
+            siblings,
+            undefined,
+            extraFailedSids,
+        );
+        const { accepted } = await postSessions(cfg, source, rows);
+        process.stderr.write(
+            `tokenmaxer: reported ${accepted} row(s) across ${sessionCount} session(s)\n`,
+        );
         return;
     }
     const rows = parseFile(path, source);

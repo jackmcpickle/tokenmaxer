@@ -30,17 +30,25 @@ function piUsage(obj: JsonObject): JsonObject | null {
 // `model_change` records carry the new model as `modelId` (plus a provider we
 // don't need); assistant messages carry `model` on the nested message. The
 // message-level model wins over the entry-level one (CodexBar's order) — the
-// nested message records what was actually served.
+// nested message records what was actually served. Candidates are iterated
+// so an empty or non-string value falls through to the next instead of
+// masking it.
 function piModel(obj: JsonObject): string | null {
     const msg = asObject(obj.message);
-    const m =
-        msg.model ??
-        msg.modelId ??
-        obj.model ??
-        obj.modelId ??
-        obj.modelID ??
-        asObject(obj.usage).model;
-    return typeof m === 'string' && m.trim() ? m.trim() : null;
+    const candidates = [
+        msg.model,
+        obj.model,
+        msg.modelId,
+        obj.modelId,
+        obj.modelID,
+        asObject(obj.usage).model,
+    ];
+    for (const candidate of candidates) {
+        if (typeof candidate !== 'string') continue;
+        const trimmed = candidate.trim();
+        if (trimmed) return trimmed;
+    }
+    return null;
 }
 
 function piSessionId(obj: JsonObject): string | null {

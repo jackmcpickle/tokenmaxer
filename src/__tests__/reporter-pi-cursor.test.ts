@@ -107,6 +107,25 @@ describe('parsePiRollout model_change attribution', () => {
             output_tokens: 6,
         });
     });
+
+    it('lets an empty message model fall through to the entry model', () => {
+        const parsed = parsePiRollout(
+            JSON.stringify({
+                type: 'message',
+                id: 'rec_1',
+                model: 'gpt-real',
+                message: {
+                    role: 'assistant',
+                    model: '',
+                    usage: { input: 9, output: 4 },
+                },
+            }),
+        );
+        expect(parsed.models.get('gpt-real')).toMatchObject({
+            input_tokens: 9,
+            output_tokens: 4,
+        });
+    });
 });
 
 describe('parsePiRollout id dedup', () => {
@@ -262,6 +281,39 @@ describe('cursorFetchEvents pagination', () => {
         const events = await cursorFetchEvents('user::jwt', 0);
         expect(events).toHaveLength(3);
         expect(bodies).toHaveLength(1);
+    });
+
+    it('aborts when the reported total changes between pages', async () => {
+        // A moving total means rows shifted across pages mid-fetch; the
+        // surplus-based reconciliation can no longer prove duplicates.
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 1500, usageEventsDisplay: batch(1000) },
+            {
+                totalUsageEventsCount: 1501,
+                usageEventsDisplay: batch(501, 1000),
+            },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toBeNull();
+        expect(bodies).toHaveLength(2);
+    });
+
+    it('freezes the query window for the whole pagination run', async () => {
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 1003, usageEventsDisplay: batch(1000) },
+            {
+                totalUsageEventsCount: 1003,
+                usageEventsDisplay: batch(3, 2000),
+            },
+        ]);
+
+        await cursorFetchEvents('user::jwt', 0);
+        expect(bodies).toHaveLength(2);
+        const first = bodies[0] as { endDate?: string };
+        const second = bodies[1] as { endDate?: string };
+        expect(first.endDate).toBeDefined();
+        expect(second.endDate).toBe(first.endDate);
     });
 });
 

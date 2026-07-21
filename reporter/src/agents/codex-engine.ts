@@ -1,4 +1,4 @@
-import { asObject, toMs } from '../lib/parse-utils';
+import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
 import { emptyTotals, num } from '../lib/totals';
 import type { JsonObject, ReporterTotals } from '../lib/types';
 
@@ -686,6 +686,31 @@ function classifySubagentShape(
     };
 }
 
+// Legacy thread-spawn shape (#15): last-only replayed parent history carries
+// no markers, ancestor metas, or cumulative totals for the classifier to key
+// on, so the first trigger_turn in an explicit spawn child's file is its
+// spawn boundary. A prefix that DOES carry cumulative totals gave the
+// classifier real evidence — if it still judged the counters independent,
+// trust it: a mid-session marker there is the child's own inter-agent
+// traffic, not the spawn boundary.
+function legacySpawnBoundary(buffered: BufferedLine[]): OwnedSuffix | null {
+    let sawTotalsBeforeMarker = false;
+    for (const b of buffered) {
+        if (b.line.kind === 'interAgent' && b.line.triggerTurn) {
+            return sawTotalsBeforeMarker
+                ? null
+                : {
+                      startLineIndex: b.lineIndex + 1,
+                      rawTotalsBaseline: emptyTotals(),
+                  };
+        }
+        if (b.line.kind === 'tokenCount' && b.line.rec.total !== null) {
+            sawTotalsBeforeMarker = true;
+        }
+    }
+    return null;
+}
+
 // ---------------------------------------------------------------------------
 // Fork baseline resolution.
 
@@ -1102,31 +1127,19 @@ export function parseCodexRollout(
         }
         let legacyBoundary = false;
         if (spawnParent && !subagentCopiedPrefix && ownedSuffix === null) {
-            // Legacy thread-spawn shape (#15): the replayed parent history
-            // carries no markers of its own, so the first trigger_turn in an
-            // explicit spawn child's file is its own spawn boundary even
-            // when classification found no ancestor-meta or totals evidence
-            // (last-only replays leave nothing else to key on).
-            let lastTotalsBeforeMarker: Totals | null = null;
-            for (const b of pendingSubagentLines) {
-                if (b.line.kind === 'interAgent' && b.line.triggerTurn) {
-                    ownedSuffix = {
-                        startLineIndex: b.lineIndex + 1,
-                        rawTotalsBaseline:
-                            lastTotalsBeforeMarker ?? emptyTotals(),
-                    };
-                    legacyBoundary = true;
-                    break;
-                }
-                if (b.line.kind === 'tokenCount' && b.line.rec.total !== null) {
-                    lastTotalsBeforeMarker = b.line.rec.total;
-                }
+            const legacy = legacySpawnBoundary(pendingSubagentLines);
+            if (legacy !== null) {
+                ownedSuffix = legacy;
+                legacyBoundary = true;
             }
         }
         suppressUnownedCopiedPrefix =
             subagentCopiedPrefix &&
             ownedSuffix === null &&
             forkedFromId === null;
+        // The leaf session_meta's model applies to dropped-prefix zero rows
+        // below: capture it before a classified boundary clears the context.
+        const modelBeforeBoundary = currentModel;
         if (ownedSuffix !== null) {
             usesLocalSubagentBoundary = true;
             previousTotals = null;
@@ -1146,8 +1159,10 @@ export function parseCodexRollout(
 
         const start = ownedSuffix?.startLineIndex ?? -Infinity;
         // Dropped copied-prefix events still pin zero-total model rows so a
-        // corrected report overwrites previously inflated uploads.
-        let droppedModel: string | null = null;
+        // corrected report overwrites previously inflated uploads — under
+        // the model the pre-fix reporter would have used (session_meta's
+        // model until a replayed turn_context changes it).
+        let droppedModel: string | null = modelBeforeBoundary;
         for (const b of pendingSubagentLines) {
             if (b.lineIndex >= start) {
                 processLine(b.line);
@@ -1191,30 +1206,14 @@ export function codexTokenSnapshots(text: string): {
     let snapSessionId: string | null = null;
     const acc = newSnapshotAccumulator();
     const snapshots: CodexSnapshot[] = [];
-    for (const line of text.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let obj: JsonObject;
-        try {
-            const parsed: unknown = JSON.parse(trimmed);
-            if (parsed === null || typeof parsed !== 'object') continue;
-            obj = parsed as JsonObject;
-        } catch {
+    for (const obj of jsonlObjects(text)) {
+        const line = codexLineFrom(obj);
+        if (line === null) continue;
+        if (line.kind === 'meta') {
+            if (snapSessionId === null) snapSessionId = line.meta.sessionId;
             continue;
         }
-        const payload = asObject(obj.payload);
-        if (obj.type === 'session_meta') {
-            if (snapSessionId === null) {
-                snapSessionId = sessionMetaFrom(obj, payload).sessionId;
-            }
-            continue;
-        }
-        if (obj.type !== 'event_msg' || payload.type !== 'token_count')
-            continue;
-        const info = asObject(payload.info);
-        const last = usageTotals(info.last_token_usage);
-        const total = usageTotals(info.total_token_usage);
-        if (last === null && total === null) continue;
+        if (line.kind !== 'tokenCount') continue;
         // A snapshot without a timestamp cannot be ordered against the fork
         // point; an empty string would lexically sort before every cutoff
         // and silently promote post-fork parent usage into the baseline.
@@ -1223,7 +1222,7 @@ export function codexTokenSnapshots(text: string): {
         snapshots.push({
             ts,
             tsMs: toMs(ts),
-            totals: accumulatorApply(acc, last, total),
+            totals: accumulatorApply(acc, line.rec.last, line.rec.total),
         });
     }
     return { sessionId: snapSessionId, snapshots };

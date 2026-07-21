@@ -370,6 +370,41 @@ describe('tokenmaxer CLI', () => {
         });
     }
 
+    it('claude-report on one file uploads the whole session, never a partial', () => {
+        writeConfig();
+        // The replace-upsert would let a single-file row erase the fuller
+        // stored aggregate, so claude-report must aggregate siblings even
+        // when pointed at one subagent transcript.
+        writeTranscript(
+            '.claude/projects/demo/sess-rep.jsonl',
+            claudeUsage({
+                sid: 'sess-rep',
+                messageId: 'msg_root',
+                input: 10,
+                output: 2,
+            }),
+        );
+        const subagent = writeTranscript(
+            '.claude/projects/demo/sess-rep/subagents/agent-a.jsonl',
+            claudeUsage({
+                sid: 'sess-rep',
+                messageId: 'msg_sub',
+                input: 7,
+                output: 3,
+            }),
+        );
+        const res = runCli(['claude-report', subagent, '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        const payload = JSON.parse(res.stdout.trim());
+        expect(payload.body.sessions).toEqual([
+            expect.objectContaining({
+                session_id: 'sess-rep',
+                input_tokens: 17,
+                output_tokens: 5,
+            }),
+        ]);
+    });
+
     it('backfill exits non-zero and reports errors when ingest fails', () => {
         // Unroutable address: every batch fails, so the summary must say so
         // and the process must not report success. Runs without --dry-run.
