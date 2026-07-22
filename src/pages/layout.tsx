@@ -221,6 +221,12 @@ export const Layout: FC<LayoutProps> = (props) => {
                             </a>
                             <a
                                 class="nav-link text-muted no-underline hover:text-text hover:no-underline"
+                                href="/hackathons"
+                            >
+                                Hackathons
+                            </a>
+                            <a
+                                class="nav-link text-muted no-underline hover:text-text hover:no-underline"
                                 href="/start"
                             >
                                 Get started
@@ -260,6 +266,12 @@ export const Layout: FC<LayoutProps> = (props) => {
                                 href="/"
                             >
                                 Leaderboard
+                            </a>
+                            <a
+                                class="nav-link text-muted no-underline hover:text-text"
+                                href="/hackathons"
+                            >
+                                Hackathons
                             </a>
                             <a
                                 class="nav-link text-muted no-underline hover:text-text"

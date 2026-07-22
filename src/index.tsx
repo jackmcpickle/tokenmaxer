@@ -36,6 +36,7 @@ import { pageCache } from '@/lib/page-cache';
 import { consumePendingSession, setSessionCookie } from '@/lib/session';
 import { currentUser } from '@/lib/web-auth';
 import { About } from '@/pages/about';
+import { HackathonsAbout } from '@/pages/hackathons';
 import { Footprint } from '@/pages/footprint';
 import type { FootprintEntry } from '@/pages/footprint-chart';
 import { HackathonPage, type ViewerRole } from '@/pages/hackathon';
@@ -215,6 +216,11 @@ app.get('/about', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return serveAboutMarkdown(c);
     withAgentDiscoveryHeaders(c);
     return c.html(<About base={baseUrl(c.env, c.req.url)} />);
+});
+
+app.get('/hackathons', async (c) => {
+    withAgentDiscoveryHeaders(c);
+    return c.html(<HackathonsAbout base={baseUrl(c.env, c.req.url)} />);
 });
 
 app.get('/privacy', async (c) => {
