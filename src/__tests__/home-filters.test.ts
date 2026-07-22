@@ -70,6 +70,6 @@ describe('homepage board filters', () => {
         expect(html).not.toContain('name="source"');
         expect(html).toContain('filter-pill');
         expect(html).toContain('source=codex');
-        expect(html).toMatch(/href="\/\?window=7d&amp;metric=total"/);
+        expect(html).toMatch(/href="\/\?window=7d&amp;metric=total"/u);
     });
 });

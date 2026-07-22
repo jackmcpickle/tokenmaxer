@@ -20,26 +20,27 @@
 
 ## File map
 
-| File | Role |
-| --- | --- |
-| `src/pages/leaderboard-href.ts` | Shared `boardHref` + source display labels |
-| `src/pages/components/filter-pill.tsx` | Removable applied-filter pill |
-| `src/pages/components/board-filters.tsx` | Filter strip: details menu, dialogs, pills, inline script |
-| `src/pages/leaderboard-chart.tsx` | Export/use href helper; render `BoardFilters`; accept models/countries |
-| `src/pages/home.tsx` | Remove select form; pass models/countries into chart |
-| `src/styles/tailwind.css` | Dialog + filter menu styles |
-| `src/pages/ui.ts` | Optional class bundles for filter strip / pills |
-| `src/__tests__/home-filters.test.ts` | Assert filter UI + hrefs in `GET /` HTML |
-| `src/pages/hackathons.tsx` | About + get-started page |
-| `src/pages/layout.tsx` | Header (+ footer) Hackathons link |
-| `src/index.tsx` | `GET /hackathons` route |
-| `src/__tests__/hackathons-page.test.ts` | Assert nav + page content |
+| File                                     | Role                                                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------- |
+| `src/pages/leaderboard-href.ts`          | Shared `boardHref` + source display labels                             |
+| `src/pages/components/filter-pill.tsx`   | Removable applied-filter pill                                          |
+| `src/pages/components/board-filters.tsx` | Filter strip: details menu, dialogs, pills, inline script              |
+| `src/pages/leaderboard-chart.tsx`        | Export/use href helper; render `BoardFilters`; accept models/countries |
+| `src/pages/home.tsx`                     | Remove select form; pass models/countries into chart                   |
+| `src/styles/tailwind.css`                | Dialog + filter menu styles                                            |
+| `src/pages/ui.ts`                        | Optional class bundles for filter strip / pills                        |
+| `src/__tests__/home-filters.test.ts`     | Assert filter UI + hrefs in `GET /` HTML                               |
+| `src/pages/hackathons.tsx`               | About + get-started page                                               |
+| `src/pages/layout.tsx`                   | Header (+ footer) Hackathons link                                      |
+| `src/index.tsx`                          | `GET /hackathons` route                                                |
+| `src/__tests__/hackathons-page.test.ts`  | Assert nav + page content                                              |
 
 ---
 
 ### Task 1: `boardHref` helper + filter components + styles
 
 **Files:**
+
 - Create: `src/pages/leaderboard-href.ts`
 - Create: `src/pages/components/filter-pill.tsx`
 - Create: `src/pages/components/board-filters.tsx`
@@ -48,11 +49,12 @@
 - Create: `src/__tests__/home-filters.test.ts` (failing until Task 2 wires chart; write assertions against components via homepage once wired — for this task, export helpers and unit-test `boardHref` in the same file)
 
 **Interfaces:**
+
 - Produces:
-  - `boardHref(opts: { window: TimeWindow; metric: Metric; source?: string; model?: string; country?: string }): string`
-  - `SOURCE_LABELS: Record<Source, string>` (Claude Code, Codex, opencode, pi, Cursor)
-  - `FilterPill` props: `{ label: string; href: string; ariaLabel: string }`
-  - `BoardFilters` props: `{ window, metric, source?, model?, country?, models: string[], countries: string[] }`
+    - `boardHref(opts: { window: TimeWindow; metric: Metric; source?: string; model?: string; country?: string }): string`
+    - `SOURCE_LABELS: Record<Source, string>` (Claude Code, Codex, opencode, pi, Cursor)
+    - `FilterPill` props: `{ label: string; href: string; ariaLabel: string }`
+    - `BoardFilters` props: `{ window, metric, source?, model?, country?, models: string[], countries: string[] }`
 
 - [ ] **Step 1: Extract `boardHref` + source labels**
 
@@ -148,37 +150,38 @@ Implement `src/pages/components/board-filters.tsx`:
 - `<details class="board-filter-menu">` with summary button labeled **Filter**
 - Menu items: buttons with `data-filter-dialog="source|model|country"` (Country only if `countries.length > 0`)
 - Three `<dialog>` elements (`id="filter-dialog-source"` etc.) each with:
-  - header + close button (`data-filter-close`)
-  - scrollable list of `<a>` options for All + values; active option marked with `aria-current="true"` or a class
-  - hrefs via `boardHref` preserving window/metric and other active filters
+    - header + close button (`data-filter-close`)
+    - scrollable list of `<a>` options for All + values; active option marked with `aria-current="true"` or a class
+    - hrefs via `boardHref` preserving window/metric and other active filters
 - Pills for active source/model/country using `FilterPill`; clear href omits that one param
 - Labels: `SOURCE_LABELS`, `familyLabel(model)`, `` `${flagEmoji(code)} ${countryName(code)}` ``
 - Inline script at bottom:
 
 ```js
 (() => {
-  const root = document.getElementById('board-filters');
-  if (!root) return;
-  const menu = root.querySelector('details.board-filter-menu');
-  root.querySelectorAll('[data-filter-dialog]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = 'filter-dialog-' + btn.getAttribute('data-filter-dialog');
-      const dlg = document.getElementById(id);
-      if (menu) menu.open = false;
-      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+    const root = document.getElementById('board-filters');
+    if (!root) return;
+    const menu = root.querySelector('details.board-filter-menu');
+    root.querySelectorAll('[data-filter-dialog]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const id =
+                'filter-dialog-' + btn.getAttribute('data-filter-dialog');
+            const dlg = document.getElementById(id);
+            if (menu) menu.open = false;
+            if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+        });
     });
-  });
-  root.querySelectorAll('[data-filter-close]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const dlg = btn.closest('dialog');
-      if (dlg) dlg.close();
+    root.querySelectorAll('[data-filter-close]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const dlg = btn.closest('dialog');
+            if (dlg) dlg.close();
+        });
     });
-  });
-  document.addEventListener('click', (e) => {
-    if (!menu || !menu.open) return;
-    if (!menu.contains(e.target)) menu.open = false;
-  });
+    document.addEventListener('click', (e) => {
+        if (!menu || !menu.open) return;
+        if (!menu.contains(e.target)) menu.open = false;
+    });
 })();
 ```
 
@@ -207,11 +210,13 @@ git commit -m "feat: add board filter dialog components"
 ### Task 2: Wire filters into leaderboard chart; remove homepage selects
 
 **Files:**
+
 - Modify: `src/pages/leaderboard-chart.tsx`
 - Modify: `src/pages/home.tsx`
 - Modify: `src/__tests__/home-filters.test.ts`
 
 **Interfaces:**
+
 - Consumes: `BoardFilters`, `boardHref` from Task 1
 - Produces: `LeaderboardChart` accepts `models: string[]` and `countries: string[]`
 
@@ -283,12 +288,14 @@ git commit -m "feat: move homepage filters into leaderboard dialogs"
 ### Task 3: Hackathons about page + nav link
 
 **Files:**
+
 - Create: `src/pages/hackathons.tsx`
 - Modify: `src/pages/layout.tsx`
 - Modify: `src/index.tsx`
 - Create: `src/__tests__/hackathons-page.test.ts`
 
 **Interfaces:**
+
 - Produces: `HackathonsAbout: FC<{ base: string }>`
 - Route: `GET /hackathons` → `c.html(<HackathonsAbout base={…} />)`
 
@@ -346,7 +353,12 @@ app.get('/hackathons', async (c) => {
 In `src/pages/layout.tsx` header nav, between Leaderboard and Get started:
 
 ```tsx
-<a class="nav-link …" href="/hackathons">Hackathons</a>
+<a
+    class="nav-link …"
+    href="/hackathons"
+>
+    Hackathons
+</a>
 ```
 
 Add the same link under footer Product column.
@@ -372,14 +384,14 @@ git commit -m "feat: add hackathons about page and nav link"
 
 ## Spec coverage checklist
 
-| Spec requirement | Task |
-| --- | --- |
-| Remove selects above chart | Task 2 |
-| Filter strip between metrics and list | Task 2 |
-| Filter → dropdown → dialog | Task 1 |
-| Immediate navigate | Task 1 (option links) |
-| Removable pills | Task 1 |
-| Preserve window/metric in URLs | Task 1 `boardHref` |
-| Header Hackathons → `/hackathons` | Task 3 |
-| About + get-started + CTAs | Task 3 |
-| Footprint unchanged | (no task) |
+| Spec requirement                      | Task                  |
+| ------------------------------------- | --------------------- |
+| Remove selects above chart            | Task 2                |
+| Filter strip between metrics and list | Task 2                |
+| Filter → dropdown → dialog            | Task 1                |
+| Immediate navigate                    | Task 1 (option links) |
+| Removable pills                       | Task 1                |
+| Preserve window/metric in URLs        | Task 1 `boardHref`    |
+| Header Hackathons → `/hackathons`     | Task 3                |
+| About + get-started + CTAs            | Task 3                |
+| Footprint unchanged                   | (no task)             |

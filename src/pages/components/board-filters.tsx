@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx';
 import { countryName, flagEmoji } from '@/lib/countries';
 import { familyLabel } from '@/lib/model-family';
+import { FilterDialog } from '@/pages/components/filter-dialog';
 import { FilterPill } from '@/pages/components/filter-pill';
 import { boardHref, SOURCE_LABELS } from '@/pages/leaderboard-href';
 import { SOURCES, type Metric, type Source, type TimeWindow } from '@/types';
@@ -30,94 +31,9 @@ const FILTER_SCRIPT = `(() => {
   });
 })();`;
 
-type FilterBase = {
-    window: TimeWindow;
-    metric: Metric;
-    source?: string;
-    model?: string;
-    country?: string;
-};
-
 function sourceLabel(source: string): string {
     return SOURCE_LABELS[source as Source] ?? source;
 }
-
-const FilterDialog: FC<{
-    id: string;
-    title: string;
-    base: FilterBase;
-    options: Array<{ value: string | undefined; label: string }>;
-    active?: string;
-}> = ({ id, title, base, options, active }) => (
-    <dialog
-        id={id}
-        class="board-filter-dialog"
-    >
-        <div class="board-filter-dialog__header">
-            <h2 class="board-filter-dialog__title">{title}</h2>
-            <button
-                type="button"
-                class="board-filter-dialog__close"
-                data-filter-close
-                aria-label={`Close ${title.toLowerCase()} filter`}
-            >
-                ×
-            </button>
-        </div>
-        <div class="board-filter-dialog__body">
-            {options.map((opt) => {
-                const isActive =
-                    opt.value === undefined
-                        ? active === undefined
-                        : opt.value === active;
-                const href =
-                    opt.value === undefined
-                        ? boardHref({
-                              window: base.window,
-                              metric: base.metric,
-                              source:
-                                  id === 'filter-dialog-source'
-                                      ? undefined
-                                      : base.source,
-                              model:
-                                  id === 'filter-dialog-model'
-                                      ? undefined
-                                      : base.model,
-                              country:
-                                  id === 'filter-dialog-country'
-                                      ? undefined
-                                      : base.country,
-                          })
-                        : boardHref({
-                              window: base.window,
-                              metric: base.metric,
-                              source:
-                                  id === 'filter-dialog-source'
-                                      ? opt.value
-                                      : base.source,
-                              model:
-                                  id === 'filter-dialog-model'
-                                      ? opt.value
-                                      : base.model,
-                              country:
-                                  id === 'filter-dialog-country'
-                                      ? opt.value
-                                      : base.country,
-                          });
-                return (
-                    <a
-                        key={opt.value ?? '__all__'}
-                        class="board-filter-option"
-                        href={href}
-                        aria-current={isActive ? 'true' : undefined}
-                    >
-                        {opt.label}
-                    </a>
-                );
-            })}
-        </div>
-    </dialog>
-);
 
 export const BoardFilters: FC<{
     window: TimeWindow;
@@ -128,12 +44,12 @@ export const BoardFilters: FC<{
     models: string[];
     countries: string[];
 }> = ({ window, metric, source, model, country, models, countries }) => {
-    const base: FilterBase = { window, metric, source, model, country };
+    const base = { window, metric, source, model, country };
 
     return (
         <div
             id="board-filters"
-            class="flex flex-wrap items-center gap-2"
+            class="flex flex-wrap items-center gap-2 border-b border-border px-3 py-3 sm:px-5"
         >
             <details class="board-filter-menu">
                 <summary class="board-filter-menu__trigger">Filter</summary>
@@ -202,7 +118,7 @@ export const BoardFilters: FC<{
             )}
 
             <FilterDialog
-                id="filter-dialog-source"
+                dimension="source"
                 title="Source"
                 base={base}
                 active={source}
@@ -215,7 +131,7 @@ export const BoardFilters: FC<{
                 ]}
             />
             <FilterDialog
-                id="filter-dialog-model"
+                dimension="model"
                 title="Model"
                 base={base}
                 active={model}
@@ -229,7 +145,7 @@ export const BoardFilters: FC<{
             />
             {countries.length > 0 && (
                 <FilterDialog
-                    id="filter-dialog-country"
+                    dimension="country"
                     title="Country"
                     base={base}
                     active={country}
@@ -243,6 +159,7 @@ export const BoardFilters: FC<{
                 />
             )}
 
+            {/* eslint-disable-next-line */}
             <script dangerouslySetInnerHTML={{ __html: FILTER_SCRIPT }} />
         </div>
     );

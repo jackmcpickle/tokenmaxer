@@ -10,13 +10,13 @@ Add a Web3-style “waterfall of light” atmosphere behind the homepage hero, u
 
 ## Decisions
 
-| Decision | Choice |
-| --- | --- |
-| Image usage | Hybrid — PNG base + procedural streak/particle overlay |
-| Placement | Hero only (first viewport); fade into canvas before filters/chart |
-| Intensity | Medium — clear cascading streaks; brand copy remains readable |
-| Tech | Canvas 2D overlay + CSS layers; no WebGL |
-| Other pages | Unchanged |
+| Decision    | Choice                                                            |
+| ----------- | ----------------------------------------------------------------- |
+| Image usage | Hybrid — PNG base + procedural streak/particle overlay            |
+| Placement   | Hero only (first viewport); fade into canvas before filters/chart |
+| Intensity   | Medium — clear cascading streaks; brand copy remains readable     |
+| Tech        | Canvas 2D overlay + CSS layers; no WebGL                          |
+| Other pages | Unchanged                                                         |
 
 ## Composition
 
@@ -44,13 +44,13 @@ Increase hero vertical space (min-height and/or padding) so the filters and bar 
 
 ## Implementation shape
 
-| Piece | Location |
-| --- | --- |
-| Asset | Copy reference PNG → `public/waterfall-hero.png` |
-| Markup | Homepage hero wrapped in background shell (image + canvas + veil) |
-| Styles | Scoped layers, veil, bottom fade, taller hero in `src/styles/tailwind.css` (+ rebuild CSS) |
-| Script | Small inline `<script>` on homepage only (same pattern as `/start`) |
-| Components | Prefer a focused hero background fragment/component used only by `home.tsx` |
+| Piece      | Location                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| Asset      | Copy reference PNG → `public/waterfall-hero.png`                                           |
+| Markup     | Homepage hero wrapped in background shell (image + canvas + veil)                          |
+| Styles     | Scoped layers, veil, bottom fade, taller hero in `src/styles/tailwind.css` (+ rebuild CSS) |
+| Script     | Small inline `<script>` on homepage only (same pattern as `/start`)                        |
+| Components | Prefer a focused hero background fragment/component used only by `home.tsx`                |
 
 ## Non-goals
 

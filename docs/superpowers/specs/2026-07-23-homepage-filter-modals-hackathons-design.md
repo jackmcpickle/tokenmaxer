@@ -10,16 +10,16 @@ Replace the homepage native `<select>` filters with a single Filter control insi
 
 ## Decisions
 
-| Decision | Choice |
-| --- | --- |
-| Apply behavior | Immediate navigate on option click (full page reload) |
-| Entry control | One Filter button (not three) |
-| Menu → picker | `<details>` dropdown lists Source / Model / Country; picking one opens that filter’s `<dialog>` |
-| Applied state | Removable pills next to Filter (label + × clears that param) |
-| Placement | New strip between metric tabs and ranking list; Filter + pills on the left |
-| Modal tech | Native `<dialog>` + small inline script |
-| Hackathons nav | New marketing page at `/hackathons` (not deep-link only to `/h/new`) |
-| Footprint selects | Out of scope |
+| Decision          | Choice                                                                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| Apply behavior    | Immediate navigate on option click (full page reload)                                           |
+| Entry control     | One Filter button (not three)                                                                   |
+| Menu → picker     | `<details>` dropdown lists Source / Model / Country; picking one opens that filter’s `<dialog>` |
+| Applied state     | Removable pills next to Filter (label + × clears that param)                                    |
+| Placement         | New strip between metric tabs and ranking list; Filter + pills on the left                      |
+| Modal tech        | Native `<dialog>` + small inline script                                                         |
+| Hackathons nav    | New marketing page at `/hackathons` (not deep-link only to `/h/new`)                            |
+| Footprint selects | Out of scope                                                                                    |
 
 ## Part A — Leaderboard filters
 
@@ -33,17 +33,17 @@ Replace the homepage native `<select>` filters with a single Filter control insi
 
 1. Remove the select form above the chart.
 2. Inside the leaderboard card, between the metric tab row and the ranking list, add a filter strip:
-   - **Left:** Filter button (`<details>` / `<summary>`)
-   - **Beside it:** pills for each active filter among `source`, `model`, `country`
+    - **Left:** Filter button (`<details>` / `<summary>`)
+    - **Beside it:** pills for each active filter among `source`, `model`, `country`
 3. Opening Filter shows a compact dropdown:
-   - Source
-   - Model
-   - Country (omit if `countries.length === 0`)
+    - Source
+    - Model
+    - Country (omit if `countries.length === 0`)
 4. Choosing a dropdown item closes the menu and opens a `<dialog>` for that dimension:
-   - Title for the dimension
-   - Options as links (All + concrete values), current value highlighted
-   - Clicking an option navigates immediately via the same query shape as today
-   - Backdrop click, Escape, or explicit close dismisses without changing filters
+    - Title for the dimension
+    - Options as links (All + concrete values), current value highlighted
+    - Clicking an option navigates immediately via the same query shape as today
+    - Backdrop click, Escape, or explicit close dismisses without changing filters
 5. Each pill shows a short human label (e.g. `Claude Code`, family label, `🇦🇺 Australia`) and an × that navigates to the same board URL with that param omitted.
 
 ### URL / data flow
@@ -54,14 +54,14 @@ Replace the homepage native `<select>` filters with a single Filter control insi
 
 ### Implementation shape
 
-| Piece | Location |
-| --- | --- |
-| Remove select form | `src/pages/home.tsx` |
-| Filter strip + wiring | `src/pages/leaderboard-chart.tsx` |
-| Reusable UI | `src/pages/components/` — filter menu, dialog shell, removable pill (names flexible) |
-| Styles | Dialog/dropdown/pill styles in `src/styles/tailwind.css`; extend `pill` (and related) in `src/pages/ui.ts` |
-| Script | Small inline `<script>` on homepage/chart for dialog open/close, closing `<details>` after choice, optional click-outside |
-| Labels | Reuse `familyLabel`, `countryName` / `flagEmoji`, source display names from current selects |
+| Piece                 | Location                                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Remove select form    | `src/pages/home.tsx`                                                                                                      |
+| Filter strip + wiring | `src/pages/leaderboard-chart.tsx`                                                                                         |
+| Reusable UI           | `src/pages/components/` — filter menu, dialog shell, removable pill (names flexible)                                      |
+| Styles                | Dialog/dropdown/pill styles in `src/styles/tailwind.css`; extend `pill` (and related) in `src/pages/ui.ts`                |
+| Script                | Small inline `<script>` on homepage/chart for dialog open/close, closing `<details>` after choice, optional click-outside |
+| Labels                | Reuse `familyLabel`, `countryName` / `flagEmoji`, source display names from current selects                               |
 
 ### Accessibility & behavior notes
 
@@ -78,9 +78,9 @@ Replace the homepage native `<select>` filters with a single Filter control insi
 - New route `GET /hackathons` → page component (e.g. `src/pages/hackathons.tsx`).
 - Tone/layout aligned with `/about` and `/start` (hero + short sections + `Button` CTAs).
 - Content outline:
-  1. What hackathons are — timed contests on the tokenmaxer board
-  2. How they work — create window → share join link → members report sessions → ranked board
-  3. Get started steps — claim username / sign in → create → invite → join
+    1. What hackathons are — timed contests on the tokenmaxer board
+    2. How they work — create window → share join link → members report sessions → ranked board
+    3. Get started steps — claim username / sign in → create → invite → join
 - CTAs: **Create a hackathon** → `/h/new`, **My hackathons** → `/h/mine`
 - Optional: footer link for discoverability
 - Existing `/h/*` flows remain the product surface; this page is marketing/onboarding only.

@@ -19,10 +19,11 @@ export const HackathonsAbout: FC<{ base: string }> = ({ base }) => (
         <div class="mx-auto max-w-[65ch]">
             <h2>What they are</h2>
             <p class="mb-6 text-muted">
-                A hackathon is a scoped leaderboard for a fixed time range. Hosts
-                pick start and end times (and optionally a model family), invite
-                members, and everyone&apos;s reported sessions inside that window
-                count toward a shared ranking — same metrics as the public board.
+                A hackathon is a scoped leaderboard for a fixed time range.
+                Hosts pick start and end times (and optionally a model family),
+                invite members, and everyone&apos;s reported sessions inside
+                that window count toward a shared ranking — same metrics as the
+                public board.
             </p>
 
             <h2>How they work</h2>

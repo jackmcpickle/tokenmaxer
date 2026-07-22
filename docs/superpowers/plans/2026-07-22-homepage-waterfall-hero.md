@@ -19,20 +19,21 @@
 
 ## File map
 
-| File | Role |
-| --- | --- |
-| `public/waterfall-hero.png` | Reference image (converted to real PNG) |
-| `src/pages/components/waterfall-hero.tsx` | Hero shell markup + inline canvas script |
-| `src/pages/home.tsx` | Wrap existing hero content in shell |
-| `src/pages/ui.ts` | Optional: homepage hero spacing class if needed |
-| `src/styles/tailwind.css` | `.waterfall-hero` layers, veil, fade, min-height |
-| `src/__tests__/home-hero.test.ts` | Assert hero shell + asset path + script markers in HTML |
+| File                                      | Role                                                    |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `public/waterfall-hero.png`               | Reference image (converted to real PNG)                 |
+| `src/pages/components/waterfall-hero.tsx` | Hero shell markup + inline canvas script                |
+| `src/pages/home.tsx`                      | Wrap existing hero content in shell                     |
+| `src/pages/ui.ts`                         | Optional: homepage hero spacing class if needed         |
+| `src/styles/tailwind.css`                 | `.waterfall-hero` layers, veil, fade, min-height        |
+| `src/__tests__/home-hero.test.ts`         | Assert hero shell + asset path + script markers in HTML |
 
 ---
 
 ### Task 1: Asset + hero shell + styles
 
 **Files:**
+
 - Create: `public/waterfall-hero.png`
 - Create: `src/pages/components/waterfall-hero.tsx`
 - Modify: `src/pages/home.tsx`
@@ -44,12 +45,12 @@
 - [x] **Step 2:** Add CSS for `.waterfall-hero` (relative, min-height ~70–85vh, overflow hidden), absolute base image (`object-fit: cover`, centered), veil gradient, bottom fade to `#0a0a0a`, canvas full-bleed `pointer-events: none`, content relative z-index.
 
 - [x] **Step 3:** Create `WaterfallHero` component wrapping children: img + veil + canvas#waterfall-canvas + content slot; append inline script that:
-  - exits early on `prefers-reduced-motion: reduce`
-  - resizes canvas to hero box with DPR cap 2
-  - spawns ~60 vertical streaks (core denser/faster) + sparse particles + few floor ticks
-  - colors: white / `#00E5FF` / `#0077FF` / `#0099FF`
-  - `requestAnimationFrame` loop; `IntersectionObserver` + `visibilitychange` to pause
-  - continuous recycle of streaks off bottom
+    - exits early on `prefers-reduced-motion: reduce`
+    - resizes canvas to hero box with DPR cap 2
+    - spawns ~60 vertical streaks (core denser/faster) + sparse particles + few floor ticks
+    - colors: white / `#00E5FF` / `#0077FF` / `#0099FF`
+    - `requestAnimationFrame` loop; `IntersectionObserver` + `visibilitychange` to pause
+    - continuous recycle of streaks off bottom
 
 - [x] **Step 4:** Wrap homepage hero section content in `WaterfallHero`; keep wordmark/CTA; increase vertical space so chart sits lower.
 
