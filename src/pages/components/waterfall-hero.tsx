@@ -15,12 +15,13 @@ const SCRIPT = `
   if (!ctx) return;
 
   var N = 560;
-  var STREAKS = 300;
+  var STREAKS = 520;
+  var RIPPLES = 170;
   var SPARKS = 130;
-  var SCENE_SCALE = 0.6;
+  var SCENE_SCALE = 0.68;
   var w = 0, h = 0, dpr = 1;
   var raf = 0, running = false, inView = true, pageVisible = !document.hidden;
-  var fibers = [], streaks = [], sparks = [];
+  var fibers = [], streaks = [], ripples = [], sparks = [];
   var t0 = performance.now();
   var compare = /(?:^|[?&])compare=1(?:&|$)/.test(location.search);
   var refImg = null;
@@ -42,10 +43,11 @@ const SCRIPT = `
   function geom(sw, sh) {
     return {
       cx: sw * 0.5,
-      floorY: sh * 0.68,           // where the bell meets the ground plane
-      bellY: sh * 0.5,             // where fibers start peeling outward
+      height: sh,
+      floorY: sh * 0.71,           // where the bell meets the ground plane
+      bellY: sh * 0.49,            // where fibers start peeling outward
       col: Math.min(sw, sh) * 0.055,
-      bellW: sw * 0.17             // half-width of the bell footprint
+      bellW: sw * 0.22             // half-width of the bell footprint
     };
   }
 
@@ -69,18 +71,31 @@ const SCRIPT = `
     };
   }
 
-  function makeStreak(sw) {
+  function makeStreak() {
     var g = (Math.random() + Math.random()) / 2;
     var sx = (g * 2 - 1);
     sx = (sx < 0 ? -1 : 1) * Math.pow(Math.abs(sx), 0.8);
     return {
       sx: sx,
       q: Math.random(),
-      speed: rand(0.1, 0.34),
-      len: rand(0.05, 0.16),
-      width: rand(0.4, 1.3),
-      alpha: rand(0.12, 0.6),
-      white: Math.random() < 0.16
+      speed: rand(0.06, 0.24),
+      len: rand(0.025, 0.1),
+      width: rand(0.22, 0.85),
+      alpha: rand(0.08, 0.42),
+      white: Math.random() < 0.13
+    };
+  }
+
+  function makeRipple() {
+    return {
+      sx: rand(-1, 1),
+      q: Math.pow(Math.random(), 1.65),
+      span: rand(0.008, 0.04),
+      width: rand(0.18, 0.72),
+      alpha: rand(0.08, 0.36),
+      phase: rand(0, Math.PI * 2),
+      tw: rand(0.7, 2.1),
+      white: Math.random() < 0.12
     };
   }
 
@@ -97,36 +112,28 @@ const SCRIPT = `
     };
   }
 
-  /** Fiber path: p 0 top → 0.55 column → 0.78 bell → 1 floor rush. */
+  /** Fiber path: p 0 top → 0.58 column → 1 trumpet bell. */
   function point(f, p, time, G) {
     var cx = G.cx, col = G.col;
     var sway = Math.sin(time * 0.3 + f.side * 6 + p * 2.2) * col * 0.045;
-    var land = (f.side < 0 ? -1 : 1) * Math.pow(Math.abs(f.side), 0.85) * G.bellW;
+    var land = (f.side < 0 ? -1 : 1) * Math.pow(Math.abs(f.side), 0.72) * G.bellW * f.fan;
 
-    if (p <= 0.55) {
-      var t = p / 0.55;
+    if (p <= 0.58) {
+      var t = p / 0.58;
       return {
         x: cx + sway + f.side * col * (0.82 + t * 0.28),
         y: t * G.bellY,
         depth: 0.12 + t * 0.28
       };
     }
-    if (p <= 0.78) {
-      var u = (p - 0.55) / 0.23;
-      var flare = Math.pow(u, 2.4);
-      var xc = f.side * col * 1.1;
-      return {
-        x: cx + sway * (1 - u) + xc + (land - xc) * flare,
-        y: G.bellY + smooth(u) * (G.floorY - G.bellY),
-        depth: 0.4 + u * 0.25
-      };
-    }
-    var v = (p - 0.78) / 0.22;
-    var rush = Math.pow(v, 1.55);
+    var u = (p - 0.58) / 0.42;
+    var flare = Math.pow(u, 2.65);
+    var drop = 1 - Math.pow(1 - u, 2.45);
+    var xc = f.side * col * 1.1;
     return {
-      x: cx + land * (1 + rush * f.fan * 2.6),
-      y: G.floorY + rush * (h * (reduced ? 1 : 1.02) - G.floorY),
-      depth: 0.65 + rush * 0.35
+      x: cx + sway * (1 - u) + xc + (land - xc) * flare,
+      y: G.bellY + drop * (G.floorY - G.bellY),
+      depth: 0.4 + u * 0.25
     };
   }
 
@@ -134,8 +141,8 @@ const SCRIPT = `
   function floorPt(sx, q, G, sw) {
     var qq = clamp(q, 0.001, 1);
     return {
-      x: G.cx + sx * sw * 0.72 * Math.pow(qq, 1.2),
-      y: G.floorY + Math.pow(qq, 1.7) * (h - G.floorY) * 1.04,
+      x: G.cx + sx * (G.bellW * 0.82 + sw * 0.58 * Math.pow(qq, 1.18)),
+      y: G.floorY + Math.pow(qq, 1.7) * (G.height - G.floorY) * 1.04,
       depth: 0.3 + qq * 0.7
     };
   }
@@ -159,14 +166,16 @@ const SCRIPT = `
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     off.width = Math.max(1, Math.floor(w * SCENE_SCALE));
     off.height = Math.max(1, Math.floor(h * SCENE_SCALE));
-    mip1.width = Math.max(1, off.width >> 2);
-    mip1.height = Math.max(1, off.height >> 2);
-    mip2.width = Math.max(1, off.width >> 3);
-    mip2.height = Math.max(1, off.height >> 3);
+    mip1.width = Math.max(1, Math.floor(off.width / 3));
+    mip1.height = Math.max(1, Math.floor(off.height / 3));
+    mip2.width = Math.max(1, Math.floor(off.width / 6));
+    mip2.height = Math.max(1, Math.floor(off.height / 6));
     fibers = [];
     for (var i = 0; i < N; i++) fibers.push(makeFiber());
     streaks = [];
-    for (var j = 0; j < STREAKS; j++) streaks.push(makeStreak(w));
+    for (var j = 0; j < STREAKS; j++) streaks.push(makeStreak());
+    ripples = [];
+    for (var r = 0; r < RIPPLES; r++) ripples.push(makeRipple());
     sparks = [];
     for (var k = 0; k < SPARKS; k++) sparks.push(makeSpark());
   }
@@ -177,8 +186,8 @@ const SCRIPT = `
 
     // vertical haze around the column — full-canvas fill so no seams
     var g1 = c.createRadialGradient(cx, G.floorY * 0.42, 0, cx, G.floorY * 0.42, sh * 0.55);
-    g1.addColorStop(0, 'rgba(40,120,255,0.16)');
-    g1.addColorStop(0.35, 'rgba(20,70,200,0.06)');
+    g1.addColorStop(0, 'rgba(40,120,255,0.1)');
+    g1.addColorStop(0.35, 'rgba(20,70,200,0.035)');
     g1.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = g1;
     c.fillRect(0, 0, sw, sh);
@@ -203,15 +212,32 @@ const SCRIPT = `
     c.fillRect(-sw * 4, -sh, sw * 8, sh * 2);
     c.restore();
 
-    // impact glow at the base
-    var g3 = c.createRadialGradient(cx, G.floorY, 0, cx, G.floorY, Math.min(sw, sh) * 0.5);
+    // impact glow at the base, stretched into the reference's broad landing lip
+    c.save();
+    c.translate(cx, G.floorY);
+    c.scale(1.65, 0.72);
+    var g3 = c.createRadialGradient(0, 0, 0, 0, 0, Math.min(sw, sh) * 0.34);
     g3.addColorStop(0, 'rgba(255,255,255,0.55)');
-    g3.addColorStop(0.07, 'rgba(220,240,255,0.32)');
-    g3.addColorStop(0.22, 'rgba(110,180,255,0.15)');
-    g3.addColorStop(0.5, 'rgba(30,90,220,0.05)');
+    g3.addColorStop(0.12, 'rgba(220,240,255,0.32)');
+    g3.addColorStop(0.3, 'rgba(110,180,255,0.15)');
+    g3.addColorStop(0.62, 'rgba(30,90,220,0.05)');
     g3.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = g3;
-    c.fillRect(0, 0, sw, sh);
+    c.fillRect(-sw, -sh, sw * 2, sh * 2);
+    c.restore();
+
+    // bright horizontal landing ridge where the curtain rolls onto the floor
+    c.save();
+    c.translate(cx, G.floorY);
+    c.scale(1, 0.11);
+    var g6 = c.createRadialGradient(0, 0, 0, 0, 0, G.bellW * 1.22);
+    g6.addColorStop(0, 'rgba(255,255,255,0.72)');
+    g6.addColorStop(0.24, 'rgba(220,245,255,0.48)');
+    g6.addColorStop(0.6, 'rgba(80,160,255,0.22)');
+    g6.addColorStop(1, 'rgba(0,50,180,0)');
+    c.fillStyle = g6;
+    c.fillRect(-sw, -sh, sw * 2, sh * 2);
+    c.restore();
 
     // floor wash — squashed radial for the lit ground plane
     c.save();
@@ -232,7 +258,7 @@ const SCRIPT = `
     c.globalCompositeOperation = 'lighter';
     c.lineCap = 'round';
     c.lineJoin = 'round';
-    var steps = 34;
+    var steps = 42;
 
     for (var i = 0; i < fibers.length; i++) {
       var f = fibers[i];
@@ -293,6 +319,28 @@ const SCRIPT = `
     c.globalAlpha = 1;
   }
 
+  function drawRipples(c, time, G, sw) {
+    c.globalCompositeOperation = 'lighter';
+    c.lineCap = 'round';
+    for (var i = 0; i < ripples.length; i++) {
+      var r = ripples[i];
+      var q = clamp(r.q + Math.sin(time * 0.18 + r.phase) * 0.006, 0, 1);
+      var p = floorPt(r.sx, q, G, sw);
+      var half = sw * r.span * (0.25 + q * 1.4);
+      var fade = smooth(q / 0.04) * (1 - smooth((q - 0.92) / 0.08));
+      var twinkle = 0.55 + Math.sin(time * r.tw + r.phase) * 0.45;
+      c.globalAlpha = r.alpha * fade * (0.45 + twinkle * 0.55);
+      c.strokeStyle = r.white ? 'rgba(240,250,255,0.95)' : 'rgba(85,155,255,0.85)';
+      c.lineWidth = r.width * (0.5 + q * 1.3);
+      c.beginPath();
+      c.moveTo(p.x - half, p.y);
+      c.lineTo(p.x + half, p.y + r.sx * q * 0.8);
+      c.stroke();
+    }
+    c.globalCompositeOperation = 'source-over';
+    c.globalAlpha = 1;
+  }
+
   function drawSparks(c, time, G, sw) {
     c.globalCompositeOperation = 'lighter';
     for (var i = 0; i < sparks.length; i++) {
@@ -324,15 +372,14 @@ const SCRIPT = `
     octx.setTransform(1, 0, 0, 1, 0, 0);
     octx.globalCompositeOperation = 'source-over';
     octx.globalAlpha = 1;
-    octx.fillStyle = '#020409';
+    octx.fillStyle = '#010204';
     octx.fillRect(0, 0, sw, sh);
 
-    var hScene = h; h = sh; // path fns use h for floor extent; run them in scene units
     atmosphere(octx, G, sw, sh);
     drawFibers(octx, time, G);
     drawStreaks(octx, time, G, sw);
+    drawRipples(octx, time, G, sw);
     drawSparks(octx, time, G, sw);
-    h = hScene;
 
     // bloom mips
     m1.imageSmoothingEnabled = true;
@@ -350,9 +397,9 @@ const SCRIPT = `
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(off, 0, 0, w, h);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.32;
     ctx.drawImage(mip1, 0, 0, w, h);
-    ctx.globalAlpha = 0.26;
+    ctx.globalAlpha = 0.16;
     ctx.drawImage(mip2, 0, 0, w, h);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
