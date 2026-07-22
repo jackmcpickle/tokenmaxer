@@ -1,9 +1,6 @@
 import type { FC } from 'hono/jsx';
 import type { LeaderboardEntry } from '@/lib/aggregate';
-import { countryName, flagEmoji } from '@/lib/countries';
-import { familyLabel } from '@/lib/model-family';
 import { Button } from '@/pages/components/button';
-import { Input } from '@/pages/components/input';
 import { WaterfallHero } from '@/pages/components/waterfall-hero';
 import { Layout } from '@/pages/layout';
 import {
@@ -11,10 +8,8 @@ import {
     METRIC_LABELS,
     WINDOW_LABELS,
 } from '@/pages/leaderboard-chart';
-import { filterLabel, filters, heroActions, sub } from '@/pages/ui';
+import { heroActions, sub } from '@/pages/ui';
 import type { Metric, Source, TimeWindow } from '@/types';
-
-const AUTO_SUBMIT = 'this.form.requestSubmit()';
 
 interface HomeProps {
     base: string;
@@ -57,130 +52,6 @@ export const Home: FC<HomeProps> = (p) => (
             </div>
         </WaterfallHero>
 
-        <form
-            class={filters}
-            method="get"
-            action="/"
-        >
-            <input
-                type="hidden"
-                name="window"
-                value={p.window}
-            />
-            <input
-                type="hidden"
-                name="metric"
-                value={p.metric}
-            />
-            <label
-                class={filterLabel}
-                htmlFor="filter-source"
-            >
-                Source
-                <Input
-                    variant="select"
-                    id="filter-source"
-                    name="source"
-                    onchange={AUTO_SUBMIT}
-                >
-                    <option
-                        value=""
-                        selected={!p.source}
-                    >
-                        All
-                    </option>
-                    <option
-                        value="claude_code"
-                        selected={p.source === 'claude_code'}
-                    >
-                        Claude Code
-                    </option>
-                    <option
-                        value="codex"
-                        selected={p.source === 'codex'}
-                    >
-                        Codex
-                    </option>
-                    <option
-                        value="opencode"
-                        selected={p.source === 'opencode'}
-                    >
-                        opencode
-                    </option>
-                    <option
-                        value="pi"
-                        selected={p.source === 'pi'}
-                    >
-                        pi
-                    </option>
-                    <option
-                        value="cursor"
-                        selected={p.source === 'cursor'}
-                    >
-                        Cursor
-                    </option>
-                </Input>
-            </label>
-            <label
-                class={filterLabel}
-                htmlFor="filter-model"
-            >
-                Model
-                <Input
-                    variant="select"
-                    id="filter-model"
-                    name="model"
-                    onchange={AUTO_SUBMIT}
-                >
-                    <option
-                        value=""
-                        selected={!p.model}
-                    >
-                        All
-                    </option>
-                    {p.models.map((m) => (
-                        <option
-                            key={m}
-                            value={m}
-                            selected={m === p.model}
-                        >
-                            {familyLabel(m)}
-                        </option>
-                    ))}
-                </Input>
-            </label>
-            {p.countries.length > 0 && (
-                <label
-                    class={filterLabel}
-                    htmlFor="filter-country"
-                >
-                    Country
-                    <Input
-                        variant="select"
-                        id="filter-country"
-                        name="country"
-                        onchange={AUTO_SUBMIT}
-                    >
-                        <option
-                            value=""
-                            selected={!p.country}
-                        >
-                            All
-                        </option>
-                        {p.countries.map((code) => (
-                            <option
-                                key={code}
-                                value={code}
-                                selected={code === p.country}
-                            >
-                                {`${flagEmoji(code)} ${countryName(code)}`}
-                            </option>
-                        ))}
-                    </Input>
-                </label>
-            )}
-        </form>
-
         <LeaderboardChart
             entries={p.entries}
             window={p.window}
@@ -188,6 +59,8 @@ export const Home: FC<HomeProps> = (p) => (
             source={p.source}
             model={p.model}
             country={p.country}
+            models={p.models}
+            countries={p.countries}
         />
 
         <aside class="spotlight spotlight-violet mt-4 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
