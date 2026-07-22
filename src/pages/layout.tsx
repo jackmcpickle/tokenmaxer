@@ -79,7 +79,7 @@ export const Layout: FC<LayoutProps> = (props) => {
     const ogUrl = props.ogUrl ?? origin;
     const ogImageAlt = props.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT;
     const chromeClass = props.revealChrome
-        ? 'site-chrome site-chrome--reveal z-50 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:px-8'
+        ? 'site-chrome site-chrome--reveal z-50 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/60 px-5 py-3.5 backdrop-blur-xl backdrop-saturate-150 sm:px-8'
         : 'sticky top-0 z-50 -mx-5 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:-mx-8 sm:px-8';
     return (
         <html lang="en">
