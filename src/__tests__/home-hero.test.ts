@@ -34,7 +34,7 @@ const browserHeaders = {
 };
 
 describe('homepage waterfall hero', () => {
-    it('renders hybrid hero shell, asset, and canvas animation script', async () => {
+    it('renders procedural hero, reveal chrome, and animation script', async () => {
         const res = await app.request(
             'https://tokenmaxer.quest/',
             { headers: browserHeaders },
@@ -43,12 +43,13 @@ describe('homepage waterfall hero', () => {
         expect(res.status).toBe(200);
         const html = await res.text();
         expect(html).toContain('class="waterfall-hero"');
-        expect(html).toContain('src="/waterfall-hero.png"');
         expect(html).toContain('id="waterfall-canvas"');
         expect(html).toContain('requestAnimationFrame');
         expect(html).toContain('prefers-reduced-motion');
-        expect(html).toContain('IntersectionObserver');
-        expect(html).toContain('token');
+        expect(html).toContain('site-chrome--reveal');
+        expect(html).toContain('id="site-chrome"');
+        expect(html).toContain('is-visible');
+        expect(html).not.toContain('class="waterfall-hero__img"');
         expect(html).toContain('Claim a username');
     });
 });

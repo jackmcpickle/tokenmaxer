@@ -34,6 +34,7 @@ export const Home: FC<HomeProps> = (p) => (
     <Layout
         title="tokenmaxer.quest — token leaderboard for AI builders"
         base={p.base}
+        revealChrome
     >
         <WaterfallHero>
             <h1 class="reveal wm">

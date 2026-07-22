@@ -68,6 +68,8 @@ type LayoutProps = {
     ogImage?: string;
     ogUrl?: string;
     ogImageAlt?: string;
+    /** Homepage: hide header until scroll, then fade/slide in. */
+    revealChrome?: boolean;
 };
 
 export const Layout: FC<LayoutProps> = (props) => {
@@ -76,6 +78,9 @@ export const Layout: FC<LayoutProps> = (props) => {
     const ogImage = props.ogImage ?? `${origin}/og.png`;
     const ogUrl = props.ogUrl ?? origin;
     const ogImageAlt = props.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT;
+    const chromeClass = props.revealChrome
+        ? 'site-chrome site-chrome--reveal z-50 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:px-8'
+        : 'sticky top-0 z-50 -mx-5 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:-mx-8 sm:px-8';
     return (
         <html lang="en">
             <head>
@@ -195,7 +200,11 @@ export const Layout: FC<LayoutProps> = (props) => {
                     Skip to content
                 </a>
                 <div class="mx-auto max-w-[1199px] px-5 pb-20 sm:px-8">
-                    <header class="sticky top-0 z-50 -mx-5 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:-mx-8 sm:px-8">
+                    <header
+                        id="site-chrome"
+                        class={chromeClass}
+                        aria-hidden={props.revealChrome ? 'true' : undefined}
+                    >
                         <a
                             class="nav-link flex items-center gap-2.5 text-text no-underline hover:no-underline"
                             href="/"
