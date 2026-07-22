@@ -50,18 +50,35 @@ tokenmaxer set-profile-url --clear [--dry-run]
 Reporting is idempotent (upsert keyed by session id) — re-running never
 double-counts. Source: <https://github.com/jackmcpickle/tokenmaxer>.
 
-## Codex subagent sessions
+## Claude subagent sessions
 
-Codex subagent/fork children replay part of the parent rollout's history
-(including its token counts) at the top of the child file. The parser excludes
-that inherited prefix so parent usage is only counted once: current rollouts
-are cut at the `trigger_turn` boundary marker; older files without the marker
-are resolved by matching the child's initial token sequence against the parent
-rollout, which is read **locally only** — nothing extra leaves your machine.
+Claude Code splits one session across a root `<sessionId>.jsonl` and subagent
+transcripts under `<sessionId>/subagents/` (nesting deeper for workflow
+subagents), all sharing the same session id. The reporter aggregates a
+session's files into a single row per model — deduplicating streamed message
+chunks across copies — before uploading, so the files can't overwrite each
+other's totals on the server, and it never uploads a session's row unless
+every known contribution was readable. Because the aggregated rows keep the
+same session ids, upgrading and re-running `tokenmaxer backfill claude`
+repairs any previously collided history in place.
 
-Excluded replay still reports a zero-total row for each affected model, so
-re-running `tokenmaxer backfill codex` overwrites any rows that older reporter
-versions inflated for those sessions.
+## Codex counting
+
+Codex `token_count` events carry a per-turn delta and a cumulative counter,
+and neither can be trusted alone: events get replayed, resumed and forked
+sessions restart or interleave their counters, and subagent rollouts copy a
+prefix of the parent's history. The parser uses the counting engine from
+[CodexBar](https://github.com/steipete/CodexBar) (MIT): per-event
+delta-vs-counter arbitration under a monotonic watermark, so replayed events
+and interleaved fork lineages can never double-count; fork and subagent
+children subtract the parent rollout's totals at the fork point, replayed
+from the parent file **locally only** — nothing extra leaves your machine.
+When the parent rollout is missing, the child is counted conservatively
+rather than double-counting replayed parent history.
+
+Corrected sessions still report zero-total rows for models whose usage was
+all replay, so re-running `tokenmaxer backfill codex` overwrites any rows
+that older reporter versions inflated.
 
 ## Cursor manual auth fallback
 

@@ -13,7 +13,9 @@ const app = new Hono<{ Bindings: Env }>();
 // { source, sessions: [...] } — but with a larger per-request cap and its own
 // rate-limit bucket, so a one-time history upload doesn't exhaust the live
 // reporting budget. Upserts are idempotent, so a backfill that overlaps rows
-// already reported by the hooks never double-counts.
+// already reported by the hooks never double-counts. Structurally invalid rows
+// are reported per-index in `rejected` while the valid rows are still upserted;
+// `accepted` counts the rows actually written.
 app.post('/history', async (c) => {
     const user = await authenticate(c.env.DB, c.req.header('Authorization'));
     if (!user) return c.json({ error: 'unauthorized' }, 401);
@@ -33,11 +35,15 @@ app.post('/history', async (c) => {
     const parsed = parseHistoryBody(body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
-    const { source, sessions } = parsed.value;
-    await upsertSessions(c.env.DB, user.id, source, sessions, Date.now());
-    await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
+    const { source, sessions, rejected } = parsed.value;
+    // A batch whose rows were all rejected changes nothing: skip the upsert
+    // and keep the user's cached profile aggregates warm.
+    if (sessions.length > 0) {
+        await upsertSessions(c.env.DB, user.id, source, sessions, Date.now());
+        await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
+    }
 
-    return c.json({ accepted: sessions.length });
+    return c.json({ accepted: sessions.length, rejected });
 });
 
 export { app as historyRoutes };

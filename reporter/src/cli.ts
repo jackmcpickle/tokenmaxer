@@ -5,7 +5,7 @@ import {
     claudeCatchup,
     claudeSessionEnd,
     codexCatchup,
-    cursorSync,
+    cursorSyncCommand,
     opencodeCatchup,
     piCatchup,
     reportOne,
@@ -127,7 +127,7 @@ export async function main(): Promise<void> {
             await reportOne(cfg, process.argv[3], 'pi');
             break;
         case 'cursor-sync':
-            await cursorSync(cfg);
+            await cursorSyncCommand(cfg);
             break;
         case 'backfill': {
             // Optional scope: `backfill claude|codex|opencode|pi|cursor`.

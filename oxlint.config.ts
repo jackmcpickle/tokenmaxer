@@ -203,6 +203,8 @@ export default defineConfig({
                 'src/__tests__/reporter-rows.test.ts',
                 'src/__tests__/reporter-collect.test.ts',
                 'src/__tests__/reporter-bundle.test.ts',
+                'src/__tests__/reporter-claude-sessions.test.ts',
+                'src/__tests__/reporter-pi-cursor.test.ts',
             ],
             rules: {
                 'import/no-relative-parent-imports': 'off',
@@ -217,6 +219,16 @@ export default defineConfig({
             rules: {
                 'import/no-relative-parent-imports': 'off',
                 'import/no-unassigned-import': 'off',
+            },
+        },
+        {
+            // Faithful port of CodexBar's rollout counting state machine
+            // (which carries the equivalent swiftlint complexity disables);
+            // decomposing it would break line-for-line reviewability against
+            // the reference implementation.
+            files: ['reporter/src/agents/codex-engine.ts'],
+            rules: {
+                complexity: 'off',
             },
         },
         {
