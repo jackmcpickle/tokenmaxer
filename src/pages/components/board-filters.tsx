@@ -25,6 +25,11 @@ const FILTER_SCRIPT = `(() => {
       if (dlg) dlg.close();
     });
   });
+  root.querySelectorAll('dialog.board-filter-dialog').forEach((dlg) => {
+    dlg.addEventListener('click', (e) => {
+      if (e.target === dlg) dlg.close();
+    });
+  });
   document.addEventListener('click', (e) => {
     if (!menu || !menu.open) return;
     if (!menu.contains(e.target)) menu.open = false;

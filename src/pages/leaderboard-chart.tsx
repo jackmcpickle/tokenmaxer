@@ -81,7 +81,7 @@ export const LeaderboardChart: FC<{
     const max = Math.max(...entries.map((e) => metricValue(e, metric)), 1);
 
     return (
-        <section class="mb-8 overflow-hidden rounded-lg border border-border bg-panel">
+        <section class="mb-8 overflow-visible rounded-lg border border-border bg-panel">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div>
                     <div class="text-xs tracking-[0.06em] text-muted uppercase">
