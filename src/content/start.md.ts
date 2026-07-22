@@ -38,7 +38,7 @@ function snippets(base: string): {
     );
 
     const codex =
-        '[[hooks.SessionStart.hooks]]\n' +
+        '[[hooks.session_start]]\n' +
         'type = "command"\n' +
         'command = "tokenmaxer codex-sessionstart"';
 
