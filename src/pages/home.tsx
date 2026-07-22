@@ -4,13 +4,14 @@ import { countryName, flagEmoji } from '@/lib/countries';
 import { familyLabel } from '@/lib/model-family';
 import { Button } from '@/pages/components/button';
 import { Input } from '@/pages/components/input';
+import { WaterfallHero } from '@/pages/components/waterfall-hero';
 import { Layout } from '@/pages/layout';
 import {
     LeaderboardChart,
     METRIC_LABELS,
     WINDOW_LABELS,
 } from '@/pages/leaderboard-chart';
-import { filterLabel, filters, hero, heroActions, sub } from '@/pages/ui';
+import { filterLabel, filters, heroActions, sub } from '@/pages/ui';
 import type { Metric, Source, TimeWindow } from '@/types';
 
 const AUTO_SUBMIT = 'this.form.requestSubmit()';
@@ -34,7 +35,7 @@ export const Home: FC<HomeProps> = (p) => (
         title="tokenmaxer.quest — token leaderboard for AI builders"
         base={p.base}
     >
-        <section class={hero}>
+        <WaterfallHero>
             <h1 class="reveal wm">
                 token<span class="max">maxer</span>
                 <span class="tld">.quest</span>
@@ -53,7 +54,7 @@ export const Home: FC<HomeProps> = (p) => (
                     Claim a username
                 </Button>
             </div>
-        </section>
+        </WaterfallHero>
 
         <form
             class={filters}

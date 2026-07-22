@@ -27,6 +27,10 @@
     --color-aurora-peach: #e89970;
     --color-aurora-deep: #241f55;
 
+    /* Waterfall hero filaments (reference image) */
+    --color-waterfall-cyan: #00e5ff;
+    --color-waterfall-blue: #0077ff;
+
     --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Mona Sans', ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -154,6 +158,123 @@
     .wm .tld {
         color: var(--color-muted);
         font-weight: 500;
+    }
+
+    /* Homepage waterfall hero — full-bleed behind brand */
+    .waterfall-hero {
+        position: relative;
+        isolation: isolate;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        margin-bottom: 2.5rem;
+        /* Fill the first viewport below the sticky header so CTA stays on-screen */
+        min-height: calc(100dvh - 4.75rem);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        overflow: hidden;
+        background: var(--color-canvas);
+    }
+
+    .waterfall-hero__bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .waterfall-hero__img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% 58%;
+        user-select: none;
+    }
+
+    .waterfall-hero__veil {
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(
+                ellipse 48% 62% at 50% 40%,
+                transparent 0%,
+                transparent 22%,
+                rgba(10, 10, 10, 0.28) 48%,
+                rgba(10, 10, 10, 0.72) 100%
+            ),
+            linear-gradient(
+                180deg,
+                rgba(10, 10, 10, 0.62) 0%,
+                rgba(10, 10, 10, 0.1) 32%,
+                rgba(10, 10, 10, 0.18) 55%,
+                rgba(10, 10, 10, 0.72) 78%,
+                var(--color-canvas) 100%
+            );
+    }
+
+    .waterfall-hero__canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    .waterfall-hero__fade {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: min(28%, 12rem);
+        background: linear-gradient(
+            180deg,
+            transparent 0%,
+            var(--color-canvas) 92%
+        );
+    }
+
+    .waterfall-hero__content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 1199px;
+        margin-inline: auto;
+        padding: 6rem 1.25rem 4.5rem;
+        text-shadow: 0 2px 28px rgba(10, 10, 10, 0.95);
+    }
+
+    .waterfall-hero__content .wm {
+        color: #fff;
+    }
+
+    .waterfall-hero__content .wm .tld {
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .waterfall-hero__content .text-muted {
+        color: rgba(255, 255, 255, 0.78);
+    }
+
+    .waterfall-hero__content .text-muted strong,
+    .waterfall-hero__content .text-text {
+        color: #fff;
+    }
+
+    @media (min-width: 640px) {
+        .waterfall-hero__content {
+            padding-left: 2rem;
+            padding-right: 2rem;
+        }
+    }
+
+    @media (min-width: 768px) {
+        .waterfall-hero__content {
+            padding-top: 8rem;
+            padding-bottom: 5.5rem;
+        }
     }
 
     .skip-link {
