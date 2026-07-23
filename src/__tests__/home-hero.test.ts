@@ -49,6 +49,8 @@ describe('homepage waterfall hero', () => {
         expect(html).toContain('site-chrome--reveal');
         expect(html).toContain('id="site-chrome"');
         expect(html).toContain('is-visible');
+        expect(html).toContain('translate3d');
+        expect(html).toContain('waterfall-hero__bg');
         expect(html).not.toContain('class="waterfall-hero__img"');
         expect(html).toContain('Claim a username');
     });

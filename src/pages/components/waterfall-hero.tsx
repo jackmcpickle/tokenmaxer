@@ -471,6 +471,46 @@ const CHROME_SCRIPT = `
 })();
 `;
 
+/** Parallax: background drifts slower than scroll; hero copy drifts a little faster. */
+const PARALLAX_SCRIPT = `
+(function () {
+  var hero = document.querySelector('.waterfall-hero');
+  if (!hero) return;
+  var bg = hero.querySelector('.waterfall-hero__bg');
+  var content = hero.querySelector('.waterfall-hero__content');
+  if (!bg || !content) return;
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) return;
+
+  var BG_RATE = 0.38;
+  var TEXT_RATE = 0.18;
+  var ticking = false;
+
+  function apply() {
+    ticking = false;
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    var h = hero.offsetHeight || 1;
+    if (y > h) {
+      bg.style.transform = '';
+      content.style.transform = '';
+      return;
+    }
+    bg.style.transform = 'translate3d(0,' + (y * BG_RATE) + 'px,0)';
+    content.style.transform = 'translate3d(0,' + (y * TEXT_RATE) + 'px,0)';
+  }
+
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(apply);
+  }
+
+  apply();
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+})();
+`;
+
 export const WaterfallHero: FC<{ children?: Child }> = (props) => (
     <section
         class="waterfall-hero"
@@ -492,5 +532,7 @@ export const WaterfallHero: FC<{ children?: Child }> = (props) => (
         <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />
         {/* eslint-disable-next-line */}
         <script dangerouslySetInnerHTML={{ __html: CHROME_SCRIPT }} />
+        {/* eslint-disable-next-line */}
+        <script dangerouslySetInnerHTML={{ __html: PARALLAX_SCRIPT }} />
     </section>
 );

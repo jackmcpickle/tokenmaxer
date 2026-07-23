@@ -160,6 +160,12 @@
         font-weight: 500;
     }
 
+    /* Full-bleed site header (outside page column) */
+    .site-chrome {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
     /* Homepage: chrome hidden until scroll (fixed — no layout space) */
     .site-chrome--reveal {
         position: fixed;
@@ -167,9 +173,6 @@
         left: 0;
         right: 0;
         width: 100%;
-        max-width: 1199px;
-        margin-inline: auto;
-        box-sizing: border-box;
         transform: translateY(-110%);
         opacity: 0;
         pointer-events: none;
@@ -213,9 +216,14 @@
 
     .waterfall-hero__bg {
         position: absolute;
-        inset: 0;
+        /* Extra vertical room so parallax translate never exposes seams */
+        top: -18%;
+        bottom: -28%;
+        left: 0;
+        right: 0;
         z-index: 0;
         pointer-events: none;
+        will-change: transform;
     }
 
     .waterfall-hero__veil {
@@ -259,14 +267,25 @@
         margin-inline: auto;
         padding: 6rem 1.25rem 4.5rem;
         text-shadow: 0 2px 28px rgba(0, 0, 0, 0.95);
+        will-change: transform;
     }
 
+    /* Wordmark: slight translucency so waterfall light filters through */
     .waterfall-hero__content .wm {
-        color: #fff;
+        color: rgba(255, 255, 255, 0.88);
+        mix-blend-mode: plus-lighter;
+        filter: drop-shadow(0 0 24px rgba(0, 120, 255, 0.35))
+            drop-shadow(0 2px 18px rgba(0, 0, 0, 0.65));
     }
 
     .waterfall-hero__content .wm .tld {
-        color: rgba(255, 255, 255, 0.72);
+        color: rgba(255, 255, 255, 0.58);
+    }
+
+    @supports not (mix-blend-mode: plus-lighter) {
+        .waterfall-hero__content .wm {
+            mix-blend-mode: screen;
+        }
     }
 
     .waterfall-hero__content .text-muted {
