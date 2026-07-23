@@ -50,7 +50,16 @@ describe('homepage waterfall hero', () => {
         expect(html).toContain('id="site-chrome"');
         expect(html).toContain('is-visible');
         expect(html).toContain('translate3d');
+        expect(html).toContain('BG_RATE');
         expect(html).toContain('waterfall-hero__bg');
+        expect(html).toContain('waterfall-hero__title');
+        expect(html).toContain('waterfall-hero__title-ghost');
+        expect(html).toContain('waterfall-hero__title-blend');
+        expect(html).toContain('waterfall-hero__copy');
+        expect(html).toContain('waterfall-hero__stage');
+        expect(html).toContain('waterfall-hero__fade');
+        expect(html).toContain('stage.style.opacity');
+        expect(html).not.toContain('waterfall-hero--css-parallax');
         expect(html).not.toContain('class="waterfall-hero__img"');
         expect(html).toContain('Claim a username');
     });

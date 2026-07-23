@@ -39,6 +39,16 @@ describe('public read Cache-Control', () => {
         expect(res.headers.get('Cache-Control')).toMatch(/max-age=600/u);
     });
 
+    it('uses no-store on localhost HTML so wrangler edits are visible', async () => {
+        const res = await app.request(
+            'http://127.0.0.1:8787/',
+            { headers: { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate' } },
+            env(),
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get('Cache-Control')).toBe('no-store');
+    });
+
     it('sets max-age=600 on /api/leaderboard', async () => {
         const res = await app.request(
             'https://tokenmaxer.quest/api/leaderboard',

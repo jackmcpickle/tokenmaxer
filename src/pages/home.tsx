@@ -31,14 +31,26 @@ export const Home: FC<HomeProps> = (p) => (
         base={p.base}
         revealChrome
     >
-        <WaterfallHero>
-            <h1 class="reveal wm">
-                token<span class="max">maxer</span>
-                <span class="tld">.quest</span>
-            </h1>
+        <WaterfallHero
+            title={
+                <div class="waterfall-hero__title waterfall-hero__title--in">
+                    <span
+                        class="wm waterfall-hero__title-ghost"
+                        aria-hidden="true"
+                    >
+                        token<span class="max">maxer</span>
+                        <span class="tld">.quest</span>
+                    </span>
+                    <h1 class="wm waterfall-hero__title-blend">
+                        token<span class="max">maxer</span>
+                        <span class="tld">.quest</span>
+                    </h1>
+                </div>
+            }
+        >
             <p class={`${sub} reveal reveal-delay`}>
-                The token leaderboard for Claude Code, Codex, opencode &amp; pi.
-                Ranked by{' '}
+                The token leaderboard for Claude Code, Codex, opencode &amp;
+                pi. Ranked by{' '}
                 <strong class="text-text">{METRIC_LABELS[p.metric]}</strong> ·{' '}
                 {WINDOW_LABELS[p.window]}.
             </p>

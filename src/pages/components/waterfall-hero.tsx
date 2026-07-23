@@ -9,6 +9,8 @@ const SCRIPT = `
   var root = document.querySelector('.waterfall-hero');
   var canvas = document.getElementById('waterfall-canvas');
   if (!root || !canvas || !(canvas instanceof HTMLCanvasElement)) return;
+  // Size to the oversized bg layer (not the hero) so parallax never exposes a hard edge.
+  var host = root.querySelector('.waterfall-hero__bg') || root;
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var ctx = canvas.getContext('2d', { alpha: false });
@@ -155,14 +157,15 @@ const SCRIPT = `
   }
 
   function resize() {
-    var rect = root.getBoundingClientRect();
-    w = Math.max(1, Math.floor(rect.width));
-    h = Math.max(1, Math.floor(rect.height));
+    // clientWidth/Height = layout box before transform (bg is taller than the hero)
+    w = Math.max(1, host.clientWidth || Math.floor(root.getBoundingClientRect().width));
+    h = Math.max(1, host.clientHeight || Math.floor(root.getBoundingClientRect().height));
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
+    // Fill the host via CSS inset — do not pin pixel size to the hero viewport
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     off.width = Math.max(1, Math.floor(w * SCENE_SCALE));
     off.height = Math.max(1, Math.floor(h * SCENE_SCALE));
@@ -449,69 +452,112 @@ const SCRIPT = `
 })();
 `;
 
-const CHROME_SCRIPT = `
+/**
+ * Homepage scroll UI: chrome reveal, hero copy fade, and lerped parallax.
+ * (CSS scroll() timelines bind to <html> here because overflow-x: clip makes
+ * it a scroll container with no overflow — body scrolls, so CSS never moves.)
+ */
+const HERO_SCROLL_SCRIPT = `
 (function () {
   var chrome = document.getElementById('site-chrome');
   var hero = document.querySelector('.waterfall-hero');
   if (!chrome || !hero) return;
+  var bg = hero.querySelector('.waterfall-hero__bg');
+  var title = hero.querySelector('.waterfall-hero__title');
+  var copy = hero.querySelector('.waterfall-hero__copy');
+  var stage = hero.querySelector('.waterfall-hero__stage');
+  if (!bg || !title || !copy || !stage) return;
+
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var shown = false;
+  var BG_RATE = 0.5;
+  var TITLE_RATE = -0.22;
+  var COPY_RATE = -0.12;
+  var SMOOTH = 14;
+  var bgY = 0, titleY = 0, copyY = 0, stageOp = 1;
+  var bgT = 0, titleT = 0, copyT = 0, stageOpT = 1;
+  var raf = 0;
+  var last = performance.now();
+
   function threshold() { return Math.max(120, hero.offsetHeight * 0.4); }
-  function update() {
-    var next = (window.scrollY || document.documentElement.scrollTop) >= threshold();
-    if (next === shown) return;
-    shown = next;
-    chrome.classList.toggle('is-visible', shown);
-    chrome.setAttribute('aria-hidden', shown ? 'false' : 'true');
+
+  function paint() {
+    if (!reduced) {
+      bg.style.transform = 'translate3d(0,' + bgY.toFixed(2) + 'px,0) scale(1.12)';
+      title.style.transform = 'translate3d(0,' + titleY.toFixed(2) + 'px,0)';
+      copy.style.transform = 'translate3d(0,' + copyY.toFixed(2) + 'px,0)';
+    }
+    stage.style.opacity = stageOp.toFixed(3);
+    stage.style.pointerEvents = stageOp < 0.05 ? 'none' : '';
   }
-  if (reduced) chrome.classList.add('site-chrome--instant');
-  update();
-  window.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
-})();
-`;
 
-/** Parallax: background drifts slower than scroll; hero copy drifts a little faster. */
-const PARALLAX_SCRIPT = `
-(function () {
-  var hero = document.querySelector('.waterfall-hero');
-  if (!hero) return;
-  var bg = hero.querySelector('.waterfall-hero__bg');
-  var content = hero.querySelector('.waterfall-hero__content');
-  if (!bg || !content) return;
-  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) return;
+  function frame(now) {
+    raf = 0;
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    var k = reduced ? 1 : (1 - Math.exp(-SMOOTH * dt));
+    if (!reduced) {
+      bgY += (bgT - bgY) * k;
+      titleY += (titleT - titleY) * k;
+      copyY += (copyT - copyY) * k;
+      if (Math.abs(bgT - bgY) < 0.05) bgY = bgT;
+      if (Math.abs(titleT - titleY) < 0.05) titleY = titleT;
+      if (Math.abs(copyT - copyY) < 0.05) copyY = copyT;
+    }
+    stageOp += (stageOpT - stageOp) * k;
+    if (Math.abs(stageOpT - stageOp) < 0.004) stageOp = stageOpT;
+    paint();
+    var moving = (!reduced && (bgY !== bgT || titleY !== titleT || copyY !== copyT))
+      || stageOp !== stageOpT;
+    if (moving) raf = requestAnimationFrame(frame);
+  }
 
-  var BG_RATE = 0.38;
-  var TEXT_RATE = 0.18;
-  var ticking = false;
-
-  function apply() {
-    ticking = false;
+  function readScroll() {
     var y = window.scrollY || document.documentElement.scrollTop || 0;
     var h = hero.offsetHeight || 1;
-    if (y > h) {
-      bg.style.transform = '';
-      content.style.transform = '';
-      return;
+    var thr = threshold();
+
+    // Chrome in as hero copy fades out (same threshold window)
+    var next = y >= thr;
+    if (next !== shown) {
+      shown = next;
+      chrome.classList.toggle('is-visible', shown);
+      chrome.setAttribute('aria-hidden', shown ? 'false' : 'true');
     }
-    bg.style.transform = 'translate3d(0,' + (y * BG_RATE) + 'px,0)';
-    content.style.transform = 'translate3d(0,' + (y * TEXT_RATE) + 'px,0)';
+
+    var fadeStart = thr * 0.35;
+    if (y <= fadeStart) stageOpT = 1;
+    else if (y >= thr) stageOpT = 0;
+    else stageOpT = 1 - (y - fadeStart) / (thr - fadeStart);
+
+    if (!reduced) {
+      if (y <= 0) { bgT = 0; titleT = 0; copyT = 0; }
+      else if (y > h) { bgT = h * BG_RATE; titleT = h * TITLE_RATE; copyT = h * COPY_RATE; }
+      else {
+        bgT = y * BG_RATE;
+        titleT = y * TITLE_RATE;
+        copyT = y * COPY_RATE;
+      }
+    }
+
+    if (!raf) {
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    }
   }
 
-  function onScroll() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(apply);
-  }
-
-  apply();
-  window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onScroll);
+  if (reduced) chrome.classList.add('site-chrome--instant');
+  paint();
+  readScroll();
+  window.addEventListener('scroll', readScroll, { passive: true });
+  window.addEventListener('resize', readScroll);
 })();
 `;
 
-export const WaterfallHero: FC<{ children?: Child }> = (props) => (
+export const WaterfallHero: FC<{
+    title?: Child;
+    children?: Child;
+}> = (props) => (
     <section
         class="waterfall-hero"
         aria-label="Hero"
@@ -525,14 +571,22 @@ export const WaterfallHero: FC<{ children?: Child }> = (props) => (
                 class="waterfall-hero__canvas"
             />
             <div class="waterfall-hero__veil" />
-            <div class="waterfall-hero__fade" />
         </div>
-        <div class="waterfall-hero__content">{props.children}</div>
+        {/*
+          Title must not sit inside a z-index stacking context, or mix-blend
+          samples a transparent layer instead of the waterfall canvas.
+        */}
+        <div class="waterfall-hero__stage">
+            {props.title}
+            <div class="waterfall-hero__copy">{props.children}</div>
+        </div>
+        <div
+            class="waterfall-hero__fade"
+            aria-hidden="true"
+        />
         {/* eslint-disable-next-line */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT }} />
         {/* eslint-disable-next-line */}
-        <script dangerouslySetInnerHTML={{ __html: CHROME_SCRIPT }} />
-        {/* eslint-disable-next-line */}
-        <script dangerouslySetInnerHTML={{ __html: PARALLAX_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: HERO_SCROLL_SCRIPT }} />
     </section>
 );
