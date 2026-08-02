@@ -49,8 +49,8 @@ export const Home: FC<HomeProps> = (p) => (
     >
         <WaterfallHero title={heroTitle}>
             <p class={`${sub} reveal reveal-delay`}>
-                The token leaderboard for Claude Code, Codex, opencode &amp;
-                pi. Ranked by{' '}
+                The token leaderboard for Claude Code, Codex, opencode &amp; pi.
+                Ranked by{' '}
                 <strong class="text-text">{METRIC_LABELS[p.metric]}</strong> ·{' '}
                 {WINDOW_LABELS[p.window]}.
             </p>

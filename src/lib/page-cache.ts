@@ -45,10 +45,7 @@ function createCacheMiddleware(options: {
         await next();
         if (c.res.status === 200 && !c.res.headers.has('Cache-Control')) {
             // Avoid pinning browsers to a 10-minute HTML snapshot during local iteration.
-            c.header(
-                'Cache-Control',
-                local ? 'no-store' : CACHE_CONTROL,
-            );
+            c.header('Cache-Control', local ? 'no-store' : CACHE_CONTROL);
         }
         if (varyHeader && !c.res.headers.has('Vary')) {
             c.header('Vary', varyHeader);
