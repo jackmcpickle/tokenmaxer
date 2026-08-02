@@ -26,23 +26,23 @@
         "release": "commit-and-tag-version"
     },
     "dependencies": {
-        "@cf-wasm/resvg": "0.3.5",
-        "hono": "^4.6.16"
+        "@cf-wasm/resvg": "0.4.0",
+        "hono": "^4.12.33"
     },
     "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250109.0",
+        "@cloudflare/workers-types": "^5.20260801.1",
         "@tailwindcss/cli": "^4.3.3",
-        "@types/node": "^26.1.1",
-        "commit-and-tag-version": "^13.0.0",
-        "concurrently": "^10.0.3",
+        "@types/node": "^26.1.2",
+        "commit-and-tag-version": "^13.1.2",
+        "concurrently": "^10.0.4",
         "esbuild": "^0.28.1",
-        "oxfmt": "^0.59.0",
-        "oxlint": "^1.74.0",
+        "oxfmt": "^0.61.0",
+        "oxlint": "^1.76.0",
         "sharp": "^0.35.3",
         "tailwindcss": "^4.3.3",
-        "typescript": "^5.7.3",
-        "vitest": "^3.2.7",
-        "wrangler": "^3.99.0"
+        "typescript": "^7.0.2",
+        "vitest": "^4.1.10",
+        "wrangler": "^4.118.0"
     },
     "engines": {
         "node": ">=24"
