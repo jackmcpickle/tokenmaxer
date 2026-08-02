@@ -25,29 +25,29 @@ interface HomeProps {
     country: string | undefined;
 }
 
+const heroTitle = (
+    <div class="waterfall-hero__title waterfall-hero__title--in">
+        <span
+            class="wm waterfall-hero__title-ghost"
+            aria-hidden="true"
+        >
+            token<span class="max">maxer</span>
+            <span class="tld">.quest</span>
+        </span>
+        <h1 class="wm waterfall-hero__title-blend">
+            token<span class="max">maxer</span>
+            <span class="tld">.quest</span>
+        </h1>
+    </div>
+);
+
 export const Home: FC<HomeProps> = (p) => (
     <Layout
         title="tokenmaxer.quest — token leaderboard for AI builders"
         base={p.base}
         revealChrome
     >
-        <WaterfallHero
-            title={
-                <div class="waterfall-hero__title waterfall-hero__title--in">
-                    <span
-                        class="wm waterfall-hero__title-ghost"
-                        aria-hidden="true"
-                    >
-                        token<span class="max">maxer</span>
-                        <span class="tld">.quest</span>
-                    </span>
-                    <h1 class="wm waterfall-hero__title-blend">
-                        token<span class="max">maxer</span>
-                        <span class="tld">.quest</span>
-                    </h1>
-                </div>
-            }
-        >
+        <WaterfallHero title={heroTitle}>
             <p class={`${sub} reveal reveal-delay`}>
                 The token leaderboard for Claude Code, Codex, opencode &amp;
                 pi. Ranked by{' '}
