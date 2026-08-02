@@ -135,7 +135,7 @@ npm install -g tokenmaxer && \
 session reports on the next launch):
 
 ```toml
-[[hooks.SessionStart.hooks]]
+[[hooks.session_start]]
 type = "command"
 command = "tokenmaxer codex-sessionstart"
 ```
