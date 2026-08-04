@@ -79,7 +79,7 @@ function env(over: Partial<Env> = {}): Env {
         RATE_LIMIT: memoryKv(),
         ENVIRONMENT: 'test',
         PUBLIC_BASE_URL: 'https://tokenmaxer.quest',
-        TURNSTYLE_SECRET_KEY: 'test-turnstile-secret',
+        TURNSTILE_SECRET: 'test-turnstile-secret',
         ...over,
     };
 }

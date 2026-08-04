@@ -92,7 +92,7 @@ function env(db: D1Database = profileDb()): Env {
         RATE_LIMIT: stubKv(),
         ENVIRONMENT: 'test',
         PUBLIC_BASE_URL: 'https://tokenmaxer.quest',
-        TURNSTYLE_SECRET_KEY: '',
+        TURNSTILE_SECRET: '',
     };
 }
 
