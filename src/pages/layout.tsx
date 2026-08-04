@@ -68,6 +68,8 @@ type LayoutProps = {
     ogImage?: string;
     ogUrl?: string;
     ogImageAlt?: string;
+    /** Homepage: hide header until scroll, then fade/slide in. */
+    revealChrome?: boolean;
 };
 
 export const Layout: FC<LayoutProps> = (props) => {
@@ -76,6 +78,9 @@ export const Layout: FC<LayoutProps> = (props) => {
     const ogImage = props.ogImage ?? `${origin}/og.png`;
     const ogUrl = props.ogUrl ?? origin;
     const ogImageAlt = props.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT;
+    const chromeClass = props.revealChrome
+        ? 'site-chrome site-chrome--reveal z-50 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/60 px-5 py-3.5 backdrop-blur-xl backdrop-saturate-150 sm:px-8'
+        : 'site-chrome sticky top-0 z-50 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:px-8';
     return (
         <html lang="en">
             <head>
@@ -194,37 +199,46 @@ export const Layout: FC<LayoutProps> = (props) => {
                 >
                     Skip to content
                 </a>
-                <div class="mx-auto max-w-[1199px] px-5 pb-20 sm:px-8">
-                    <header class="sticky top-0 z-50 -mx-5 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:-mx-8 sm:px-8">
+                <header
+                    id="site-chrome"
+                    class={chromeClass}
+                    aria-hidden={props.revealChrome ? 'true' : undefined}
+                >
+                    <a
+                        class="nav-link flex items-center gap-2.5 text-text no-underline hover:no-underline"
+                        href="/"
+                    >
+                        <Mark />
+                        <Wordmark class="text-sm tracking-[-0.02em] sm:text-[15px]" />
+                    </a>
+                    <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[14px] font-medium text-muted">
                         <a
-                            class="nav-link flex items-center gap-2.5 text-text no-underline hover:no-underline"
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
                             href="/"
                         >
-                            <Mark />
-                            <Wordmark class="text-sm tracking-[-0.02em] sm:text-[15px]" />
+                            Leaderboard
                         </a>
-                        <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[14px] font-medium text-muted">
-                            <a
-                                class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                                href="/"
-                            >
-                                Leaderboard
-                            </a>
-                            <a
-                                class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                                href="/start"
-                            >
-                                Get started
-                            </a>
-                            <a
-                                class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                                href="/about"
-                            >
-                                About
-                            </a>
-                        </nav>
-                    </header>
-
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
+                            href="/hackathons"
+                        >
+                            Hackathons
+                        </a>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
+                            href="/start"
+                        >
+                            Get started
+                        </a>
+                        <a
+                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
+                            href="/about"
+                        >
+                            About
+                        </a>
+                    </nav>
+                </header>
+                <div class="mx-auto max-w-[1199px] px-5 pb-20 sm:px-8">
                     <main id="main">{props.children}</main>
 
                     <footer class="mt-24 grid gap-10 border-t border-border pt-12 text-[13px] text-muted md:grid-cols-[1.4fr_1fr_1fr]">
@@ -251,6 +265,12 @@ export const Layout: FC<LayoutProps> = (props) => {
                                 href="/"
                             >
                                 Leaderboard
+                            </a>
+                            <a
+                                class="nav-link text-muted no-underline hover:text-text"
+                                href="/hackathons"
+                            >
+                                Hackathons
                             </a>
                             <a
                                 class="nav-link text-muted no-underline hover:text-text"

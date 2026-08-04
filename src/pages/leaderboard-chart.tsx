@@ -5,7 +5,9 @@ import {
     metricValue,
 } from '@/lib/aggregate';
 import { formatTokens, formatUsd } from '@/lib/format';
+import { BoardFilters } from '@/pages/components/board-filters';
 import { Button } from '@/pages/components/button';
+import { boardHref } from '@/pages/leaderboard-href';
 import { empty } from '@/pages/ui';
 import { METRICS, type Metric, type TimeWindow } from '@/types';
 
@@ -28,22 +30,6 @@ const WINDOWS: readonly TimeWindow[] = ['today', '7d', '30d', 'all'];
 
 function formatMetric(metric: Metric, n: number): string {
     return metric === 'cost' ? formatUsd(n) : formatTokens(n);
-}
-
-function boardHref(opts: {
-    window: TimeWindow;
-    metric: Metric;
-    source?: string;
-    model?: string;
-    country?: string;
-}): string {
-    const q = new URLSearchParams();
-    q.set('window', opts.window);
-    q.set('metric', opts.metric);
-    if (opts.source) q.set('source', opts.source);
-    if (opts.model) q.set('model', opts.model);
-    if (opts.country) q.set('country', opts.country);
-    return `/?${q.toString()}`;
 }
 
 function entryTotals(entries: LeaderboardEntry[]): Record<Metric, number> {
@@ -79,12 +65,23 @@ export const LeaderboardChart: FC<{
     source?: string;
     model?: string;
     country?: string;
-}> = ({ entries, window, metric, source, model, country }) => {
+    models: string[];
+    countries: string[];
+}> = ({
+    entries,
+    window,
+    metric,
+    source,
+    model,
+    country,
+    models,
+    countries,
+}) => {
     const totals = entryTotals(entries);
     const max = Math.max(...entries.map((e) => metricValue(e, metric)), 1);
 
     return (
-        <section class="mb-8 overflow-hidden rounded-lg border border-border bg-panel">
+        <section class="mb-8 overflow-visible rounded-lg border border-border bg-panel">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                 <div>
                     <div class="text-xs tracking-[0.06em] text-muted uppercase">
@@ -149,6 +146,16 @@ export const LeaderboardChart: FC<{
                     );
                 })}
             </div>
+
+            <BoardFilters
+                window={window}
+                metric={metric}
+                source={source}
+                model={model}
+                country={country}
+                models={models}
+                countries={countries}
+            />
 
             <div class="px-3 pt-4 pb-4 sm:px-5">
                 {entries.length === 0 ? (

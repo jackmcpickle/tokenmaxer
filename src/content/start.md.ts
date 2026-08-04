@@ -38,7 +38,7 @@ function snippets(base: string): {
     );
 
     const codex =
-        '[[hooks.SessionStart.hooks]]\n' +
+        '[[hooks.session_start]]\n' +
         'type = "command"\n' +
         'command = "tokenmaxer codex-sessionstart"';
 
@@ -98,7 +98,7 @@ tokenmaxer backfill --dry-run
 
 ## Claim a username
 
-Username claims are invite-only. Open \`/invite?token=…\` in a browser first so the invite session cookie is set, then claim via \`POST /api/register\`:
+Claim via \`POST /api/register\`. (If signups are invite-gated, open \`/invite?token=…\` in a browser first so the invite session cookie is set.)
 
 \`\`\`json
 POST /api/register

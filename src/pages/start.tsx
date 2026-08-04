@@ -35,7 +35,7 @@ function snippets(username, token) {
     }
   }, null, 2);
   const codex =
-    '[[hooks.SessionStart.hooks]]\\n' +
+    '[[hooks.session_start]]\\n' +
     'type = "command"\\n' +
     'command = "tokenmaxer codex-sessionstart"';
   const opencode =

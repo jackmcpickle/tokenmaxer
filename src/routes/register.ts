@@ -72,7 +72,7 @@ app.post('/register', async (c) => {
     if (!invited) return c.json({ error: 'invite required' }, 403);
 
     const human = await verifyTurnstile(
-        c.env.TURNSTYLE_SECRET_KEY,
+        c.env.TURNSTILE_SECRET,
         body.turnstileToken,
         ip,
     );

@@ -3,7 +3,7 @@ export interface Env {
     RATE_LIMIT: KVNamespace;
     ENVIRONMENT: string;
     PUBLIC_BASE_URL: string;
-    TURNSTYLE_SECRET_KEY: string;
+    TURNSTILE_SECRET: string;
     INVITE_KEY?: string;
 }
 

@@ -41,6 +41,7 @@ import type { FootprintEntry } from '@/pages/footprint-chart';
 import { HackathonPage, type ViewerRole } from '@/pages/hackathon';
 import { HackathonMine } from '@/pages/hackathon-mine';
 import { HackathonNew } from '@/pages/hackathon-new';
+import { HackathonsAbout } from '@/pages/hackathons';
 import { Home } from '@/pages/home';
 import { Layout } from '@/pages/layout';
 import { Login } from '@/pages/login';
@@ -215,6 +216,11 @@ app.get('/about', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return serveAboutMarkdown(c);
     withAgentDiscoveryHeaders(c);
     return c.html(<About base={baseUrl(c.env, c.req.url)} />);
+});
+
+app.get('/hackathons', async (c) => {
+    withAgentDiscoveryHeaders(c);
+    return c.html(<HackathonsAbout base={baseUrl(c.env, c.req.url)} />);
 });
 
 app.get('/privacy', async (c) => {

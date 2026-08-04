@@ -24,7 +24,7 @@ function env(): Env {
         RATE_LIMIT: stubKv(),
         ENVIRONMENT: 'test',
         PUBLIC_BASE_URL: 'https://tokenmaxer.quest',
-        TURNSTYLE_SECRET_KEY: '',
+        TURNSTILE_SECRET: '',
     };
 }
 
@@ -37,6 +37,16 @@ describe('public read Cache-Control', () => {
         );
         expect(res.status).toBe(200);
         expect(res.headers.get('Cache-Control')).toMatch(/max-age=600/u);
+    });
+
+    it('uses no-store on localhost HTML so wrangler edits are visible', async () => {
+        const res = await app.request(
+            'http://127.0.0.1:8787/',
+            { headers: { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate' } },
+            env(),
+        );
+        expect(res.status).toBe(200);
+        expect(res.headers.get('Cache-Control')).toBe('no-store');
     });
 
     it('sets max-age=600 on /api/leaderboard', async () => {

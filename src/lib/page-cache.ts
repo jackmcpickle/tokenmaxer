@@ -8,9 +8,20 @@ import { READ_CACHE_TTL_SECONDS } from '@/lib/read-cache';
 
 const CACHE_CONTROL = `public, max-age=${READ_CACHE_TTL_SECONDS}`;
 
+/** Local wrangler hosts — Cache API would otherwise pin stale HTML for the full TTL. */
+function isLocalDevRequest(c: Context): boolean {
+    try {
+        const hostname = new URL(c.req.url).hostname;
+        return hostname === 'localhost' || hostname === '127.0.0.1';
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Cache API when available (Cloudflare Workers). Always sets Cache-Control so
  * clients/CDNs can reuse the response even when `caches` is missing (tests).
+ * Skips the Cache API on localhost so `wrangler dev` reflects source edits.
  */
 function createCacheMiddleware(options: {
     cacheName: string;
@@ -27,12 +38,14 @@ function createCacheMiddleware(options: {
     });
 
     return async (c, next) => {
-        if ('caches' in globalThis) {
+        const local = isLocalDevRequest(c);
+        if ('caches' in globalThis && !local) {
             return honoCache(c, next);
         }
         await next();
         if (c.res.status === 200 && !c.res.headers.has('Cache-Control')) {
-            c.header('Cache-Control', CACHE_CONTROL);
+            // Avoid pinning browsers to a 10-minute HTML snapshot during local iteration.
+            c.header('Cache-Control', local ? 'no-store' : CACHE_CONTROL);
         }
         if (varyHeader && !c.res.headers.has('Vary')) {
             c.header('Vary', varyHeader);

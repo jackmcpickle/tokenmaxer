@@ -78,7 +78,7 @@ function env(rateLimit: KVNamespace = kv()): Env {
         RATE_LIMIT: rateLimit,
         ENVIRONMENT: 'test',
         PUBLIC_BASE_URL: 'https://tokenmaxer.quest',
-        TURNSTYLE_SECRET_KEY: '',
+        TURNSTILE_SECRET: '',
     };
 }
 
