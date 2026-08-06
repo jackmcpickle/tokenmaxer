@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.10](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.9...v0.2.10) (2026-08-06)
+
+### Bug Fixes
+
+* **ui:** improve mobile nav, filters, and stat bar ([#30](https://github.com/jackmcpickle/tokenmaxer/issues/30)) ([e328140](https://github.com/jackmcpickle/tokenmaxer/commit/e3281408dccca42735cc118bca25da3ba518beac))
 ## [0.2.9](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.8...v0.2.9) (2026-08-06)
 ## [0.2.8](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.7...v0.2.8) (2026-08-06)
 ## [0.2.7](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.6...v0.2.7) (2026-08-04)
