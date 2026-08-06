@@ -12,8 +12,8 @@ importers:
         specifier: 0.4.0
         version: 0.4.0
       hono:
-        specifier: ^4.12.33
-        version: 4.12.33
+        specifier: ^4.12.34
+        version: 4.12.34
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260801.1
@@ -1629,8 +1629,8 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
-  hono@4.12.33:
-    resolution: {integrity: sha512-+SwvkaiJtxsiPjhy9LivY/1m7UsNqCJetM1BrZl9A5DkQhlbHQDU730mMiDPWjnoCYOM8Chf3WrCJw27kNTPFQ==}
+  hono@4.12.34:
+    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
   is-extglob@2.1.1:
@@ -3219,7 +3219,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  hono@4.12.33: {}
+  hono@4.12.34: {}
 
   is-extglob@2.1.1: {}
 
