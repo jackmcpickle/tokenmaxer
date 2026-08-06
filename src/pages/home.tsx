@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx';
 import type { LeaderboardEntry } from '@/lib/aggregate';
+import { BOARD_SUMMARY_ID } from '@/pages/components/board-script';
 import { Button } from '@/pages/components/button';
 import { WaterfallHero } from '@/pages/components/waterfall-hero';
 import { Layout } from '@/pages/layout';
@@ -51,8 +52,11 @@ export const Home: FC<HomeProps> = (p) => (
             <p class={`${sub} reveal reveal-delay`}>
                 The token leaderboard for Claude Code, Codex, opencode &amp; pi.
                 Ranked by{' '}
-                <strong class="text-text">{METRIC_LABELS[p.metric]}</strong> ·{' '}
-                {WINDOW_LABELS[p.window]}.
+                <span id={BOARD_SUMMARY_ID}>
+                    <strong class="text-text">{METRIC_LABELS[p.metric]}</strong>{' '}
+                    · {WINDOW_LABELS[p.window]}
+                </span>
+                .
             </p>
             <div class={`${heroActions} reveal reveal-delay-2`}>
                 <Button

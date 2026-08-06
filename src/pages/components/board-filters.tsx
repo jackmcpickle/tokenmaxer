@@ -6,36 +6,6 @@ import { FilterPill } from '@/pages/components/filter-pill';
 import { boardHref, SOURCE_LABELS } from '@/pages/leaderboard-href';
 import { SOURCES, type Metric, type Source, type TimeWindow } from '@/types';
 
-const FILTER_SCRIPT = `(() => {
-  const root = document.getElementById('board-filters');
-  if (!root) return;
-  const menu = root.querySelector('details.board-filter-menu');
-  root.querySelectorAll('[data-filter-dialog]').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = 'filter-dialog-' + btn.getAttribute('data-filter-dialog');
-      const dlg = document.getElementById(id);
-      if (menu) menu.open = false;
-      if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
-    });
-  });
-  root.querySelectorAll('[data-filter-close]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const dlg = btn.closest('dialog');
-      if (dlg) dlg.close();
-    });
-  });
-  root.querySelectorAll('dialog.board-filter-dialog').forEach((dlg) => {
-    dlg.addEventListener('click', (e) => {
-      if (e.target === dlg) dlg.close();
-    });
-  });
-  document.addEventListener('click', (e) => {
-    if (!menu || !menu.open) return;
-    if (!menu.contains(e.target)) menu.open = false;
-  });
-})();`;
-
 function sourceLabel(source: string): string {
     return SOURCE_LABELS[source as Source] ?? source;
 }
@@ -163,9 +133,6 @@ export const BoardFilters: FC<{
                     ]}
                 />
             )}
-
-            {/* eslint-disable-next-line */}
-            <script dangerouslySetInnerHTML={{ __html: FILTER_SCRIPT }} />
         </div>
     );
 };
