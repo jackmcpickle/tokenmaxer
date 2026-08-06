@@ -223,25 +223,54 @@
     }
 
     .site-nav-menu__mark {
+        position: relative;
         display: block;
+        width: 18px;
+        height: 12px;
     }
 
     .site-nav-menu__bar {
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        transform-origin: center;
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 1.5px;
+        border-radius: 1px;
+        background: currentColor;
+        transition:
+            transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+            top 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+            opacity 0.15s ease;
     }
 
-    .site-nav-menu[open] .site-nav-menu__bar--a {
-        transform: translateY(3.5px) rotate(45deg);
+    .site-nav-menu__bar:nth-child(1) {
+        top: 0;
     }
 
-    .site-nav-menu[open] .site-nav-menu__bar--b {
-        transform: scaleX(0);
+    .site-nav-menu__bar:nth-child(2) {
+        top: 5.25px;
+    }
+
+    .site-nav-menu__bar:nth-child(3) {
+        top: 10.5px;
+    }
+
+    .site-nav-menu[open] .site-nav-menu__trigger {
+        background: var(--color-panel);
+        color: var(--color-text);
+    }
+
+    .site-nav-menu[open] .site-nav-menu__bar:nth-child(1) {
+        top: 5.25px;
+        transform: rotate(45deg);
+    }
+
+    .site-nav-menu[open] .site-nav-menu__bar:nth-child(2) {
         opacity: 0;
     }
 
-    .site-nav-menu[open] .site-nav-menu__bar--c {
-        transform: translateY(-3.5px) rotate(-45deg);
+    .site-nav-menu[open] .site-nav-menu__bar:nth-child(3) {
+        top: 5.25px;
+        transform: rotate(-45deg);
     }
 
     .site-nav-menu__panel {
@@ -339,8 +368,12 @@
         background-color: var(--color-panel);
     }
 
+    /*
+     * Beat Button's Tailwind `inline-flex` utility (utilities win over
+     * components without !important).
+     */
     .board-stat-bar__cell--mobile-hide {
-        display: none;
+        display: none !important;
     }
 
     .board-stat-bar__label {
@@ -383,7 +416,7 @@
         }
 
         .board-stat-bar__cell--mobile-hide {
-            display: inline-flex;
+            display: inline-flex !important;
         }
 
         .board-stat-bar__label {
