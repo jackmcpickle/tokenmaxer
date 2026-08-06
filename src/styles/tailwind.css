@@ -166,35 +166,44 @@
         box-sizing: border-box;
     }
 
-    /* Homepage: chrome hidden until scroll (fixed — no layout space) */
+    /*
+     * Homepage: chrome is scrubbed by scroll position (fixed — no layout
+     * space). --chrome-scroll is written by the hero script as a 0..1 number;
+     * no transition, so the reveal tracks the scrollbar exactly and reverses
+     * proportionally on the way back up.
+     */
     .site-chrome--reveal {
+        --chrome-scroll: 0;
+        --chrome-p: var(--chrome-scroll);
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         width: 100%;
-        transform: translateY(-110%);
-        opacity: 0;
+        opacity: var(--chrome-p);
+        transform: translate3d(0, calc((var(--chrome-p) - 1) * 8px), 0);
         pointer-events: none;
-        transition:
-            transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
-            opacity 0.45s ease;
+        will-change: opacity, transform;
     }
 
+    /* Past the halfway point of the scrub the bar accepts pointer input. */
     .site-chrome--reveal.is-visible {
-        transform: translateY(0);
-        opacity: 1;
         pointer-events: auto;
     }
 
-    .site-chrome--reveal.site-chrome--instant,
-    .site-chrome--reveal.site-chrome--instant.is-visible {
-        transition: none;
+    /*
+     * Keyboard users reach the nav before they scroll, and it must be visible
+     * when focused. Wins over the inline --chrome-scroll by setting --chrome-p
+     * directly. Also the no-JS fallback.
+     */
+    .site-chrome--reveal:focus-within {
+        --chrome-p: 1;
+        pointer-events: auto;
     }
 
     @media (prefers-reduced-motion: reduce) {
         .site-chrome--reveal {
-            transition: none;
+            transform: none;
         }
     }
 
