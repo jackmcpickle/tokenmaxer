@@ -81,6 +81,25 @@ describe('site header mobile nav', () => {
         expect(css).toContain('.site-nav-menu');
         expect(css).toContain('display: none');
     });
+
+    it('morphs the hamburger bars into a centered X when open', () => {
+        const css = readFileSync('src/styles/tailwind.css', 'utf8');
+        expect(css).toContain(
+            '.site-nav-menu[open] .site-nav-menu__bar:nth-child(1)',
+        );
+        expect(css).toContain('transform: rotate(45deg)');
+        expect(css).toContain('transform: rotate(-45deg)');
+    });
+});
+
+describe('board stat bar mobile', () => {
+    it('hides the Cached tile on small screens despite Button inline-flex', () => {
+        const css = readFileSync('src/styles/tailwind.css', 'utf8');
+        expect(css).toContain('.board-stat-bar__cell--mobile-hide');
+        expect(css).toMatch(
+            /\.board-stat-bar__cell--mobile-hide\s*\{\s*display:\s*none\s*!important;/u,
+        );
+    });
 });
 
 describe('scroll-linked chrome reveal', () => {

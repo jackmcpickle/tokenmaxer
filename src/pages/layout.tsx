@@ -74,30 +74,14 @@ function GitHubMark(): ReturnType<FC> {
 /** Hamburger / close glyph for the mobile nav disclosure. */
 function MenuMark(): ReturnType<FC> {
     return (
-        <svg
+        <span
             class="site-nav-menu__mark"
-            viewBox="0 0 16 16"
-            width="18"
-            height="18"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
             aria-hidden="true"
         >
-            <path
-                class="site-nav-menu__bar site-nav-menu__bar--a"
-                d="M2.5 4.5h11"
-            />
-            <path
-                class="site-nav-menu__bar site-nav-menu__bar--b"
-                d="M2.5 8h11"
-            />
-            <path
-                class="site-nav-menu__bar site-nav-menu__bar--c"
-                d="M2.5 11.5h11"
-            />
-        </svg>
+            <span class="site-nav-menu__bar" />
+            <span class="site-nav-menu__bar" />
+            <span class="site-nav-menu__bar" />
+        </span>
     );
 }
 
