@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.11](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.10...v0.2.11) (2026-08-06)
+
+### Bug Fixes
+
+* **ui:** true menu X and hide Cached tile on mobile ([#31](https://github.com/jackmcpickle/tokenmaxer/issues/31)) ([d4156af](https://github.com/jackmcpickle/tokenmaxer/commit/d4156afb711b0439bcfb9d84a6075271a9843b01))
 ## [0.2.10](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.9...v0.2.10) (2026-08-06)
 
 ### Bug Fixes
