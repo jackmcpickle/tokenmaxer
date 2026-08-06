@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { boardHref } from '@/pages/leaderboard-href';
 import type { Metric, TimeWindow } from '@/types';
 
@@ -23,26 +23,26 @@ export const FilterDialog: FC<{
     return (
         <dialog
             id={id}
-            class="board-filter-dialog"
+            className="board-filter-dialog"
             aria-labelledby={`${id}-title`}
         >
-            <div class="board-filter-dialog__header">
+            <div className="board-filter-dialog__header">
                 <h2
                     id={`${id}-title`}
-                    class="board-filter-dialog__title"
+                    className="board-filter-dialog__title"
                 >
                     {title}
                 </h2>
                 <button
                     type="button"
-                    class="board-filter-dialog__close"
+                    className="board-filter-dialog__close"
                     data-filter-close
                     aria-label={`Close ${title.toLowerCase()} filter`}
                 >
                     ×
                 </button>
             </div>
-            <div class="board-filter-dialog__body">
+            <div className="board-filter-dialog__body">
                 {options.map((opt) => {
                     const isActive =
                         opt.value === undefined
@@ -85,7 +85,7 @@ export const FilterDialog: FC<{
                     return (
                         <a
                             key={opt.value ?? '__all__'}
-                            class="board-filter-option"
+                            className="board-filter-option"
                             href={href}
                             aria-current={isActive ? 'true' : undefined}
                         >

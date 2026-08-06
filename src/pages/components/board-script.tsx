@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 
 /** Region swapped in place when a filter changes. */
 export const BOARD_ID = 'leaderboard-board';

@@ -22,12 +22,24 @@ describe('isBrowserRequest', () => {
         ).toBe(true);
     });
 
-    it('is true when Sec-Fetch-Mode is present', () => {
+    it('is true when Sec-Fetch-Mode is navigate', () => {
         expect(
             isBrowserRequest(
                 req({ Accept: '*/*', 'Sec-Fetch-Mode': 'navigate' }),
             ),
         ).toBe(true);
+    });
+
+    it('is false when Sec-Fetch-Mode is cors (Workers/Vite inject this)', () => {
+        expect(
+            isBrowserRequest(
+                req({
+                    Accept: '*/*',
+                    'User-Agent': 'curl/8.7.1',
+                    'Sec-Fetch-Mode': 'cors',
+                }),
+            ),
+        ).toBe(false);
     });
 
     it('is false for curl-like Accept */* without Sec-Fetch', () => {

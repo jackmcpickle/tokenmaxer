@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { familyLabel } from '@/lib/model-family';
 import { Button } from '@/pages/components/button';
 import { Input } from '@/pages/components/input';
@@ -46,23 +46,23 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
         title="New hackathon · tokenmaxer.quest"
         base={p.base}
     >
-        <section class={hero}>
-            <h1 class="wm">New hackathon</h1>
-            <p class={sub}>
-                Signed in as <strong class="text-text">@{p.username}</strong>.
-                Set the window and share the join link. Times use your local
-                timezone.
+        <section className={hero}>
+            <h1 className="wm">New hackathon</h1>
+            <p className={sub}>
+                Signed in as{' '}
+                <strong className="text-text">@{p.username}</strong>. Set the
+                window and share the join link. Times use your local timezone.
             </p>
 
             <form
                 id="hackathon-form"
-                class="max-w-[520px]"
+                className="max-w-[520px]"
             >
                 <label
-                    class={field}
+                    className={field}
                     htmlFor="hk-name"
                 >
-                    <span class={fieldLbl}>Name</span>
+                    <span className={fieldLbl}>Name</span>
                     <Input
                         variant="text"
                         id="hk-name"
@@ -72,10 +72,10 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
                     />
                 </label>
                 <label
-                    class={field}
+                    className={field}
                     htmlFor="hk-start"
                 >
-                    <span class={fieldLbl}>Starts</span>
+                    <span className={fieldLbl}>Starts</span>
                     <Input
                         variant="text"
                         id="hk-start"
@@ -85,10 +85,10 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
                     />
                 </label>
                 <label
-                    class={field}
+                    className={field}
                     htmlFor="hk-end"
                 >
-                    <span class={fieldLbl}>Ends</span>
+                    <span className={fieldLbl}>Ends</span>
                     <Input
                         variant="text"
                         id="hk-end"
@@ -98,10 +98,12 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
                     />
                 </label>
                 <label
-                    class={field}
+                    className={field}
                     htmlFor="hk-model"
                 >
-                    <span class={fieldLbl}>Restrict to model (optional)</span>
+                    <span className={fieldLbl}>
+                        Restrict to model (optional)
+                    </span>
                     <Input
                         variant="select"
                         id="hk-model"
@@ -121,9 +123,9 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
 
                 <p
                     id="hackathon-error"
-                    class="my-2 text-sm text-red-400"
+                    className="my-2 text-sm text-red-400"
                 />
-                <div class="mt-4">
+                <div className="mt-4">
                     <Button
                         variant="primary"
                         type="submit"
@@ -132,7 +134,7 @@ export const HackathonNew: FC<HackathonNewProps> = (p) => (
                     </Button>
                 </div>
             </form>
-            <p class={notice}>
+            <p className={notice}>
                 You'll be added as the first member automatically.
             </p>
         </section>

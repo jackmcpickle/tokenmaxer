@@ -5,8 +5,8 @@ A public leaderboard of the tokens AI builders burn with **Claude Code**, **Code
 sessions self-report their token usage to the board. No email, no PII — just token
 counts.
 
-It's a single [Hono](https://hono.dev) worker on Cloudflare that serves both the JSON
-API and the server-rendered site, backed by one D1 database.
+It's a [TanStack Start](https://tanstack.com/start) + React app on Cloudflare Workers
+with a [Hono](https://hono.dev) JSON/API layer, backed by one D1 database.
 
 ## How it works
 
@@ -43,14 +43,16 @@ Token counts are **self-reported** — this is an honor system with light guardr
 
 ```
 src/
-  index.tsx          # Hono app: API routes + HTML pages + serves the reporter
-  types.ts           # Env bindings + shared types
-  routes/            # register, ingest, leaderboard (JSON API)
-  pages/             # hono/jsx server-rendered pages
+  server.ts          # Worker entry: Hono (API/agent/OG) vs TanStack Start (HTML)
+  index.tsx          # Hono app: JSON API, agent markdown, OG, reporter, cookie routes
+  routes/            # TanStack file routes (React pages)
+  pages/             # Shared React page components
+  api/               # Hono JSON/API route modules
+  core/api/          # createServerFn loaders for TanStack routes
   lib/               # auth, pricing, ratelimit, validate, aggregate, format
-  db/… drizzle/      # D1 schema + migrations
+  drizzle/           # D1 migrations
   __tests__/         # vitest unit tests
-reporter/src/            # reporter modules (strict TS; esbuild → tokentally.mjs for npm + /tokentally.mjs)
+reporter/src/        # reporter modules (strict TS; esbuild → tokentally.mjs for npm + /tokentally.mjs)
 ```
 
 ## API
@@ -83,9 +85,10 @@ Non-browser clients (e.g. `curl`) get Markdown by default on `/`, `/about`,
 ```sh
 pnpm install
 pnpm db:migrate:local           # apply migrations to local D1
-pnpm dev                        # wrangler dev on :8787
+pnpm dev                        # Vite + TanStack Start (Cloudflare plugin) on :3000
 pnpm test                       # vitest
 pnpm typecheck
+pnpm build && pnpm preview      # production build + Workers preview
 ```
 
 ## Deploy

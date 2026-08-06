@@ -1,6 +1,8 @@
 node_modules/
+.output/
 dist/
 .wrangler/
+node_modules/.vite/
 .dev.vars
 *.log
 .DS_Store

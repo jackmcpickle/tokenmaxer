@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import type { HackathonRow } from '@/lib/hackathon';
 import { Button } from '@/pages/components/button';
 import { Layout } from '@/pages/layout';
@@ -15,13 +15,13 @@ export const HackathonMine: FC<HackathonMineProps> = (p) => (
         title="My hackathons · tokenmaxer.quest"
         base={p.base}
     >
-        <section class={hero}>
-            <div class="flex flex-wrap items-center justify-between gap-3">
+        <section className={hero}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h1 class="wm">My hackathons</h1>
-                    <p class={sub}>
+                    <h1 className="wm">My hackathons</h1>
+                    <p className={sub}>
                         Hosted by{' '}
-                        <strong class="text-text">@{p.username}</strong>.
+                        <strong className="text-text">@{p.username}</strong>.
                     </p>
                 </div>
                 <Button
@@ -33,21 +33,23 @@ export const HackathonMine: FC<HackathonMineProps> = (p) => (
             </div>
 
             {p.hackathons.length === 0 ? (
-                <div class={empty}>
+                <div className={empty}>
                     No hackathons yet. <a href="/h/new">Create your first →</a>
                 </div>
             ) : (
-                <div class="mt-4 flex flex-col gap-2">
+                <div className="mt-4 flex flex-col gap-2">
                     {p.hackathons.map((h) => (
                         <a
                             key={h.id}
                             href={`/h/${h.slug}`}
-                            class="flex items-center justify-between rounded-lg border border-border bg-panel px-4 py-3 no-underline hover:bg-panel2"
+                            className="flex items-center justify-between rounded-lg border border-border bg-panel px-4 py-3 no-underline hover:bg-panel2"
                         >
-                            <span class="font-semibold text-text">
+                            <span className="font-semibold text-text">
                                 {h.name}
                             </span>
-                            <span class="text-xs text-muted">/h/{h.slug}</span>
+                            <span className="text-xs text-muted">
+                                /h/{h.slug}
+                            </span>
                         </a>
                     ))}
                 </div>

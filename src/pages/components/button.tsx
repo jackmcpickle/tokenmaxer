@@ -1,4 +1,4 @@
-import type { Child, FC } from 'hono/jsx';
+import type { FC, ReactNode } from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'copy';
 
@@ -13,8 +13,8 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
 
 type ButtonProps = {
     variant: ButtonVariant;
-    children?: Child;
-    class?: string;
+    children?: ReactNode;
+    className?: string;
     href?: string;
     download?: string;
     type?: 'button' | 'submit' | 'reset';
@@ -31,14 +31,14 @@ function cx(...parts: Array<string | undefined>): string {
 }
 
 export const Button: FC<ButtonProps> = (props) => {
-    const className = cx(VARIANT_CLASS[props.variant], props.class);
+    const className = cx(VARIANT_CLASS[props.variant], props.className);
     const ariaLabel = props['aria-label'];
     const dataShare = props['data-share'];
 
     if (props.href !== undefined) {
         return (
             <a
-                class={className}
+                className={className}
                 href={props.href}
                 download={props.download}
                 aria-label={ariaLabel}
@@ -56,7 +56,7 @@ export const Button: FC<ButtonProps> = (props) => {
     if (props.type === 'submit') {
         return (
             <button
-                class={className}
+                className={className}
                 type="submit"
                 disabled={props.disabled}
                 hidden={props.hidden}
@@ -73,7 +73,7 @@ export const Button: FC<ButtonProps> = (props) => {
     if (props.type === 'reset') {
         return (
             <button
-                class={className}
+                className={className}
                 type="reset"
                 disabled={props.disabled}
                 hidden={props.hidden}
@@ -89,7 +89,7 @@ export const Button: FC<ButtonProps> = (props) => {
 
     return (
         <button
-            class={className}
+            className={className}
             type="button"
             disabled={props.disabled}
             hidden={props.hidden}

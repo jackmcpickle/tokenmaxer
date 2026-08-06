@@ -20,7 +20,10 @@ export function isBrowserRequest(req: Request): boolean {
     if (isLinkPreviewBot(req.headers.get('user-agent') ?? '')) return true;
     const accept = req.headers.get('accept') ?? '';
     if (/text\/html/iu.test(accept)) return true;
-    return Boolean(req.headers.get('sec-fetch-mode'));
+    // Only navigation modes count — Workers/Vite may inject `Sec-Fetch-Mode: cors`
+    // on subresource-style fetches, which must not force HTML for agents/curl.
+    const mode = (req.headers.get('sec-fetch-mode') ?? '').toLowerCase();
+    return mode === 'navigate' || mode === 'nested-navigate';
 }
 
 function withAgentDiscovery(headers: Headers): void {

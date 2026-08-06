@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { Hono } from 'hono';
+import { parseSourceParam, parseWindow } from '@/api/leaderboard';
 import { aboutMarkdown } from '@/content/about.md';
 import { homeMarkdown } from '@/content/home.md';
 import { llmsTxt } from '@/content/llms';
@@ -17,7 +18,6 @@ import { baseUrl } from '@/lib/base-url';
 import { cachedLeaderboard, cachedProfile } from '@/lib/cached-aggregate';
 import { getInviteCookie, inviteSessionAllowed } from '@/lib/invite';
 import { pageCache } from '@/lib/page-cache';
-import { parseSourceParam, parseWindow } from '@/routes/leaderboard';
 import type { Env } from '@/types';
 
 export const agentPageRoutes = new Hono<{ Bindings: Env }>();

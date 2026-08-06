@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import type { LeaderboardEntry } from '@/lib/aggregate';
 import { BOARD_SUMMARY_ID } from '@/pages/components/board-script';
 import { Button } from '@/pages/components/button';
@@ -27,17 +27,17 @@ interface HomeProps {
 }
 
 const heroTitle = (
-    <div class="waterfall-hero__title waterfall-hero__title--in">
+    <div className="waterfall-hero__title waterfall-hero__title--in">
         <span
-            class="wm waterfall-hero__title-ghost"
+            className="wm waterfall-hero__title-ghost"
             aria-hidden="true"
         >
-            token<span class="max">maxer</span>
-            <span class="tld">.quest</span>
+            token<span className="max">maxer</span>
+            <span className="tld">.quest</span>
         </span>
-        <h1 class="wm waterfall-hero__title-blend">
-            token<span class="max">maxer</span>
-            <span class="tld">.quest</span>
+        <h1 className="wm waterfall-hero__title-blend">
+            token<span className="max">maxer</span>
+            <span className="tld">.quest</span>
         </h1>
     </div>
 );
@@ -49,16 +49,18 @@ export const Home: FC<HomeProps> = (p) => (
         revealChrome
     >
         <WaterfallHero title={heroTitle}>
-            <p class={`${sub} reveal reveal-delay`}>
+            <p className={`${sub} reveal reveal-delay`}>
                 The token leaderboard for Claude Code, Codex, opencode &amp; pi.
                 Ranked by{' '}
                 <span id={BOARD_SUMMARY_ID}>
-                    <strong class="text-text">{METRIC_LABELS[p.metric]}</strong>{' '}
+                    <strong className="text-text">
+                        {METRIC_LABELS[p.metric]}
+                    </strong>{' '}
                     · {WINDOW_LABELS[p.window]}
                 </span>
                 .
             </p>
-            <div class={`${heroActions} reveal reveal-delay-2`}>
+            <div className={`${heroActions} reveal reveal-delay-2`}>
                 <Button
                     variant="primary"
                     href="/start"
@@ -79,19 +81,19 @@ export const Home: FC<HomeProps> = (p) => (
             countries={p.countries}
         />
 
-        <aside class="spotlight spotlight-violet mt-4 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
+        <aside className="spotlight spotlight-violet mt-4 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
             <div>
-                <p class="mb-2 text-[13px] font-medium tracking-[-0.13px] text-white/80">
+                <p className="mb-2 text-[13px] font-medium tracking-[-0.13px] text-white/80">
                     Join the board
                 </p>
-                <p class="text-[22px] leading-snug tracking-[-0.01px] sm:text-[24px]">
+                <p className="text-[22px] leading-snug tracking-[-0.01px] sm:text-[24px]">
                     Claim a username and start reporting sessions from Claude
                     Code, Codex, opencode or pi.
                 </p>
             </div>
             <Button
                 variant="primary"
-                class="shrink-0"
+                className="shrink-0"
                 href="/start"
             >
                 Get started

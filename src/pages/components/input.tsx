@@ -1,4 +1,4 @@
-import type { Child, FC } from 'hono/jsx';
+import type { FC, ReactNode } from 'react';
 
 export type InputVariant = 'text' | 'select';
 
@@ -9,9 +9,9 @@ type TextInputProps = {
     variant: 'text';
     id?: string;
     name?: string;
-    class?: string;
+    className?: string;
     placeholder?: string;
-    autocomplete?: string;
+    autoComplete?: string;
     required?: boolean;
     value?: string;
     /** HTML input type (default `text`). */
@@ -22,11 +22,11 @@ type SelectInputProps = {
     variant: 'select';
     id?: string;
     name?: string;
-    class?: string;
+    className?: string;
     required?: boolean;
-    /** Inline handler (SSR forms); e.g. auto-submit on change. */
-    onchange?: string;
-    children?: Child;
+    /** Inline HTML `onchange` for progressive-enhancement form submit. */
+    htmlOnChange?: string;
+    children?: ReactNode;
 };
 
 export type InputProps = TextInputProps | SelectInputProps;
@@ -36,16 +36,18 @@ function cx(...parts: Array<string | undefined>): string {
 }
 
 export const Input: FC<InputProps> = (props) => {
-    const className = cx(BASE, props.class);
+    const className = cx(BASE, props.className);
 
     if (props.variant === 'select') {
         return (
             <select
-                class={className}
+                className={className}
                 id={props.id}
                 name={props.name}
                 required={props.required}
-                onchange={props.onchange}
+                {...(props.htmlOnChange
+                    ? ({ onchange: props.htmlOnChange } as object)
+                    : {})}
             >
                 {props.children}
             </select>
@@ -55,7 +57,7 @@ export const Input: FC<InputProps> = (props) => {
     if (props.type === 'datetime-local') {
         return (
             <input
-                class={className}
+                className={className}
                 id={props.id}
                 name={props.name}
                 type="datetime-local"
@@ -67,12 +69,12 @@ export const Input: FC<InputProps> = (props) => {
 
     return (
         <input
-            class={className}
+            className={className}
             id={props.id}
             name={props.name}
             type="text"
             placeholder={props.placeholder}
-            autocomplete={props.autocomplete}
+            autoComplete={props.autoComplete}
             required={props.required}
             value={props.value}
         />

@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import type { LeaderboardEntry } from '@/lib/aggregate';
 import type { HackathonRow, HackathonState, MemberRow } from '@/lib/hackathon';
 import { familyLabel } from '@/lib/model-family';
@@ -99,14 +99,14 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
             title={`${h.name} · hackathon · tokenmaxer.quest`}
             base={p.base}
         >
-            <section class="mb-6 pt-6">
-                <div class="flex flex-wrap items-center gap-3">
-                    <h1 class="wm text-3xl">{h.name}</h1>
-                    <span class="rounded-md bg-panel2 px-2.5 py-1 text-xs font-semibold text-text">
+            <section className="mb-6 pt-6">
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="wm text-3xl">{h.name}</h1>
+                    <span className="rounded-md bg-panel2 px-2.5 py-1 text-xs font-semibold text-text">
                         {STATE_LABELS[p.state]}
                     </span>
                 </div>
-                <p class="mt-2 text-sm text-muted">
+                <p className="mt-2 text-sm text-muted">
                     <time data-utc={String(h.start_at)}>
                         {new Date(h.start_at).toISOString()}
                     </time>{' '}
@@ -121,7 +121,7 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
             </section>
 
             {p.state === 'upcoming' ? (
-                <div class="mb-6 rounded-lg border border-border bg-panel px-5 py-8 text-center text-muted">
+                <div className="mb-6 rounded-lg border border-border bg-panel px-5 py-8 text-center text-muted">
                     This hackathon hasn't started yet. Come back when it's live.
                 </div>
             ) : (
@@ -150,8 +150,10 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
             ) : null}
 
             {p.role === 'host' ? (
-                <section class="mt-4 rounded-lg border border-border bg-panel p-5">
-                    <h2 class="mb-3 text-lg font-extrabold">Host controls</h2>
+                <section className="mt-4 rounded-lg border border-border bg-panel p-5">
+                    <h2 className="mb-3 text-lg font-extrabold">
+                        Host controls
+                    </h2>
                     <Button
                         variant="secondary"
                         data-copy={joinUrl}
@@ -159,16 +161,16 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
                         Copy join link
                     </Button>
 
-                    <h3 class="mt-6 mb-2 text-sm font-semibold text-muted">
+                    <h3 className="mt-6 mb-2 text-sm font-semibold text-muted">
                         Members ({p.members.length})
                     </h3>
-                    <div class="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1">
                         {p.members.map((m) => (
                             <div
                                 key={m.user_id}
-                                class="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-panel2"
+                                className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-panel2"
                             >
-                                <span class="text-sm text-text">
+                                <span className="text-sm text-text">
                                     @{m.username}
                                     {m.user_id === h.host_user_id
                                         ? ' (host)'
@@ -177,7 +179,7 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
                                 {m.user_id === h.host_user_id ? null : (
                                     <Button
                                         variant="ghost"
-                                        class="!min-h-0 px-2 py-1 text-xs text-red-400"
+                                        className="!min-h-0 px-2 py-1 text-xs text-red-400"
                                         data-remove={`/api/hackathons/${h.slug}/members/${m.username}`}
                                     >
                                         Remove
@@ -187,21 +189,21 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
                         ))}
                     </div>
 
-                    <h3 class="mt-6 mb-2 text-sm font-semibold text-muted">
+                    <h3 className="mt-6 mb-2 text-sm font-semibold text-muted">
                         Edit
                     </h3>
                     <form
                         id="edit-form"
                         action={`/api/hackathons/${h.slug}`}
-                        class="max-w-[520px]"
+                        className="max-w-[520px]"
                     >
                         <input
-                            class="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
+                            className="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
                             name="name"
                             value={h.name}
                         />
                         <select
-                            class="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
+                            className="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
                             name="modelFamily"
                         >
                             <option
@@ -221,22 +223,22 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
                             ))}
                         </select>
                         <input
-                            class="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
+                            className="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
                             type="datetime-local"
                             name="start"
                             data-utc-fill={String(h.start_at)}
                         />
                         <input
-                            class="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
+                            className="ui-input mb-2 w-full rounded-md border border-border bg-panel2 px-3.5 py-2.5 text-[15px] text-text"
                             type="datetime-local"
                             name="end"
                             data-utc-fill={String(h.end_at)}
                         />
                         <p
                             id="edit-error"
-                            class="my-2 text-sm text-red-400"
+                            className="my-2 text-sm text-red-400"
                         />
-                        <div class="flex gap-2">
+                        <div className="flex gap-2">
                             <Button
                                 variant="primary"
                                 type="submit"
@@ -245,7 +247,7 @@ export const HackathonPage: FC<HackathonPageProps> = (p) => {
                             </Button>
                             <Button
                                 variant="ghost"
-                                class="text-red-400"
+                                className="text-red-400"
                                 data-delete={`/api/hackathons/${h.slug}`}
                             >
                                 Delete

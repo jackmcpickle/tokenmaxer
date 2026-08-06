@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stubKv } from '@/__tests__/helpers/kv';
+import { agentPageRoutes } from '@/api/agent-pages';
 import { inviteCookieToken } from '@/lib/invite';
-import { agentPageRoutes } from '@/routes/agent-pages';
 import type { Env } from '@/types';
 
 function emptyDb(): D1Database {
