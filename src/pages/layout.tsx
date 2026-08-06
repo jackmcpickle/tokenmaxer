@@ -71,6 +71,53 @@ function GitHubMark(): ReturnType<FC> {
     );
 }
 
+/** Hamburger / close glyph for the mobile nav disclosure. */
+function MenuMark(): ReturnType<FC> {
+    return (
+        <svg
+            class="site-nav-menu__mark"
+            viewBox="0 0 16 16"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+        >
+            <path
+                class="site-nav-menu__bar site-nav-menu__bar--a"
+                d="M2.5 4.5h11"
+            />
+            <path
+                class="site-nav-menu__bar site-nav-menu__bar--b"
+                d="M2.5 8h11"
+            />
+            <path
+                class="site-nav-menu__bar site-nav-menu__bar--c"
+                d="M2.5 11.5h11"
+            />
+        </svg>
+    );
+}
+
+const NAV_LINKS = [
+    { href: '/', label: 'Leaderboard' },
+    { href: '/hackathons', label: 'Hackathons' },
+    { href: '/start', label: 'Get started' },
+    { href: '/about', label: 'About' },
+] as const;
+
+/** Close mobile nav when clicking outside the disclosure. */
+const NAV_SCRIPT = `(() => {
+  const menu = document.querySelector('details.site-nav-menu');
+  if (!menu) return;
+  document.addEventListener('click', (e) => {
+    if (!menu.open) return;
+    if (!menu.contains(e.target)) menu.open = false;
+  });
+})();`;
+
 const SITE_DESCRIPTION =
     'tokenmaxer.quest — a public leaderboard of tokens burned by AI builders on Claude Code, Codex, opencode and pi.';
 
@@ -232,54 +279,75 @@ export const Layout: FC<LayoutProps> = (props) => {
                     class={chromeClass}
                 >
                     <a
-                        class="nav-link flex items-center gap-2.5 text-text no-underline hover:no-underline"
+                        class="nav-link flex min-w-0 items-center gap-2.5 text-text no-underline hover:no-underline"
                         href="/"
                     >
                         <Mark />
-                        <Wordmark class="text-sm tracking-[-0.02em] sm:text-[15px]" />
+                        <Wordmark class="truncate text-sm tracking-[-0.02em] sm:text-[15px]" />
                     </a>
-                    <nav class="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-[14px] font-medium text-muted">
-                        <a
-                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                            href="/"
-                        >
-                            Leaderboard
-                        </a>
-                        <a
-                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                            href="/hackathons"
-                        >
-                            Hackathons
-                        </a>
-                        <a
-                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                            href="/start"
-                        >
-                            Get started
-                        </a>
-                        <a
-                            class="nav-link text-muted no-underline hover:text-text hover:no-underline"
-                            href="/about"
-                        >
-                            About
-                        </a>
-                        <span class="flex items-center gap-3">
-                            <span
-                                class="hidden h-4 w-px bg-border sm:block"
-                                aria-hidden="true"
-                            />
-                            <a
-                                class="nav-link -mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted no-underline transition-colors duration-150 hover:bg-panel hover:text-text hover:no-underline"
-                                href={REPO_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="tokenmaxer on GitHub"
+                    <nav
+                        class="site-nav"
+                        aria-label="Primary"
+                    >
+                        <div class="site-nav__desktop">
+                            {NAV_LINKS.map((link) => (
+                                <a
+                                    key={link.href}
+                                    class="nav-link text-muted no-underline hover:text-text hover:no-underline"
+                                    href={link.href}
+                                >
+                                    {link.label}
+                                </a>
+                            ))}
+                            <span class="flex items-center gap-3">
+                                <span
+                                    class="h-4 w-px bg-border"
+                                    aria-hidden="true"
+                                />
+                                <a
+                                    class="nav-link -mr-1.5 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted no-underline transition-colors duration-150 hover:bg-panel hover:text-text hover:no-underline"
+                                    href={REPO_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="tokenmaxer on GitHub"
+                                >
+                                    <GitHubMark />
+                                </a>
+                            </span>
+                        </div>
+                        <details class="site-nav-menu">
+                            <summary
+                                class="site-nav-menu__trigger"
+                                aria-label="Open menu"
                             >
-                                <GitHubMark />
-                            </a>
-                        </span>
+                                <MenuMark />
+                            </summary>
+                            <div class="site-nav-menu__panel">
+                                {NAV_LINKS.map((link) => (
+                                    <a
+                                        key={link.href}
+                                        class="site-nav-menu__link nav-link"
+                                        href={link.href}
+                                    >
+                                        {link.label}
+                                    </a>
+                                ))}
+                                <a
+                                    class="site-nav-menu__link nav-link site-nav-menu__link--github"
+                                    href={REPO_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label="tokenmaxer on GitHub"
+                                >
+                                    <GitHubMark />
+                                    <span>GitHub</span>
+                                </a>
+                            </div>
+                        </details>
                     </nav>
                 </header>
+                {/* eslint-disable-next-line */}
+                <script dangerouslySetInnerHTML={{ __html: NAV_SCRIPT }} />
                 <div class="mx-auto max-w-[1199px] px-5 pb-20 sm:px-8">
                     <main id="main">{props.children}</main>
 

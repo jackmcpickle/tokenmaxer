@@ -71,6 +71,9 @@ describe('homepage board filters', () => {
         expect(html).toContain('filter-pill');
         expect(html).toContain('source=codex');
         expect(html).toMatch(/href="\/\?window=7d&amp;metric=total"/u);
+        expect(html).toContain('board-window-seg');
+        expect(html).toContain('board-stat-bar');
+        expect(html).toContain('board-stat-bar__value');
     });
 
     it('exposes swap targets so filter links update in place', async () => {
