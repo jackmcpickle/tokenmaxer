@@ -27,22 +27,22 @@
     },
     "dependencies": {
         "@cf-wasm/resvg": "0.4.0",
-        "hono": "^4.12.33"
+        "hono": "^4.13.0"
     },
     "devDependencies": {
-        "@cloudflare/workers-types": "^5.20260801.1",
+        "@cloudflare/workers-types": "^5.20260804.1",
         "@tailwindcss/cli": "^4.3.3",
         "@types/node": "^26.1.2",
         "commit-and-tag-version": "^13.1.2",
         "concurrently": "^10.0.4",
         "esbuild": "^0.28.1",
-        "oxfmt": "^0.61.0",
-        "oxlint": "^1.76.0",
+        "oxfmt": "^0.62.0",
+        "oxlint": "^1.77.0",
         "sharp": "^0.35.3",
         "tailwindcss": "^4.3.3",
         "typescript": "^7.0.2",
         "vitest": "^4.1.10",
-        "wrangler": "^4.118.0"
+        "wrangler": "^4.119.0"
     },
     "engines": {
         "node": ">=24"
