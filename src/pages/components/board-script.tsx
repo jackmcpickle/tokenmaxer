@@ -7,12 +7,15 @@ export const BOARD_ID = 'leaderboard-board';
 export const BOARD_SUMMARY_ID = 'board-summary';
 
 /**
- * Progressive enhancement for the leaderboard filters.
+ * Progressive enhancement for the leaderboard filters (static HTML path).
  *
  * Every control is a plain link, so the board still works with JS off. With JS
  * on, same-page links are intercepted: the new HTML is fetched, only the board
  * (and the hero summary line) is replaced, and the URL is pushed. Scroll
  * position is untouched, so the page stays exactly where the user clicked.
+ *
+ * Skips entirely when the board is marked `data-spa-board` — TanStack Start
+ * owns navigation there (BoardScript pushState would fight the router).
  *
  * All listeners are delegated on `document` because the board's own markup —
  * including the filter dialogs — is discarded on every swap.
@@ -26,11 +29,14 @@ const BOARD_SCRIPT = `(() => {
 
   function board() { return document.getElementById(BOARD); }
   function menu() { return document.querySelector('#board-filters details.board-filter-menu'); }
+  function isSpa(el) { return el && el.getAttribute('data-spa-board') === 'true'; }
 
   function swap(href, push) {
     var el = board();
-    if (!el) { window.location.href = href; return; }
+    if (!el || isSpa(el)) { window.location.href = href; return; }
     var token = ++seq;
+    var prevHeight = el.offsetHeight;
+    if (prevHeight > 0) el.style.minHeight = prevHeight + 'px';
     el.setAttribute('aria-busy', 'true');
     fetch(href, { headers: { Accept: 'text/html' }, credentials: 'same-origin' })
       .then(function (res) {
@@ -42,6 +48,7 @@ const BOARD_SCRIPT = `(() => {
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var next = doc.getElementById(BOARD);
         if (!next) throw new Error('missing board');
+        if (isSpa(next)) { window.location.href = href; return; }
         el.innerHTML = next.innerHTML;
         var nextSummary = doc.getElementById(SUMMARY);
         var summary = document.getElementById(SUMMARY);
@@ -49,15 +56,22 @@ const BOARD_SCRIPT = `(() => {
         if (doc.title) document.title = doc.title;
         if (push) window.history.pushState({ board: true }, '', href);
         el.removeAttribute('aria-busy');
+        requestAnimationFrame(function () {
+          el.style.minHeight = '';
+        });
       })
       .catch(function () {
         if (token !== seq) return;
         el.removeAttribute('aria-busy');
+        el.style.minHeight = '';
         window.location.href = href;
       });
   }
 
   document.addEventListener('click', function (e) {
+    var el = board();
+    if (isSpa(el)) return;
+
     var target = e.target;
     if (!target || typeof target.closest !== 'function') return;
 
@@ -102,7 +116,8 @@ const BOARD_SCRIPT = `(() => {
   });
 
   window.addEventListener('popstate', function () {
-    if (!board()) return;
+    var el = board();
+    if (!el || isSpa(el)) return;
     swap(window.location.href, false);
   });
 })();`;

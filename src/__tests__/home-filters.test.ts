@@ -99,6 +99,7 @@ describe('homepage board filters', () => {
         const html = await res.text();
         expect(html).toContain('history.pushState');
         expect(html).toContain('DOMParser');
+        expect(html).toContain('data-spa-board');
         // The <script> must not live inside the region we overwrite, or the
         // listeners would be discarded on the first swap.
         const start = html.indexOf('id="leaderboard-board"');

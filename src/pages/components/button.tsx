@@ -1,4 +1,5 @@
-import type { FC, ReactNode } from 'react';
+import type { FC, MouseEventHandler, ReactNode } from 'react';
+import { BoardNav } from '@/pages/components/board-nav';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'copy';
 
@@ -16,10 +17,13 @@ type ButtonProps = {
     children?: ReactNode;
     className?: string;
     href?: string;
+    /** Client-navigate board filter hrefs via TanStack Router. */
+    spa?: boolean;
     download?: string;
     type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     hidden?: boolean;
+    onClick?: MouseEventHandler<HTMLButtonElement>;
     'aria-label'?: string;
     'data-target'?: string;
     'data-proto-nav'?: string;
@@ -36,6 +40,18 @@ export const Button: FC<ButtonProps> = (props) => {
     const dataShare = props['data-share'];
 
     if (props.href !== undefined) {
+        if (props.spa && props.download === undefined) {
+            return (
+                <BoardNav
+                    spa
+                    className={className}
+                    href={props.href}
+                    aria-label={ariaLabel}
+                >
+                    {props.children}
+                </BoardNav>
+            );
+        }
         return (
             <a
                 className={className}
@@ -60,6 +76,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 type="submit"
                 disabled={props.disabled}
                 hidden={props.hidden}
+                onClick={props.onClick}
                 aria-label={ariaLabel}
                 data-target={dataTarget}
                 data-proto-nav={dataProtoNav}
@@ -77,6 +94,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 type="reset"
                 disabled={props.disabled}
                 hidden={props.hidden}
+                onClick={props.onClick}
                 aria-label={ariaLabel}
                 data-target={dataTarget}
                 data-proto-nav={dataProtoNav}
@@ -93,6 +111,7 @@ export const Button: FC<ButtonProps> = (props) => {
             type="button"
             disabled={props.disabled}
             hidden={props.hidden}
+            onClick={props.onClick}
             aria-label={ariaLabel}
             data-target={dataTarget}
             data-proto-nav={dataProtoNav}
