@@ -1,4 +1,4 @@
-const REPO_URL = 'https://github.com/jackmcpickle/tokenmaxer';
+import { REPO_URL } from '@/lib/site';
 
 function snippets(base: string): {
     setup: string;

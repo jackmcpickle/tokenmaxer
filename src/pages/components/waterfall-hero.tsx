@@ -469,7 +469,12 @@ const HERO_SCROLL_SCRIPT = `
   if (!bg || !title || !copy || !stage) return;
 
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var shown = false;
+  // Chrome scrub window, in px of scroll. Deliberately short and viewport
+  // independent: the bar starts arriving almost immediately and is fully
+  // there well inside the first flick.
+  var REVEAL_START = 24;
+  var REVEAL_END = 180;
+  var chromeP = -1;
   var BG_RATE = 0.5;
   var TITLE_RATE = -0.22;
   var COPY_RATE = -0.12;
@@ -478,8 +483,14 @@ const HERO_SCROLL_SCRIPT = `
   var bgT = 0, titleT = 0, copyT = 0, stageOpT = 1;
   var raf = 0;
   var last = performance.now();
+  // Cached so the scroll handler never forces a layout.
+  var heroH = 1;
+  var thr = 120;
 
-  function threshold() { return Math.max(120, hero.offsetHeight * 0.4); }
+  function measure() {
+    heroH = hero.offsetHeight || 1;
+    thr = Math.max(120, heroH * 0.4);
+  }
 
   function paint() {
     if (!reduced) {
@@ -514,15 +525,16 @@ const HERO_SCROLL_SCRIPT = `
 
   function readScroll() {
     var y = window.scrollY || document.documentElement.scrollTop || 0;
-    var h = hero.offsetHeight || 1;
-    var thr = threshold();
+    var h = heroH;
 
-    // Chrome in as hero copy fades out (same threshold window)
-    var next = y >= thr;
-    if (next !== shown) {
-      shown = next;
-      chrome.classList.toggle('is-visible', shown);
-      chrome.setAttribute('aria-hidden', shown ? 'false' : 'true');
+    // Chrome scrubs 0..1 across a short, fixed window near the top of the page.
+    var p = (y - REVEAL_START) / (REVEAL_END - REVEAL_START);
+    p = p < 0 ? 0 : p > 1 ? 1 : p;
+    p = Math.round(p * 1000) / 1000;
+    if (p !== chromeP) {
+      chromeP = p;
+      chrome.style.setProperty('--chrome-scroll', String(p));
+      chrome.classList.toggle('is-visible', p >= 0.5);
     }
 
     var fadeStart = thr * 0.35;
@@ -546,11 +558,12 @@ const HERO_SCROLL_SCRIPT = `
     }
   }
 
-  if (reduced) chrome.classList.add('site-chrome--instant');
+  measure();
   paint();
   readScroll();
   window.addEventListener('scroll', readScroll, { passive: true });
-  window.addEventListener('resize', readScroll);
+  window.addEventListener('resize', function () { measure(); readScroll(); });
+  window.addEventListener('load', function () { measure(); readScroll(); });
 })();
 `;
 
