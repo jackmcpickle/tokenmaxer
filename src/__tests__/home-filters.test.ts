@@ -72,4 +72,34 @@ describe('homepage board filters', () => {
         expect(html).toContain('source=codex');
         expect(html).toMatch(/href="\/\?window=7d&amp;metric=total"/u);
     });
+
+    it('exposes swap targets so filter links update in place', async () => {
+        const res = await app.request(
+            'https://tokenmaxer.quest/?window=7d&metric=total',
+            { headers: browserHeaders },
+            env(),
+        );
+        const html = await res.text();
+        // Region the client script replaces instead of reloading the page.
+        expect(html).toContain('id="leaderboard-board"');
+        // Hero summary line kept in sync with the swapped board.
+        expect(html).toContain('id="board-summary"');
+    });
+
+    it('ships the board navigation script outside the swapped region', async () => {
+        const res = await app.request(
+            'https://tokenmaxer.quest/?window=7d&metric=total',
+            { headers: browserHeaders },
+            env(),
+        );
+        const html = await res.text();
+        expect(html).toContain('history.pushState');
+        expect(html).toContain('DOMParser');
+        // The <script> must not live inside the region we overwrite, or the
+        // listeners would be discarded on the first swap.
+        const start = html.indexOf('id="leaderboard-board"');
+        const end = html.indexOf('</section>', start);
+        expect(start).toBeGreaterThan(-1);
+        expect(html.slice(start, end)).not.toContain('DOMParser');
+    });
 });

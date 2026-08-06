@@ -775,6 +775,13 @@
         }
     }
 
+    /* Board swaps in place on filter changes; dim it while the fetch is in flight. */
+    .board-region[aria-busy='true'] {
+        opacity: 0.55;
+        pointer-events: none;
+        transition: opacity 120ms ease;
+    }
+
     /* Board filter menu + dialogs */
     .board-filter-menu {
         position: relative;
