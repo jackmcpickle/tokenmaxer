@@ -10,50 +10,51 @@ import {
     parseImpactMetric,
     parseImpactRegion,
     parseImpactScenario,
+    type ImpactMetric,
+    type ImpactRegion,
+    type ImpactScenario,
 } from '@/lib/impact';
-import type { ImpactMetric, ImpactRegion, ImpactScenario } from '@/lib/impact';
 import { Footprint } from '@/pages/footprint';
 import type { Source, TimeWindow } from '@/types';
 
 interface FootprintSearch {
-    window: TimeWindow;
-    metric: ImpactMetric;
-    scenario: ImpactScenario;
-    region: ImpactRegion;
-    source: Source | undefined;
-    model: string | undefined;
-    country: string | undefined;
+    window?: TimeWindow;
+    metric?: ImpactMetric;
+    scenario?: ImpactScenario;
+    region?: ImpactRegion;
+    source?: Source;
+    model?: string;
+    country?: string;
 }
 
 function parseFootprintSearch(
     search: Record<string, unknown>,
 ): FootprintSearch {
-    const modelRaw = search.model;
-    const model =
-        typeof modelRaw === 'string' && modelRaw.length > 0
-            ? modelRaw
-            : undefined;
-    return {
-        window: parseWindow(
-            typeof search.window === 'string' ? search.window : undefined,
-        ),
-        metric: parseImpactMetric(
-            typeof search.metric === 'string' ? search.metric : undefined,
-        ),
-        scenario: parseImpactScenario(
-            typeof search.scenario === 'string' ? search.scenario : undefined,
-        ),
-        region: parseImpactRegion(
-            typeof search.region === 'string' ? search.region : undefined,
-        ),
-        source: parseSourceParam(
-            typeof search.source === 'string' ? search.source : undefined,
-        ),
-        model,
-        country: parseCountryParam(
-            typeof search.country === 'string' ? search.country : undefined,
-        ),
-    };
+    const out: FootprintSearch = {};
+    if (typeof search.window === 'string' && search.window.length > 0) {
+        out.window = parseWindow(search.window);
+    }
+    if (typeof search.metric === 'string' && search.metric.length > 0) {
+        out.metric = parseImpactMetric(search.metric);
+    }
+    if (typeof search.scenario === 'string' && search.scenario.length > 0) {
+        out.scenario = parseImpactScenario(search.scenario);
+    }
+    if (typeof search.region === 'string' && search.region.length > 0) {
+        out.region = parseImpactRegion(search.region);
+    }
+    if (typeof search.source === 'string' && search.source.length > 0) {
+        const source = parseSourceParam(search.source);
+        if (source) out.source = source;
+    }
+    if (typeof search.model === 'string' && search.model.length > 0) {
+        out.model = search.model;
+    }
+    if (typeof search.country === 'string' && search.country.length > 0) {
+        const country = parseCountryParam(search.country);
+        if (country) out.country = country;
+    }
+    return out;
 }
 
 export const Route = createFileRoute('/footprint')({
@@ -63,11 +64,20 @@ export const Route = createFileRoute('/footprint')({
     validateSearch: parseFootprintSearch,
     loaderDeps: ({ search }) => search,
     loader: async ({ deps }) => {
+        const filters = {
+            window: parseWindow(deps.window),
+            metric: parseImpactMetric(deps.metric),
+            scenario: parseImpactScenario(deps.scenario),
+            region: parseImpactRegion(deps.region),
+            source: deps.source,
+            model: deps.model,
+            country: deps.country,
+        };
         const [base, board] = await Promise.all([
             getBaseUrl(),
-            getFootprintPageData({ data: deps }),
+            getFootprintPageData({ data: filters }),
         ]);
-        return { base, ...board, ...deps };
+        return { base, ...board, ...filters };
     },
     component: FootprintPage,
 });

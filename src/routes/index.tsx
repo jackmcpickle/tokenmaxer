@@ -11,34 +11,33 @@ import { Home } from '@/pages/home';
 import type { Metric, Source, TimeWindow } from '@/types';
 
 interface HomeSearch {
-    window: TimeWindow;
-    metric: Metric;
-    source: Source | undefined;
-    model: string | undefined;
-    country: string | undefined;
+    window?: TimeWindow;
+    metric?: Metric;
+    source?: Source;
+    model?: string;
+    country?: string;
 }
 
 function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
-    const modelRaw = search.model;
-    const model =
-        typeof modelRaw === 'string' && modelRaw.length > 0
-            ? modelRaw
-            : undefined;
-    return {
-        window: parseWindow(
-            typeof search.window === 'string' ? search.window : undefined,
-        ),
-        metric: parseMetric(
-            typeof search.metric === 'string' ? search.metric : undefined,
-        ),
-        source: parseSourceParam(
-            typeof search.source === 'string' ? search.source : undefined,
-        ),
-        model,
-        country: parseCountryParam(
-            typeof search.country === 'string' ? search.country : undefined,
-        ),
-    };
+    const out: HomeSearch = {};
+    if (typeof search.window === 'string' && search.window.length > 0) {
+        out.window = parseWindow(search.window);
+    }
+    if (typeof search.metric === 'string' && search.metric.length > 0) {
+        out.metric = parseMetric(search.metric);
+    }
+    if (typeof search.source === 'string' && search.source.length > 0) {
+        const source = parseSourceParam(search.source);
+        if (source) out.source = source;
+    }
+    if (typeof search.model === 'string' && search.model.length > 0) {
+        out.model = search.model;
+    }
+    if (typeof search.country === 'string' && search.country.length > 0) {
+        const country = parseCountryParam(search.country);
+        if (country) out.country = country;
+    }
+    return out;
 }
 
 export const Route = createFileRoute('/')({
@@ -52,11 +51,18 @@ export const Route = createFileRoute('/')({
     validateSearch: parseHomeSearch,
     loaderDeps: ({ search }) => search,
     loader: async ({ deps }) => {
+        const filters = {
+            window: parseWindow(deps.window),
+            metric: parseMetric(deps.metric),
+            source: deps.source,
+            model: deps.model,
+            country: deps.country,
+        };
         const [base, board] = await Promise.all([
             getBaseUrl(),
-            getLeaderboardPageData({ data: deps }),
+            getLeaderboardPageData({ data: filters }),
         ]);
-        return { base, ...board, ...deps };
+        return { base, ...board, ...filters };
     },
     component: HomePage,
 });
