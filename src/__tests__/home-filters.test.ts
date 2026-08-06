@@ -74,6 +74,7 @@ describe('homepage board filters', () => {
         expect(html).toContain('board-window-seg');
         expect(html).toContain('board-stat-bar');
         expect(html).toContain('board-stat-bar__value');
+        expect(html).toContain('board-stat-bar__cell--mobile-hide');
     });
 
     it('exposes swap targets so filter links update in place', async () => {

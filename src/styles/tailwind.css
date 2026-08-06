@@ -325,20 +325,22 @@
         white-space: nowrap;
     }
 
-    /* Metric / stat strip — 2-up on mobile, row on sm+ */
+    /* Metric / stat strip — 2-up on mobile (Cached hidden → 2×2), row on sm+ */
     .board-stat-bar {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--color-border);
+        border-bottom: 1px solid var(--color-border);
     }
 
     .board-stat-bar__cell {
         min-width: 0;
-        border-right: 1px solid var(--color-border);
-        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-panel);
     }
 
-    .board-stat-bar__cell:nth-child(2n) {
-        border-right: 0;
+    .board-stat-bar__cell--mobile-hide {
+        display: none;
     }
 
     .board-stat-bar__label {
@@ -366,12 +368,13 @@
         .board-stat-bar {
             display: flex;
             flex-direction: row;
+            gap: 0;
+            background: transparent;
         }
 
         .board-stat-bar__cell {
             flex: 1 1 0;
-            border-right: 0;
-            border-bottom: 0;
+            background-color: transparent;
             border-left: 1px solid var(--color-border);
         }
 
@@ -379,8 +382,8 @@
             border-left: 0;
         }
 
-        .board-stat-bar__cell:nth-child(2n) {
-            border-right: 0;
+        .board-stat-bar__cell--mobile-hide {
+            display: inline-flex;
         }
 
         .board-stat-bar__label {

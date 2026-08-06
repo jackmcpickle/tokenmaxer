@@ -135,6 +135,7 @@ export const LeaderboardChart: FC<{
                 <div class="board-stat-bar">
                     {METRICS.map((m) => {
                         const active = m === metric;
+                        const hideMobile = m === 'cached';
                         return (
                             <Button
                                 key={m}
@@ -147,8 +148,10 @@ export const LeaderboardChart: FC<{
                                     country,
                                 })}
                                 class={`board-stat-bar__cell !min-h-0 flex-col justify-center gap-1 rounded-none px-3 py-3 sm:px-4 sm:py-4 ${
-                                    active ? 'bg-panel2' : ''
-                                }`}
+                                    hideMobile
+                                        ? 'board-stat-bar__cell--mobile-hide '
+                                        : ''
+                                }${active ? 'bg-panel2' : ''}`}
                             >
                                 <span class="board-stat-bar__label">
                                     {METRIC_LABELS[m]}
