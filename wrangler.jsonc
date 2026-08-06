@@ -13,6 +13,10 @@
     "assets": {
         "directory": "./public",
     },
+    // Custom domains below would otherwise infer workers_dev=false (and thus
+    // disable preview URLs). Keep both enabled for *.workers.dev + version previews.
+    "workers_dev": true,
+    "preview_urls": true,
     "vars": {
         "ENVIRONMENT": "production",
         // Public base URL of the deployed worker; used to render onboarding snippets.
