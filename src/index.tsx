@@ -1,6 +1,29 @@
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import {
+    agentPageRoutes,
+    serveAboutMarkdown,
+    serveHomeMarkdown,
+    servePricingMarkdown,
+    servePrivacyMarkdown,
+    serveProfileMarkdown,
+    serveStartMarkdown,
+} from '@/api/agent-pages';
+import { hackathonRoutes } from '@/api/hackathon';
+import { historyRoutes } from '@/api/history';
+import { ingestRoutes } from '@/api/ingest';
+import {
+    parseCountryParam,
+    parseMetric,
+    parseSourceParam,
+    parseWindow,
+} from '@/api/leaderboard';
+import { leaderboardRoutes } from '@/api/leaderboard';
+import { ogRoutes } from '@/api/og';
+import { profileRoutes } from '@/api/profile';
+import { registerRoutes } from '@/api/register';
+import { sessionRoutes } from '@/api/session';
 import { AGENT_PAGE_VARY, isBrowserRequest } from '@/lib/agent-markdown';
 import { baseUrl } from '@/lib/base-url';
 import {
@@ -33,6 +56,7 @@ import {
     setInviteCookie,
 } from '@/lib/invite';
 import { pageCache } from '@/lib/page-cache';
+import { renderPage } from '@/lib/render-page';
 import { consumePendingSession, setSessionCookie } from '@/lib/session';
 import { currentUser } from '@/lib/web-auth';
 import { About } from '@/pages/about';
@@ -50,34 +74,11 @@ import { Privacy } from '@/pages/privacy';
 import { ProfilePage } from '@/pages/profile';
 import { Start } from '@/pages/start';
 import { sub } from '@/pages/ui';
-import {
-    agentPageRoutes,
-    serveAboutMarkdown,
-    serveHomeMarkdown,
-    servePricingMarkdown,
-    servePrivacyMarkdown,
-    serveProfileMarkdown,
-    serveStartMarkdown,
-} from '@/routes/agent-pages';
-import { hackathonRoutes } from '@/routes/hackathon';
-import { historyRoutes } from '@/routes/history';
-import { ingestRoutes } from '@/routes/ingest';
-import {
-    parseCountryParam,
-    parseMetric,
-    parseSourceParam,
-    parseWindow,
-} from '@/routes/leaderboard';
-import { leaderboardRoutes } from '@/routes/leaderboard';
-import { ogRoutes } from '@/routes/og';
-import { profileRoutes } from '@/routes/profile';
-import { registerRoutes } from '@/routes/register';
-import { sessionRoutes } from '@/routes/session';
 import { type Metric, type Env, isMetric } from '@/types';
 // Raw text via the wrangler Text rule (see wrangler.toml). Typed by src/reporter.d.ts.
 // oxlint can't see the loader-injected default; verified at build + runtime.
 // eslint-disable-next-line import/default
-import REPORTER_SOURCE from '../reporter/tokentally.mjs';
+import REPORTER_SOURCE from '../reporter/tokentally.mjs?raw';
 
 const VERSION = '0.2.0';
 
@@ -162,17 +163,19 @@ app.get('/', pageCache, async (c) => {
     ]);
     withAgentDiscoveryHeaders(c);
     return c.html(
-        <Home
-            base={base}
-            entries={entries}
-            models={models}
-            countries={countries}
-            window={window}
-            metric={metric}
-            source={source}
-            model={model}
-            country={country}
-        />,
+        renderPage(
+            <Home
+                base={base}
+                entries={entries}
+                models={models}
+                countries={countries}
+                window={window}
+                metric={metric}
+                source={source}
+                model={model}
+                country={country}
+            />,
+        ),
     );
 });
 
@@ -206,27 +209,31 @@ app.get('/start', async (c) => {
     );
     withAgentDiscoveryHeaders(c);
     return c.html(
-        <Start
-            base={baseUrl(c.env, c.req.url)}
-            invited={invited}
-        />,
+        renderPage(
+            <Start
+                base={baseUrl(c.env, c.req.url)}
+                invited={invited}
+            />,
+        ),
     );
 });
 app.get('/about', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return serveAboutMarkdown(c);
     withAgentDiscoveryHeaders(c);
-    return c.html(<About base={baseUrl(c.env, c.req.url)} />);
+    return c.html(renderPage(<About base={baseUrl(c.env, c.req.url)} />));
 });
 
 app.get('/hackathons', async (c) => {
     withAgentDiscoveryHeaders(c);
-    return c.html(<HackathonsAbout base={baseUrl(c.env, c.req.url)} />);
+    return c.html(
+        renderPage(<HackathonsAbout base={baseUrl(c.env, c.req.url)} />),
+    );
 });
 
 app.get('/privacy', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return servePrivacyMarkdown(c);
     withAgentDiscoveryHeaders(c);
-    return c.html(<Privacy base={baseUrl(c.env, c.req.url)} />);
+    return c.html(renderPage(<Privacy base={baseUrl(c.env, c.req.url)} />));
 });
 
 app.get('/footprint', pageCache, async (c) => {
@@ -267,26 +274,28 @@ app.get('/footprint', pageCache, async (c) => {
 
     withAgentDiscoveryHeaders(c);
     return c.html(
-        <Footprint
-            base={base}
-            entries={ranked}
-            models={models}
-            countries={countries}
-            window={window}
-            metric={metric}
-            scenario={scenario}
-            region={region}
-            source={source}
-            model={model}
-            country={country}
-        />,
+        renderPage(
+            <Footprint
+                base={base}
+                entries={ranked}
+                models={models}
+                countries={countries}
+                window={window}
+                metric={metric}
+                scenario={scenario}
+                region={region}
+                source={source}
+                model={model}
+                country={country}
+            />,
+        ),
     );
 });
 
 app.get('/pricing', async (c) => {
     if (!isBrowserRequest(c.req.raw)) return servePricingMarkdown(c);
     withAgentDiscoveryHeaders(c);
-    return c.html(<Pricing base={baseUrl(c.env, c.req.url)} />);
+    return c.html(renderPage(<Pricing base={baseUrl(c.env, c.req.url)} />));
 });
 
 app.get('/u/:username', pageCache, async (c) => {
@@ -300,24 +309,28 @@ app.get('/u/:username', pageCache, async (c) => {
     );
     if (!profile) {
         return c.html(
-            <Layout
-                title="Not found · tokenmaxer.quest"
-                base={base}
-            >
-                <h1>Builder not found</h1>
-                <p class={sub}>
-                    No one has claimed that username yet.{' '}
-                    <a href="/start">Claim it →</a>
-                </p>
-            </Layout>,
+            renderPage(
+                <Layout
+                    title="Not found · tokenmaxer.quest"
+                    base={base}
+                >
+                    <h1>Builder not found</h1>
+                    <p className={sub}>
+                        No one has claimed that username yet.{' '}
+                        <a href="/start">Claim it →</a>
+                    </p>
+                </Layout>,
+            ),
             404,
         );
     }
     return c.html(
-        <ProfilePage
-            base={base}
-            profile={profile}
-        />,
+        renderPage(
+            <ProfilePage
+                base={base}
+                profile={profile}
+            />,
+        ),
     );
 });
 
@@ -335,16 +348,18 @@ app.get('/auth', async (c) => {
     );
     if (!sessionId) {
         return c.html(
-            <Layout
-                title="Login expired · tokenmaxer.quest"
-                base={baseUrl(c.env, c.req.url)}
-            >
-                <h1>Login link expired</h1>
-                <p class={sub}>
-                    Run <code>npx tokenmaxer login</code> again for a fresh
-                    link.
-                </p>
-            </Layout>,
+            renderPage(
+                <Layout
+                    title="Login expired · tokenmaxer.quest"
+                    base={baseUrl(c.env, c.req.url)}
+                >
+                    <h1>Login link expired</h1>
+                    <p className={sub}>
+                        Run <code>npx tokenmaxer login</code> again for a fresh
+                        link.
+                    </p>
+                </Layout>,
+            ),
             400,
         );
     }
@@ -356,10 +371,12 @@ app.get('/auth', async (c) => {
 app.get('/login', (c) => {
     const next = c.req.query('next');
     return c.html(
-        <Login
-            base={baseUrl(c.env, c.req.url)}
-            next={next && next.startsWith('/') ? next : undefined}
-        />,
+        renderPage(
+            <Login
+                base={baseUrl(c.env, c.req.url)}
+                next={next && next.startsWith('/') ? next : undefined}
+            />,
+        ),
     );
 });
 
@@ -372,11 +389,13 @@ app.get('/h/new', async (c) => {
         c.env.RATE_LIMIT,
     );
     return c.html(
-        <HackathonNew
-            base={base}
-            username={user.username}
-            models={models}
-        />,
+        renderPage(
+            <HackathonNew
+                base={base}
+                username={user.username}
+                models={models}
+            />,
+        ),
     );
 });
 
@@ -386,11 +405,13 @@ app.get('/h/mine', async (c) => {
     if (!user) return c.redirect('/login?next=/h/mine', 302);
     const hackathons = await listHackathonsByHost(c.env.DB, user.id);
     return c.html(
-        <HackathonMine
-            base={base}
-            username={user.username}
-            hackathons={hackathons}
-        />,
+        renderPage(
+            <HackathonMine
+                base={base}
+                username={user.username}
+                hackathons={hackathons}
+            />,
+        ),
     );
 });
 
@@ -411,15 +432,17 @@ app.get('/h/:slug', async (c) => {
     const h = await getHackathonBySlug(c.env.DB, c.req.param('slug'));
     if (!h) {
         return c.html(
-            <Layout
-                title="Hackathon not found · tokenmaxer.quest"
-                base={base}
-            >
-                <h1>Hackathon not found</h1>
-                <p class={sub}>
-                    That link may be wrong or the hackathon was deleted.
-                </p>
-            </Layout>,
+            renderPage(
+                <Layout
+                    title="Hackathon not found · tokenmaxer.quest"
+                    base={base}
+                >
+                    <h1>Hackathon not found</h1>
+                    <p className={sub}>
+                        That link may be wrong or the hackathon was deleted.
+                    </p>
+                </Layout>,
+            ),
             404,
         );
     }
@@ -465,16 +488,18 @@ app.get('/h/:slug', async (c) => {
             : [];
 
     return c.html(
-        <HackathonPage
-            base={base}
-            hackathon={h}
-            state={state}
-            metric={metric}
-            entries={entries}
-            members={members}
-            role={role}
-            models={models}
-        />,
+        renderPage(
+            <HackathonPage
+                base={base}
+                hackathon={h}
+                state={state}
+                metric={metric}
+                entries={entries}
+                members={members}
+                role={role}
+                models={models}
+            />,
+        ),
     );
 });
 

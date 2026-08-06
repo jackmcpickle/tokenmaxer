@@ -8,296 +8,296 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AboutRouteImport } from './routes/about'
-import { Route as FootprintRouteImport } from './routes/footprint'
-import { Route as HackathonsRouteImport } from './routes/hackathons'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as PricingRouteImport } from './routes/pricing'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as StartRouteImport } from './routes/start'
-import { Route as HSlugRouteImport } from './routes/h.$slug'
-import { Route as HMineRouteImport } from './routes/h.mine'
-import { Route as HNewRouteImport } from './routes/h.new'
-import { Route as UUsernameRouteImport } from './routes/u.$username'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as AboutRouteImport } from './routes/about';
+import { Route as FootprintRouteImport } from './routes/footprint';
+import { Route as HSlugRouteImport } from './routes/h.$slug';
+import { Route as HMineRouteImport } from './routes/h.mine';
+import { Route as HNewRouteImport } from './routes/h.new';
+import { Route as HackathonsRouteImport } from './routes/hackathons';
+import { Route as IndexRouteImport } from './routes/index';
+import { Route as LoginRouteImport } from './routes/login';
+import { Route as PricingRouteImport } from './routes/pricing';
+import { Route as PrivacyRouteImport } from './routes/privacy';
+import { Route as StartRouteImport } from './routes/start';
+import { Route as UUsernameRouteImport } from './routes/u.$username';
 
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/',
+    path: '/',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/about',
+    path: '/about',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const FootprintRoute = FootprintRouteImport.update({
-  id: '/footprint',
-  path: '/footprint',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/footprint',
+    path: '/footprint',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const HackathonsRoute = HackathonsRouteImport.update({
-  id: '/hackathons',
-  path: '/hackathons',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/hackathons',
+    path: '/hackathons',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/login',
+    path: '/login',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/pricing',
+    path: '/pricing',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/privacy',
+    path: '/privacy',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const StartRoute = StartRouteImport.update({
-  id: '/start',
-  path: '/start',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/start',
+    path: '/start',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const HSlugRoute = HSlugRouteImport.update({
-  id: '/h/$slug',
-  path: '/h/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/h/$slug',
+    path: '/h/$slug',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const HMineRoute = HMineRouteImport.update({
-  id: '/h/mine',
-  path: '/h/mine',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/h/mine',
+    path: '/h/mine',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const HNewRoute = HNewRouteImport.update({
-  id: '/h/new',
-  path: '/h/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/h/new',
+    path: '/h/new',
+    getParentRoute: () => rootRouteImport,
+} as any);
 const UUsernameRoute = UUsernameRouteImport.update({
-  id: '/u/$username',
-  path: '/u/$username',
-  getParentRoute: () => rootRouteImport,
-} as any)
+    id: '/u/$username',
+    path: '/u/$username',
+    getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/footprint': typeof FootprintRoute
-  '/hackathons': typeof HackathonsRoute
-  '/login': typeof LoginRoute
-  '/pricing': typeof PricingRoute
-  '/privacy': typeof PrivacyRoute
-  '/start': typeof StartRoute
-  '/h/$slug': typeof HSlugRoute
-  '/h/mine': typeof HMineRoute
-  '/h/new': typeof HNewRoute
-  '/u/$username': typeof UUsernameRoute
+    '/': typeof IndexRoute;
+    '/about': typeof AboutRoute;
+    '/footprint': typeof FootprintRoute;
+    '/hackathons': typeof HackathonsRoute;
+    '/login': typeof LoginRoute;
+    '/pricing': typeof PricingRoute;
+    '/privacy': typeof PrivacyRoute;
+    '/start': typeof StartRoute;
+    '/h/$slug': typeof HSlugRoute;
+    '/h/mine': typeof HMineRoute;
+    '/h/new': typeof HNewRoute;
+    '/u/$username': typeof UUsernameRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/footprint': typeof FootprintRoute
-  '/hackathons': typeof HackathonsRoute
-  '/login': typeof LoginRoute
-  '/pricing': typeof PricingRoute
-  '/privacy': typeof PrivacyRoute
-  '/start': typeof StartRoute
-  '/h/$slug': typeof HSlugRoute
-  '/h/mine': typeof HMineRoute
-  '/h/new': typeof HNewRoute
-  '/u/$username': typeof UUsernameRoute
+    '/': typeof IndexRoute;
+    '/about': typeof AboutRoute;
+    '/footprint': typeof FootprintRoute;
+    '/hackathons': typeof HackathonsRoute;
+    '/login': typeof LoginRoute;
+    '/pricing': typeof PricingRoute;
+    '/privacy': typeof PrivacyRoute;
+    '/start': typeof StartRoute;
+    '/h/$slug': typeof HSlugRoute;
+    '/h/mine': typeof HMineRoute;
+    '/h/new': typeof HNewRoute;
+    '/u/$username': typeof UUsernameRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/about': typeof AboutRoute
-  '/footprint': typeof FootprintRoute
-  '/hackathons': typeof HackathonsRoute
-  '/login': typeof LoginRoute
-  '/pricing': typeof PricingRoute
-  '/privacy': typeof PrivacyRoute
-  '/start': typeof StartRoute
-  '/h/$slug': typeof HSlugRoute
-  '/h/mine': typeof HMineRoute
-  '/h/new': typeof HNewRoute
-  '/u/$username': typeof UUsernameRoute
+    __root__: typeof rootRouteImport;
+    '/': typeof IndexRoute;
+    '/about': typeof AboutRoute;
+    '/footprint': typeof FootprintRoute;
+    '/hackathons': typeof HackathonsRoute;
+    '/login': typeof LoginRoute;
+    '/pricing': typeof PricingRoute;
+    '/privacy': typeof PrivacyRoute;
+    '/start': typeof StartRoute;
+    '/h/$slug': typeof HSlugRoute;
+    '/h/mine': typeof HMineRoute;
+    '/h/new': typeof HNewRoute;
+    '/u/$username': typeof UUsernameRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/about'
-    | '/footprint'
-    | '/hackathons'
-    | '/login'
-    | '/pricing'
-    | '/privacy'
-    | '/start'
-    | '/h/$slug'
-    | '/h/mine'
-    | '/h/new'
-    | '/u/$username'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/about'
-    | '/footprint'
-    | '/hackathons'
-    | '/login'
-    | '/pricing'
-    | '/privacy'
-    | '/start'
-    | '/h/$slug'
-    | '/h/mine'
-    | '/h/new'
-    | '/u/$username'
-  id:
-    | '__root__'
-    | '/'
-    | '/about'
-    | '/footprint'
-    | '/hackathons'
-    | '/login'
-    | '/pricing'
-    | '/privacy'
-    | '/start'
-    | '/h/$slug'
-    | '/h/mine'
-    | '/h/new'
-    | '/u/$username'
-  fileRoutesById: FileRoutesById
+    fileRoutesByFullPath: FileRoutesByFullPath;
+    fullPaths:
+        | '/'
+        | '/about'
+        | '/footprint'
+        | '/hackathons'
+        | '/login'
+        | '/pricing'
+        | '/privacy'
+        | '/start'
+        | '/h/$slug'
+        | '/h/mine'
+        | '/h/new'
+        | '/u/$username';
+    fileRoutesByTo: FileRoutesByTo;
+    to:
+        | '/'
+        | '/about'
+        | '/footprint'
+        | '/hackathons'
+        | '/login'
+        | '/pricing'
+        | '/privacy'
+        | '/start'
+        | '/h/$slug'
+        | '/h/mine'
+        | '/h/new'
+        | '/u/$username';
+    id:
+        | '__root__'
+        | '/'
+        | '/about'
+        | '/footprint'
+        | '/hackathons'
+        | '/login'
+        | '/pricing'
+        | '/privacy'
+        | '/start'
+        | '/h/$slug'
+        | '/h/mine'
+        | '/h/new'
+        | '/u/$username';
+    fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
-  FootprintRoute: typeof FootprintRoute
-  HackathonsRoute: typeof HackathonsRoute
-  LoginRoute: typeof LoginRoute
-  PricingRoute: typeof PricingRoute
-  PrivacyRoute: typeof PrivacyRoute
-  StartRoute: typeof StartRoute
-  HSlugRoute: typeof HSlugRoute
-  HMineRoute: typeof HMineRoute
-  HNewRoute: typeof HNewRoute
-  UUsernameRoute: typeof UUsernameRoute
+    IndexRoute: typeof IndexRoute;
+    AboutRoute: typeof AboutRoute;
+    FootprintRoute: typeof FootprintRoute;
+    HackathonsRoute: typeof HackathonsRoute;
+    LoginRoute: typeof LoginRoute;
+    PricingRoute: typeof PricingRoute;
+    PrivacyRoute: typeof PrivacyRoute;
+    StartRoute: typeof StartRoute;
+    HSlugRoute: typeof HSlugRoute;
+    HMineRoute: typeof HMineRoute;
+    HNewRoute: typeof HNewRoute;
+    UUsernameRoute: typeof UUsernameRoute;
 }
 
 declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+    interface FileRoutesByPath {
+        '/': {
+            id: '/';
+            path: '/';
+            fullPath: '/';
+            preLoaderRoute: typeof IndexRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/about': {
+            id: '/about';
+            path: '/about';
+            fullPath: '/about';
+            preLoaderRoute: typeof AboutRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/footprint': {
+            id: '/footprint';
+            path: '/footprint';
+            fullPath: '/footprint';
+            preLoaderRoute: typeof FootprintRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/hackathons': {
+            id: '/hackathons';
+            path: '/hackathons';
+            fullPath: '/hackathons';
+            preLoaderRoute: typeof HackathonsRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/login': {
+            id: '/login';
+            path: '/login';
+            fullPath: '/login';
+            preLoaderRoute: typeof LoginRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/pricing': {
+            id: '/pricing';
+            path: '/pricing';
+            fullPath: '/pricing';
+            preLoaderRoute: typeof PricingRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/privacy': {
+            id: '/privacy';
+            path: '/privacy';
+            fullPath: '/privacy';
+            preLoaderRoute: typeof PrivacyRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/start': {
+            id: '/start';
+            path: '/start';
+            fullPath: '/start';
+            preLoaderRoute: typeof StartRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/h/$slug': {
+            id: '/h/$slug';
+            path: '/h/$slug';
+            fullPath: '/h/$slug';
+            preLoaderRoute: typeof HSlugRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/h/mine': {
+            id: '/h/mine';
+            path: '/h/mine';
+            fullPath: '/h/mine';
+            preLoaderRoute: typeof HMineRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/h/new': {
+            id: '/h/new';
+            path: '/h/new';
+            fullPath: '/h/new';
+            preLoaderRoute: typeof HNewRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
+        '/u/$username': {
+            id: '/u/$username';
+            path: '/u/$username';
+            fullPath: '/u/$username';
+            preLoaderRoute: typeof UUsernameRouteImport;
+            parentRoute: typeof rootRouteImport;
+        };
     }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/footprint': {
-      id: '/footprint'
-      path: '/footprint'
-      fullPath: '/footprint'
-      preLoaderRoute: typeof FootprintRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/hackathons': {
-      id: '/hackathons'
-      path: '/hackathons'
-      fullPath: '/hackathons'
-      preLoaderRoute: typeof HackathonsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/start': {
-      id: '/start'
-      path: '/start'
-      fullPath: '/start'
-      preLoaderRoute: typeof StartRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/h/$slug': {
-      id: '/h/$slug'
-      path: '/h/$slug'
-      fullPath: '/h/$slug'
-      preLoaderRoute: typeof HSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/h/mine': {
-      id: '/h/mine'
-      path: '/h/mine'
-      fullPath: '/h/mine'
-      preLoaderRoute: typeof HMineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/h/new': {
-      id: '/h/new'
-      path: '/h/new'
-      fullPath: '/h/new'
-      preLoaderRoute: typeof HNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/u/$username': {
-      id: '/u/$username'
-      path: '/u/$username'
-      fullPath: '/u/$username'
-      preLoaderRoute: typeof UUsernameRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
-  FootprintRoute: FootprintRoute,
-  HackathonsRoute: HackathonsRoute,
-  LoginRoute: LoginRoute,
-  PricingRoute: PricingRoute,
-  PrivacyRoute: PrivacyRoute,
-  StartRoute: StartRoute,
-  HSlugRoute: HSlugRoute,
-  HMineRoute: HMineRoute,
-  HNewRoute: HNewRoute,
-  UUsernameRoute: UUsernameRoute,
-}
+    IndexRoute: IndexRoute,
+    AboutRoute: AboutRoute,
+    FootprintRoute: FootprintRoute,
+    HackathonsRoute: HackathonsRoute,
+    LoginRoute: LoginRoute,
+    PricingRoute: PricingRoute,
+    PrivacyRoute: PrivacyRoute,
+    StartRoute: StartRoute,
+    HSlugRoute: HSlugRoute,
+    HMineRoute: HMineRoute,
+    HNewRoute: HNewRoute,
+    UUsernameRoute: UUsernameRoute,
+};
 export const routeTree = rootRouteImport
-  ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+    ._addFileChildren(rootRouteChildren)
+    ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { createStart } from '@tanstack/react-start';
+import type { getRouter } from './router.tsx';
 declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
+    interface Register {
+        ssr: true;
+        router: Awaited<ReturnType<typeof getRouter>>;
+    }
 }

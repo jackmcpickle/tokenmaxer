@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { Button } from '@/pages/components/button';
 import { Layout } from '@/pages/layout';
 import { hero, heroActions, sub } from '@/pages/ui';
@@ -8,17 +8,17 @@ export const About: FC<{ base: string }> = ({ base }) => (
         title="About · tokenmaxer.quest"
         base={base}
     >
-        <section class={hero}>
-            <h1 class="reveal">About tokenmaxer.quest</h1>
-            <p class={`${sub} reveal reveal-delay`}>
+        <section className={hero}>
+            <h1 className="reveal">About tokenmaxer.quest</h1>
+            <p className={`${sub} reveal reveal-delay`}>
                 A public leaderboard of tokens burned by AI builders — nothing
                 more.
             </p>
         </section>
 
-        <div class="mx-auto max-w-[65ch]">
+        <div className="mx-auto max-w-[65ch]">
             <h2>What it tracks</h2>
-            <p class="mb-6 text-muted">
+            <p className="mb-6 text-muted">
                 For each coding session, tokenmaxer.quest stores only token
                 counts — input, output, cache read, cache write, and reasoning
                 tokens — broken down by model and by tool (Claude Code, Codex,
@@ -30,7 +30,7 @@ export const About: FC<{ base: string }> = ({ base }) => (
             </p>
 
             <h2>Where the numbers come from</h2>
-            <p class="mb-4 text-muted">
+            <p className="mb-4 text-muted">
                 Claude Code, Codex, opencode and pi each write local session
                 files. The reporter reads those files — the same ones community
                 tools like <code>ccusage</code> parse — sums the usage per
@@ -38,45 +38,45 @@ export const About: FC<{ base: string }> = ({ base }) => (
                 contain token counts, so the reporter reads the session files
                 directly:
             </p>
-            <ul class="mb-6 list-disc space-y-2 pl-5 text-muted">
+            <ul className="mb-6 list-disc space-y-2 pl-5 text-muted">
                 <li>
-                    <strong class="text-text">Claude Code:</strong>{' '}
+                    <strong className="text-text">Claude Code:</strong>{' '}
                     <code>~/.claude/projects/**/&lt;session&gt;.jsonl</code> —
                     the <code>usage</code> block on each assistant message.
                 </li>
                 <li>
-                    <strong class="text-text">Codex:</strong>{' '}
+                    <strong className="text-text">Codex:</strong>{' '}
                     <code>~/.codex/sessions/**/rollout-*.jsonl</code> — the last{' '}
                     <code>token_count</code> event per session.
                 </li>
                 <li>
-                    <strong class="text-text">opencode:</strong>{' '}
+                    <strong className="text-text">opencode:</strong>{' '}
                     <code>
                         ~/.local/share/opencode/storage/message/&lt;session&gt;/*.json
                     </code>{' '}
                     — the <code>tokens</code> block on each assistant message.
                 </li>
                 <li>
-                    <strong class="text-text">pi:</strong>{' '}
+                    <strong className="text-text">pi:</strong>{' '}
                     <code>~/.pi/agent/sessions/**/*.jsonl</code> — the{' '}
                     <code>usage</code> on each assistant record (deduped by id).
                 </li>
             </ul>
-            <p class="mb-6 text-muted">
+            <p className="mb-6 text-muted">
                 Reporting is triggered by{' '}
-                <strong class="text-text">SessionStart</strong> and{' '}
-                <strong class="text-text">SessionEnd</strong> hooks — no
+                <strong className="text-text">SessionStart</strong> and{' '}
+                <strong className="text-text">SessionEnd</strong> hooks — no
                 background daemon, no cron. Because each session is keyed by its
                 id and the server overwrites rather than adds, re-reporting the
                 same session never double-counts.
             </p>
         </div>
 
-        <aside class="spotlight spotlight-coral mx-auto my-12 max-w-[720px]">
-            <p class="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
+        <aside className="spotlight spotlight-coral mx-auto my-12 max-w-[720px]">
+            <p className="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
                 The honest part
             </p>
-            <p class="text-[22px] leading-snug tracking-[-0.01px]">
+            <p className="text-[22px] leading-snug tracking-[-0.01px]">
                 Token counts are self-reported. There&apos;s no way to
                 cryptographically prove numbers generated on someone&apos;s own
                 machine, so this is an honor system. We apply light guardrails —
@@ -86,9 +86,9 @@ export const About: FC<{ base: string }> = ({ base }) => (
             </p>
         </aside>
 
-        <div class="mx-auto max-w-[65ch]">
+        <div className="mx-auto max-w-[65ch]">
             <h2>Accounts &amp; privacy</h2>
-            <p class="mb-6 text-muted">
+            <p className="mb-6 text-muted">
                 You pick a username and get a secret token. The token is the
                 only credential; we store just a SHA-256 hash of it, never the
                 token itself. There&apos;s no email and no recovery — if you
@@ -100,7 +100,7 @@ export const About: FC<{ base: string }> = ({ base }) => (
                 non-PII by default.
             </p>
 
-            <div class={heroActions}>
+            <div className={heroActions}>
                 <Button
                     variant="primary"
                     href="/start"

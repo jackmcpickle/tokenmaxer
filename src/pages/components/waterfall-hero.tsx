@@ -1,4 +1,4 @@
-import type { Child, FC } from 'hono/jsx';
+import type { FC, ReactNode } from 'react';
 
 /**
  * Full procedural waterfall of light.
@@ -568,33 +568,33 @@ const HERO_SCROLL_SCRIPT = `
 `;
 
 export const WaterfallHero: FC<{
-    title?: Child;
-    children?: Child;
+    title?: ReactNode;
+    children?: ReactNode;
 }> = (props) => (
     <section
-        class="waterfall-hero"
+        className="waterfall-hero"
         aria-label="Hero"
     >
         <div
-            class="waterfall-hero__bg"
+            className="waterfall-hero__bg"
             aria-hidden="true"
         >
             <canvas
                 id="waterfall-canvas"
-                class="waterfall-hero__canvas"
+                className="waterfall-hero__canvas"
             />
-            <div class="waterfall-hero__veil" />
+            <div className="waterfall-hero__veil" />
         </div>
         {/*
           Title must not sit inside a z-index stacking context, or mix-blend
           samples a transparent layer instead of the waterfall canvas.
         */}
-        <div class="waterfall-hero__stage">
+        <div className="waterfall-hero__stage">
             {props.title}
-            <div class="waterfall-hero__copy">{props.children}</div>
+            <div className="waterfall-hero__copy">{props.children}</div>
         </div>
         <div
-            class="waterfall-hero__fade"
+            className="waterfall-hero__fade"
             aria-hidden="true"
         />
         {/* eslint-disable-next-line */}

@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { countryName, flagEmoji } from '@/lib/countries';
 import { familyLabel } from '@/lib/model-family';
 import { FilterDialog } from '@/pages/components/filter-dialog';
@@ -24,21 +24,21 @@ export const BoardFilters: FC<{
     return (
         <div
             id="board-filters"
-            class="flex flex-wrap items-center gap-2 border-b border-border px-3 py-3 sm:px-5"
+            className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-3 sm:px-5"
         >
-            <details class="board-filter-menu">
-                <summary class="board-filter-menu__trigger">Filter</summary>
-                <div class="board-filter-menu__panel">
+            <details className="board-filter-menu">
+                <summary className="board-filter-menu__trigger">Filter</summary>
+                <div className="board-filter-menu__panel">
                     <button
                         type="button"
-                        class="board-filter-menu__item"
+                        className="board-filter-menu__item"
                         data-filter-dialog="source"
                     >
                         Source
                     </button>
                     <button
                         type="button"
-                        class="board-filter-menu__item"
+                        className="board-filter-menu__item"
                         data-filter-dialog="model"
                     >
                         Model
@@ -46,7 +46,7 @@ export const BoardFilters: FC<{
                     {countries.length > 0 && (
                         <button
                             type="button"
-                            class="board-filter-menu__item"
+                            className="board-filter-menu__item"
                             data-filter-dialog="country"
                         >
                             Country

@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { COUNTRIES, flagEmoji } from '@/lib/countries';
 import { Button } from '@/pages/components/button';
 import { Input } from '@/pages/components/input';
@@ -149,10 +149,10 @@ const TABS: Array<{ id: string; label: string }> = [
 
 const SETUP_TIP = (
     <>
-        <p class="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
+        <p className="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
             Setup tip
         </p>
-        <p class="text-[22px] leading-snug tracking-[-0.01px]">
+        <p className="text-[22px] leading-snug tracking-[-0.01px]">
             After you claim, paste the agent prompt into your coding agent — it
             can set everything up for you.
         </p>
@@ -168,7 +168,7 @@ export const Start: FC<{
         base={base}
     >
         {!invited && (
-            <div class="mt-6 rounded-lg bg-panel2 px-4 py-3.5 text-sm text-text">
+            <div className="mt-6 rounded-lg bg-panel2 px-4 py-3.5 text-sm text-text">
                 Username claims are invite-only.{' '}
                 <a href="mailto:jackmcpickle@gmail.com?subject=tokenmaxer.quest%20invite">
                     Email me
@@ -177,9 +177,9 @@ export const Start: FC<{
             </div>
         )}
 
-        <section class={hero}>
-            <h1 class="reveal">Claim your name</h1>
-            <p class={`${sub} reveal reveal-delay`}>
+        <section className={hero}>
+            <h1 className="reveal">Claim your name</h1>
+            <p className={`${sub} reveal reveal-delay`}>
                 Pick a username, optionally add a public profile link, get a
                 token, let your agent set everything up. No email, no password —
                 the token is your only credential, so keep it somewhere safe.
@@ -187,17 +187,17 @@ export const Start: FC<{
         </section>
 
         {invited && (
-            <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
                 <div
                     id="claim-panel"
-                    class={panel}
+                    className={panel}
                 >
-                    <div class="mb-5 grid gap-4 rounded-lg bg-panel2 p-4 sm:grid-cols-2">
+                    <div className="mb-5 grid gap-4 rounded-lg bg-panel2 p-4 sm:grid-cols-2">
                         <div>
-                            <p class="mb-2 text-[13px] font-semibold tracking-[-0.13px] text-text">
+                            <p className="mb-2 text-[13px] font-semibold tracking-[-0.13px] text-text">
                                 What we store
                             </p>
-                            <ul class="list-disc space-y-1 pl-4 text-[13px] text-muted">
+                            <ul className="list-disc space-y-1 pl-4 text-[13px] text-muted">
                                 <li>Your username &amp; country</li>
                                 <li>
                                     Per-session token counts, model &amp; tool
@@ -210,19 +210,19 @@ export const Start: FC<{
                             </ul>
                         </div>
                         <div>
-                            <p class="mb-2 text-[13px] font-semibold tracking-[-0.13px] text-text">
+                            <p className="mb-2 text-[13px] font-semibold tracking-[-0.13px] text-text">
                                 What we never store
                             </p>
-                            <ul class="list-disc space-y-1 pl-4 text-[13px] text-muted">
+                            <ul className="list-disc space-y-1 pl-4 text-[13px] text-muted">
                                 <li>Prompts, code, or file paths</li>
                                 <li>Email or password</li>
                                 <li>Your raw token</li>
                             </ul>
                         </div>
-                        <p class="text-[12px] text-muted sm:col-span-2">
+                        <p className="text-[12px] text-muted sm:col-span-2">
                             Private by default — no email, no password. The
                             token is your only credential.{' '}
-                            <strong class="text-text">
+                            <strong className="text-text">
                                 If you lose it there&apos;s no recovery
                             </strong>{' '}
                             and the username is stranded; rotate it while you
@@ -236,25 +236,25 @@ export const Start: FC<{
                     </div>
                     <form id="reg">
                         <label
-                            class={field}
+                            className={field}
                             htmlFor="username"
                         >
-                            <span class={fieldLbl}>
+                            <span className={fieldLbl}>
                                 Username (2–32 chars: letters, numbers, _ or -)
                             </span>
                             <Input
                                 variant="text"
                                 id="username"
                                 placeholder="e.g. tokenlord"
-                                autocomplete="off"
+                                autoComplete="off"
                                 required
                             />
                         </label>
                         <label
-                            class={field}
+                            className={field}
                             htmlFor="country"
                         >
-                            <span class={fieldLbl}>Country</span>
+                            <span className={fieldLbl}>Country</span>
                             <Input
                                 variant="select"
                                 id="country"
@@ -279,21 +279,21 @@ export const Start: FC<{
                             </Input>
                         </label>
                         <label
-                            class={field}
+                            className={field}
                             htmlFor="profile-url"
                         >
-                            <span class={fieldLbl}>
+                            <span className={fieldLbl}>
                                 Profile URL (optional, https)
                             </span>
                             <Input
                                 variant="text"
                                 id="profile-url"
                                 placeholder="https://github.com/you"
-                                autocomplete="off"
+                                autoComplete="off"
                             />
                         </label>
                         <div
-                            class="cf-turnstile mb-4"
+                            className="cf-turnstile mb-4"
                             data-sitekey={TURNSTILE_SITE_KEY}
                             data-theme="dark"
                         />
@@ -305,20 +305,22 @@ export const Start: FC<{
                         </Button>
                         <span
                             id="err"
-                            class="ml-3 text-danger"
+                            className="ml-3 text-danger"
                         />
                     </form>
                 </div>
 
-                <aside class="spotlight spotlight-orange">{SETUP_TIP}</aside>
+                <aside className="spotlight spotlight-orange">
+                    {SETUP_TIP}
+                </aside>
             </div>
         )}
 
         <div
             id="result"
-            class="mt-6 hidden"
+            className="mt-6 hidden"
         >
-            <div class={notice}>
+            <div className={notice}>
                 <strong>
                     Welcome, <span id="r-user" />.
                 </strong>{' '}
@@ -326,10 +328,10 @@ export const Start: FC<{
                 be recovered.
             </div>
 
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-                <div class={panel}>
-                    <h2 class="mt-0">Your token</h2>
-                    <div class={copyrow}>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+                <div className={panel}>
+                    <h2 className="mt-0">Your token</h2>
+                    <div className={copyrow}>
                         <pre id="r-token" />
                         <Button
                             variant="copy"
@@ -339,7 +341,7 @@ export const Start: FC<{
                             Copy
                         </Button>
                     </div>
-                    <p class={`${sub} mt-4 mb-0`}>
+                    <p className={`${sub} mt-4 mb-0`}>
                         <a
                             id="r-profile"
                             href="/"
@@ -349,11 +351,11 @@ export const Start: FC<{
                     </p>
                 </div>
 
-                <aside class="spotlight spotlight-magenta h-fit">
-                    <p class="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
+                <aside className="spotlight spotlight-magenta h-fit">
+                    <p className="mb-3 text-[13px] font-medium tracking-[-0.13px] text-white/80">
                         Keep the token
                     </p>
-                    <p class="text-[22px] leading-snug tracking-[-0.01px]">
+                    <p className="text-[22px] leading-snug tracking-[-0.01px]">
                         Store it offline. There&apos;s no email recovery — the
                         hash on the server can&apos;t recreate the secret.
                     </p>
@@ -362,15 +364,15 @@ export const Start: FC<{
         </div>
 
         <div
-            class={
+            className={
                 invited
                     ? ''
                     : 'grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]'
             }
         >
-            <div class={`${panel} min-w-0`}>
-                <h2 class="mt-0">One-time setup</h2>
-                <p class={muted}>
+            <div className={`${panel} min-w-0`}>
+                <h2 className="mt-0">One-time setup</h2>
+                <p className={muted}>
                     Installs the open-source{' '}
                     <a href="https://www.npmjs.com/package/tokenmaxer">
                         <code>tokenmaxer</code>
@@ -383,7 +385,7 @@ export const Start: FC<{
                     <code>--dry-run</code> to see the exact payload. Run in a
                     terminal:
                 </p>
-                <div class={copyrow}>
+                <div className={copyrow}>
                     <pre id="r-setup" />
                     <Button
                         variant="copy"
@@ -394,11 +396,11 @@ export const Start: FC<{
                     </Button>
                 </div>
 
-                <div class="mt-6 mb-4 flex flex-wrap border-b border-border">
+                <div className="mt-6 mb-4 flex flex-wrap border-b border-border">
                     {TABS.map((t) => (
                         <button
                             key={t.id}
-                            class={`tab${t.id === 'agent' ? ' tab-active' : ''}`}
+                            className={`tab${t.id === 'agent' ? ' tab-active' : ''}`}
                             type="button"
                             data-tab={t.id}
                         >
@@ -409,14 +411,14 @@ export const Start: FC<{
 
                 <div
                     id="tab-agent"
-                    class="tab-panel"
+                    className="tab-panel"
                 >
-                    <p class={muted}>
+                    <p className={muted}>
                         Run the one-time setup above yourself (so your token
                         never enters the chat), then paste this into your coding
                         agent — it will do the rest.
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-agent" />
                         <Button
                             variant="copy"
@@ -430,13 +432,13 @@ export const Start: FC<{
 
                 <div
                     id="tab-claude"
-                    class="tab-panel hidden"
+                    className="tab-panel hidden"
                 >
                     <h2>Claude Code hooks</h2>
-                    <p class={muted}>
+                    <p className={muted}>
                         Merge into <code>~/.claude/settings.json</code>:
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-claude" />
                         <Button
                             variant="copy"
@@ -450,15 +452,15 @@ export const Start: FC<{
 
                 <div
                     id="tab-codex"
-                    class="tab-panel hidden"
+                    className="tab-panel hidden"
                 >
                     <h2>Codex hooks</h2>
-                    <p class={muted}>
+                    <p className={muted}>
                         Add to <code>~/.codex/config.toml</code>. Codex has no
                         SessionEnd hook, so your latest session reports when you
                         next launch Codex.
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-codex" />
                         <Button
                             variant="copy"
@@ -472,16 +474,16 @@ export const Start: FC<{
 
                 <div
                     id="tab-opencode"
-                    class="tab-panel hidden"
+                    className="tab-panel hidden"
                 >
                     <h2>opencode hook</h2>
-                    <p class={muted}>
+                    <p className={muted}>
                         opencode has no shell hooks, so add a wrapper function
                         to your <code>~/.bashrc</code> or <code>~/.zshrc</code>.
                         It reports your latest sessions each time opencode
                         exits:
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-opencode" />
                         <Button
                             variant="copy"
@@ -495,14 +497,14 @@ export const Start: FC<{
 
                 <div
                     id="tab-pi"
-                    class="tab-panel hidden"
+                    className="tab-panel hidden"
                 >
                     <h2>pi hook</h2>
-                    <p class={muted}>
+                    <p className={muted}>
                         Same idea for pi — add a wrapper function to your{' '}
                         <code>~/.bashrc</code> or <code>~/.zshrc</code>:
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-pi" />
                         <Button
                             variant="copy"
@@ -516,10 +518,10 @@ export const Start: FC<{
 
                 <div
                     id="tab-cursor"
-                    class="tab-panel hidden"
+                    className="tab-panel hidden"
                 >
                     <h2>Cursor</h2>
-                    <p class={muted}>
+                    <p className={muted}>
                         Cursor doesn&apos;t expose token usage to hooks, so the
                         reporter reads your own usage from Cursor&apos;s
                         dashboard API using the Cursor login already on this
@@ -530,7 +532,7 @@ export const Start: FC<{
                         <code>~/.cursor/hooks.json</code> so every session
                         triggers a sync:
                     </p>
-                    <div class={copyrow}>
+                    <div className={copyrow}>
                         <pre id="r-cursor" />
                         <Button
                             variant="copy"
@@ -540,7 +542,7 @@ export const Start: FC<{
                             Copy
                         </Button>
                     </div>
-                    <p class={`${muted} mt-3 text-[13px]`}>
+                    <p className={`${muted} mt-3 text-[13px]`}>
                         If auto-auth fails (Cursor not logged in on this
                         machine), see the{' '}
                         <a href="https://github.com/jackmcpickle/tokenmaxer/tree/main/reporter">
@@ -551,7 +553,7 @@ export const Start: FC<{
                 </div>
 
                 <h2>Backfill past history (optional)</h2>
-                <p class={muted}>
+                <p className={muted}>
                     The hooks only report new sessions. To include sessions from
                     before you installed tokenmaxer.quest, run this once — it
                     computes token-count summaries from your local Claude Code,
@@ -562,7 +564,7 @@ export const Start: FC<{
                     <code>opencode</code>, <code>pi</code> or{' '}
                     <code>cursor</code> to limit it to one tool:
                 </p>
-                <div class={copyrow}>
+                <div className={copyrow}>
                     <pre id="r-backfill">tokenmaxer backfill</pre>
                     <Button
                         variant="copy"
@@ -574,7 +576,7 @@ export const Start: FC<{
                 </div>
             </div>
             {!invited && (
-                <aside class="spotlight spotlight-orange h-fit">
+                <aside className="spotlight spotlight-orange h-fit">
                     {SETUP_TIP}
                 </aside>
             )}

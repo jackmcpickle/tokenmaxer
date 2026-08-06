@@ -4,5 +4,21 @@ allowBuilds:
   sharp: true
   workerd: true
 
+minimumReleaseAgeExclude:
+  - "@tanstack/history@1.162.1"
+  - "@tanstack/react-router@1.170.21"
+  - "@tanstack/react-start-client@1.168.19"
+  - "@tanstack/react-start-rsc@0.1.37"
+  - "@tanstack/react-start-server@1.167.26"
+  - "@tanstack/react-start@1.168.38"
+  - "@tanstack/router-core@1.171.18"
+  - "@tanstack/router-generator@1.167.24"
+  - "@tanstack/router-plugin@1.168.26"
+  - "@tanstack/start-client-core@1.170.17"
+  - "@tanstack/start-plugin-core@1.171.29"
+  - "@tanstack/start-server-core@1.169.21"
+  - "@tanstack/start-storage-context@1.167.20"
+  - vite@8.2.1
+
 packages:
   - "reporter"

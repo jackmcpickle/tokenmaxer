@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx';
+import type { FC } from 'react';
 import { countryName, flagEmoji } from '@/lib/countries';
 import {
     type ImpactMetric,
@@ -113,12 +113,12 @@ export const Footprint: FC<FootprintProps> = (p) => (
         title="Footprint · tokenmaxer.quest"
         base={p.base}
     >
-        <section class={hero}>
-            <h1 class="reveal">Footprint</h1>
-            <p class={`${sub} reveal reveal-delay`}>
+        <section className={hero}>
+            <h1 className="reveal">Footprint</h1>
+            <p className={`${sub} reveal reveal-delay`}>
                 Estimated energy, water, and CO₂e from reported tokens. Ranked
                 by{' '}
-                <strong class="text-text">
+                <strong className="text-text">
                     {IMPACT_METRIC_LABELS[p.metric]}
                 </strong>{' '}
                 · {WINDOW_LABELS[p.window]} ·{' '}
@@ -128,7 +128,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
         </section>
 
         <form
-            class={filters}
+            className={filters}
             method="get"
             action="/footprint"
         >
@@ -153,7 +153,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
                 value={p.region}
             />
             <label
-                class={filterLabel}
+                className={filterLabel}
                 htmlFor="filter-source"
             >
                 Source
@@ -161,7 +161,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
                     variant="select"
                     id="filter-source"
                     name="source"
-                    onchange={AUTO_SUBMIT}
+                    htmlOnChange={AUTO_SUBMIT}
                 >
                     <option
                         value=""
@@ -202,7 +202,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
                 </Input>
             </label>
             <label
-                class={filterLabel}
+                className={filterLabel}
                 htmlFor="filter-model"
             >
                 Model
@@ -210,7 +210,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
                     variant="select"
                     id="filter-model"
                     name="model"
-                    onchange={AUTO_SUBMIT}
+                    htmlOnChange={AUTO_SUBMIT}
                 >
                     <option
                         value=""
@@ -231,7 +231,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
             </label>
             {p.countries.length > 0 && (
                 <label
-                    class={filterLabel}
+                    className={filterLabel}
                     htmlFor="filter-country"
                 >
                     Country
@@ -239,7 +239,7 @@ export const Footprint: FC<FootprintProps> = (p) => (
                         variant="select"
                         id="filter-country"
                         name="country"
-                        onchange={AUTO_SUBMIT}
+                        htmlOnChange={AUTO_SUBMIT}
                     >
                         <option
                             value=""
@@ -272,11 +272,11 @@ export const Footprint: FC<FootprintProps> = (p) => (
             country={p.country}
         />
 
-        <section class="mx-auto mb-10 max-w-[65ch]">
-            <h2 class="mb-3 text-xl font-extrabold tracking-[-0.02em]">
+        <section className="mx-auto mb-10 max-w-[65ch]">
+            <h2 className="mb-3 text-xl font-extrabold tracking-[-0.02em]">
                 How we estimate
             </h2>
-            <p class="mb-4 text-muted">
+            <p className="mb-4 text-muted">
                 Token totals convert to IT energy, then facility energy via PUE.
                 Water is site cooling (WUE) plus grid water. CO₂e uses the
                 selected region&apos;s grid intensity. Low / Central / High vary
@@ -299,15 +299,17 @@ export const Footprint: FC<FootprintProps> = (p) => (
                 </a>
                 .
             </p>
-            <p class="mb-4 text-muted">
+            <p className="mb-4 text-muted">
                 Each row also shows percent of an average household framed as{' '}
-                <strong class="text-text">two adults and two children</strong>{' '}
+                <strong className="text-text">
+                    two adults and two children
+                </strong>{' '}
                 for that region (electricity, water, or electricity-linked
                 CO₂e). China and India household baselines are approximate
                 order-of-magnitude fillers. For all-time rankings, household %
                 uses a 30-day household denominator.
             </p>
-            <p class="text-sm text-muted">
+            <p className="text-sm text-muted">
                 Disclaimer: these are awareness estimates. Actual use varies by
                 data center, cooling, hardware, batching, and where the model
                 really runs. Low–High is real-world spread, not measurement
@@ -316,24 +318,24 @@ export const Footprint: FC<FootprintProps> = (p) => (
         </section>
 
         <section
-            class="mx-auto max-w-[65ch]"
+            className="mx-auto max-w-[65ch]"
             id="references"
         >
-            <h2 class="mb-3 text-xl font-extrabold tracking-[-0.02em]">
+            <h2 className="mb-3 text-xl font-extrabold tracking-[-0.02em]">
                 References
             </h2>
-            <ul class="flex list-none flex-col gap-3 p-0">
+            <ul className="flex list-none flex-col gap-3 p-0">
                 {REFERENCES.map(({ href, title, usedFor }) => (
                     <li key={href}>
                         <a
-                            class="font-medium text-accent"
+                            className="font-medium text-accent"
                             href={href}
                             rel="noopener noreferrer"
                             target="_blank"
                         >
                             {title}
                         </a>
-                        <span class="mt-0.5 block text-sm text-muted">
+                        <span className="mt-0.5 block text-sm text-muted">
                             {usedFor}
                         </span>
                     </li>

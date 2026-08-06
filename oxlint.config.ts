@@ -177,6 +177,22 @@ export default defineConfig({
             },
         },
         {
+            // TanStack Start entry + file routes (framework conventions).
+            files: [
+                'src/server.ts',
+                'src/router.tsx',
+                'src/routeTree.gen.ts',
+                'src/routes/**',
+            ],
+            rules: {
+                'import/no-default-export': 'off',
+                'import/no-unassigned-import': 'off',
+                'react/no-multi-comp': 'off',
+                'typescript/explicit-function-return-type': 'off',
+                'typescript/explicit-module-boundary-types': 'off',
+            },
+        },
+        {
             files: ['src/pages/layout.tsx'],
             rules: {
                 // Tailwind-built stylesheet inlined via wrangler Text rule; the

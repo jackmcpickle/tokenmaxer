@@ -1,5 +1,9 @@
 import { createServerFn } from '@tanstack/react-start';
-import { getCookie, getRequest, getRequestUrl } from '@tanstack/react-start/server';
+import {
+    getCookie,
+    getRequest,
+    getRequestUrl,
+} from '@tanstack/react-start/server';
 import { env } from 'cloudflare:workers';
 import { baseUrl } from '@/lib/base-url';
 import { INVITE_COOKIE, inviteSessionAllowed } from '@/lib/invite';
@@ -10,10 +14,12 @@ function getEnv(): Env {
     return env as unknown as Env;
 }
 
-export const getBaseUrl = createServerFn({ method: 'GET' }).handler(async () => {
-    const e = getEnv();
-    return baseUrl(e, getRequestUrl().toString());
-});
+export const getBaseUrl = createServerFn({ method: 'GET' }).handler(
+    async () => {
+        const e = getEnv();
+        return baseUrl(e, getRequestUrl().toString());
+    },
+);
 
 export const getStartPageData = createServerFn({ method: 'GET' }).handler(
     async () => {

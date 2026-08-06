@@ -5,7 +5,9 @@ import { useEmbeddedLayout } from '@/pages/embedded-layout';
 // eslint-disable-next-line import/default
 import CSS from '../styles/app.css?raw';
 
-function Mark(props: { className?: string }): ReturnType<FC<{ className?: string }>> {
+function Mark(props: {
+    className?: string;
+}): ReturnType<FC<{ className?: string }>> {
     return (
         <svg
             className={props.className ?? 'h-7 w-7'}
@@ -220,9 +222,8 @@ function LayoutShell(props: {
                             <Wordmark className="text-sm" />
                         </a>
                         <p className="max-w-[36ch] leading-snug">
-                            Self-reported, honor-system token counts from
-                            Claude Code, Codex, opencode &amp; pi. No prompts, no
-                            PII.
+                            Self-reported, honor-system token counts from Claude
+                            Code, Codex, opencode &amp; pi. No prompts, no PII.
                         </p>
                     </div>
                     <div className="flex flex-col gap-2.5">
@@ -324,7 +325,7 @@ export const Layout: FC<LayoutProps> = (props) => {
     return (
         <html lang="en">
             <head>
-                <meta charset="utf-8" />
+                <meta charSet="utf-8" />
                 <meta
                     name="viewport"
                     content="width=device-width, initial-scale=1"
