@@ -1,24 +1,35 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   parseCountryParam,
-  parseMetric,
   parseSourceParam,
   parseWindow,
 } from '@/api/leaderboard'
-import { getLeaderboardPageData } from '@/core/api/board.api'
+import {
+  parseImpactMetric,
+  parseImpactRegion,
+  parseImpactScenario,
+} from '@/lib/impact'
+import { getFootprintPageData } from '@/core/api/board.api'
 import { getBaseUrl } from '@/core/api/site.api'
-import { Home } from '@/pages/home'
-import type { Metric, Source, TimeWindow } from '@/types'
+import { Footprint } from '@/pages/footprint'
+import type {
+  ImpactMetric,
+  ImpactRegion,
+  ImpactScenario,
+} from '@/lib/impact'
+import type { Source, TimeWindow } from '@/types'
 
-interface HomeSearch {
+interface FootprintSearch {
   window: TimeWindow
-  metric: Metric
+  metric: ImpactMetric
+  scenario: ImpactScenario
+  region: ImpactRegion
   source: Source | undefined
   model: string | undefined
   country: string | undefined
 }
 
-function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
+function parseFootprintSearch(search: Record<string, unknown>): FootprintSearch {
   const modelRaw = search.model
   const model =
     typeof modelRaw === 'string' && modelRaw.length > 0 ? modelRaw : undefined
@@ -26,8 +37,14 @@ function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
     window: parseWindow(
       typeof search.window === 'string' ? search.window : undefined,
     ),
-    metric: parseMetric(
+    metric: parseImpactMetric(
       typeof search.metric === 'string' ? search.metric : undefined,
+    ),
+    scenario: parseImpactScenario(
+      typeof search.scenario === 'string' ? search.scenario : undefined,
+    ),
+    region: parseImpactRegion(
+      typeof search.region === 'string' ? search.region : undefined,
     ),
     source: parseSourceParam(
       typeof search.source === 'string' ? search.source : undefined,
@@ -39,36 +56,34 @@ function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
   }
 }
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/footprint')({
   head: () => ({
-    meta: [
-      {
-        title: 'tokenmaxer.quest — token leaderboard for AI builders',
-      },
-    ],
+    meta: [{ title: 'Footprint · tokenmaxer.quest' }],
   }),
-  validateSearch: parseHomeSearch,
+  validateSearch: parseFootprintSearch,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const [base, board] = await Promise.all([
       getBaseUrl(),
-      getLeaderboardPageData({ data: deps }),
+      getFootprintPageData({ data: deps }),
     ])
     return { base, ...board, ...deps }
   },
-  component: HomePage,
+  component: FootprintPage,
 })
 
-function HomePage() {
+function FootprintPage() {
   const data = Route.useLoaderData()
   return (
-    <Home
+    <Footprint
       base={data.base}
       entries={data.entries}
       models={data.models}
       countries={data.countries}
       window={data.window}
       metric={data.metric}
+      scenario={data.scenario}
+      region={data.region}
       source={data.source}
       model={data.model}
       country={data.country}

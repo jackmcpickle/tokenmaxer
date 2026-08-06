@@ -5,6 +5,7 @@ import {
   HeadContent,
   Scripts,
 } from '@tanstack/react-router'
+import { EmbeddedLayoutContext } from '@/pages/embedded-layout'
 import '../styles/app.css'
 
 export const Route = createRootRoute({
@@ -35,6 +36,16 @@ export const Route = createRootRoute({
         sizes: '180x180',
       },
       { rel: 'manifest', href: '/site.webmanifest' },
+      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+      {
+        rel: 'preconnect',
+        href: 'https://fonts.gstatic.com',
+        crossOrigin: 'anonymous',
+      },
+      {
+        href: 'https://fonts.googleapis.com/css2?family=Mona+Sans:wght@500;600;700;800;900&family=Inter:opsz,wght@14..32,400;14..32,500&display=swap',
+        rel: 'stylesheet',
+      },
     ],
   }),
   component: RootComponent,
@@ -43,7 +54,9 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <RootDocument>
-      <Outlet />
+      <EmbeddedLayoutContext.Provider value={true}>
+        <Outlet />
+      </EmbeddedLayoutContext.Provider>
     </RootDocument>
   )
 }
