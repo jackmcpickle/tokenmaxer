@@ -28,6 +28,13 @@ const WINDOW_LABELS: Record<TimeWindow, string> = {
     all: 'All time',
 };
 
+const WINDOW_LABELS_SHORT: Record<TimeWindow, string> = {
+    today: 'Today',
+    '7d': '7d',
+    '30d': '30d',
+    all: 'All',
+};
+
 export interface FootprintEntry {
     rank: number;
     username: string;
@@ -146,21 +153,26 @@ export const FootprintChart: FC<{
                         {IMPACT_REGION_LABELS[region]}
                     </div>
                 </div>
-                <div class="flex flex-wrap rounded-lg border border-border bg-panel2 p-0.5">
+                <div class="board-window-seg w-full min-w-0 sm:w-auto">
                     {TIME_WINDOWS.map((w) => (
                         <Button
                             key={w}
                             variant={w === window ? 'primary' : 'ghost'}
                             href={boardHref({ ...query, window: w })}
-                            class="!min-h-0 rounded-md px-3 py-1.5 text-sm font-bold"
+                            class="board-window-seg__btn !min-h-0 rounded-md px-2 py-1 text-[11px] font-bold sm:px-3 sm:py-1.5 sm:text-sm"
                         >
-                            {WINDOW_LABELS[w]}
+                            <span class="sm:hidden">
+                                {WINDOW_LABELS_SHORT[w]}
+                            </span>
+                            <span class="hidden sm:inline">
+                                {WINDOW_LABELS[w]}
+                            </span>
                         </Button>
                     ))}
                 </div>
             </div>
 
-            <div class="flex flex-col border-b border-border sm:flex-row">
+            <div class="board-stat-bar">
                 {IMPACT_METRICS.map((m) => {
                     const active = m === metric;
                     return (
@@ -168,15 +180,15 @@ export const FootprintChart: FC<{
                             key={m}
                             variant={active ? 'secondary' : 'ghost'}
                             href={boardHref({ ...query, metric: m })}
-                            class={`!min-h-0 flex-1 flex-col justify-center gap-1 rounded-none border-t border-border px-4 py-4 first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0 ${
+                            class={`board-stat-bar__cell !min-h-0 flex-col justify-center gap-1 rounded-none px-3 py-3 sm:px-4 sm:py-4 ${
                                 active ? 'bg-panel2' : ''
                             }`}
                         >
-                            <span class="text-xs font-medium text-muted">
+                            <span class="board-stat-bar__label">
                                 {IMPACT_METRIC_LABELS[m]}
                             </span>
                             <span
-                                class={`text-xl leading-none font-extrabold tabular-nums sm:text-2xl ${
+                                class={`board-stat-bar__value ${
                                     active ? 'text-text' : 'text-muted'
                                 }`}
                             >

@@ -19,6 +19,14 @@ const WINDOW_LABELS: Record<TimeWindow, string> = {
     all: 'All time',
 };
 
+/** Compact labels so the window segment fits a phone width. */
+const WINDOW_LABELS_SHORT: Record<TimeWindow, string> = {
+    today: 'Today',
+    '7d': '7d',
+    '30d': '30d',
+    all: 'All',
+};
+
 const METRIC_LABELS: Record<Metric, string> = {
     total: 'All tokens',
     input: 'Input',
@@ -99,7 +107,7 @@ export const LeaderboardChart: FC<{
                             {WINDOW_LABELS[window]}
                         </div>
                     </div>
-                    <div class="flex flex-wrap rounded-lg border border-border bg-panel2 p-0.5">
+                    <div class="board-window-seg w-full min-w-0 sm:w-auto">
                         {WINDOWS.map((w) => (
                             <Button
                                 key={w}
@@ -111,17 +119,23 @@ export const LeaderboardChart: FC<{
                                     model,
                                     country,
                                 })}
-                                class="!min-h-0 rounded-md px-3 py-1.5 text-sm font-bold"
+                                class="board-window-seg__btn !min-h-0 rounded-md px-2 py-1 text-[11px] font-bold sm:px-3 sm:py-1.5 sm:text-sm"
                             >
-                                {WINDOW_LABELS[w]}
+                                <span class="sm:hidden">
+                                    {WINDOW_LABELS_SHORT[w]}
+                                </span>
+                                <span class="hidden sm:inline">
+                                    {WINDOW_LABELS[w]}
+                                </span>
                             </Button>
                         ))}
                     </div>
                 </div>
 
-                <div class="flex flex-col border-b border-border sm:flex-row">
+                <div class="board-stat-bar">
                     {METRICS.map((m) => {
                         const active = m === metric;
+                        const hideMobile = m === 'cached';
                         return (
                             <Button
                                 key={m}
@@ -133,15 +147,17 @@ export const LeaderboardChart: FC<{
                                     model,
                                     country,
                                 })}
-                                class={`!min-h-0 flex-1 flex-col justify-center gap-1 rounded-none border-t border-border px-4 py-4 first:border-t-0 sm:border-t-0 sm:border-l sm:first:border-l-0 ${
-                                    active ? 'bg-panel2' : ''
-                                }`}
+                                class={`board-stat-bar__cell !min-h-0 flex-col justify-center gap-1 rounded-none px-3 py-3 sm:px-4 sm:py-4 ${
+                                    hideMobile
+                                        ? 'board-stat-bar__cell--mobile-hide '
+                                        : ''
+                                }${active ? 'bg-panel2' : ''}`}
                             >
-                                <span class="text-xs font-medium text-muted">
+                                <span class="board-stat-bar__label">
                                     {METRIC_LABELS[m]}
                                 </span>
                                 <span
-                                    class={`text-xl leading-none font-extrabold tabular-nums sm:text-2xl ${
+                                    class={`board-stat-bar__value ${
                                         active ? 'text-text' : 'text-muted'
                                     }`}
                                 >

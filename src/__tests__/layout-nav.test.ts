@@ -63,6 +63,26 @@ describe('site header GitHub link', () => {
     });
 });
 
+describe('site header mobile nav', () => {
+    it('renders a hamburger disclosure with primary links', async () => {
+        const html = await page('/about');
+        expect(html).toContain('class="site-nav-menu"');
+        expect(html).toContain('aria-label="Open menu"');
+        expect(html).toContain('class="site-nav__desktop"');
+        expect(html).toContain('Leaderboard');
+        expect(html).toContain('Hackathons');
+        expect(html).toContain('Get started');
+        expect(html).toContain('About');
+    });
+
+    it('hides the hamburger at the 810px tablet breakpoint', () => {
+        const css = readFileSync('src/styles/tailwind.css', 'utf8');
+        expect(css).toContain('@media (min-width: 810px)');
+        expect(css).toContain('.site-nav-menu');
+        expect(css).toContain('display: none');
+    });
+});
+
 describe('scroll-linked chrome reveal', () => {
     it('scrubs the header with scroll instead of snapping at a threshold', async () => {
         const html = await page('/');
