@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.13](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.12...v0.2.13) (2026-08-07)
+
+### Features
+
+* migrate to TanStack Start + React on Cloudflare ([#33](https://github.com/jackmcpickle/tokenmaxer/issues/33)) ([6724d0d](https://github.com/jackmcpickle/tokenmaxer/commit/6724d0d7225e17e68ed158b56cce56ef58193569))
 ## [0.2.12](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.11...v0.2.12) (2026-08-06)
 ## [0.2.11](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.10...v0.2.11) (2026-08-06)
 

@@ -1,6 +1,6 @@
 {
     "name": "tokentally",
-    "version": "0.2.12",
+    "version": "0.2.13",
     "private": true,
     "description": "Public token leaderboard for AI builders — TanStack Start + Hono API on Cloudflare Workers + D1.",
     "type": "module",
