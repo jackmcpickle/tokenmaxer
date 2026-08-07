@@ -24,6 +24,10 @@ interface HomeProps {
     source: Source | undefined;
     model: string | undefined;
     country: string | undefined;
+    /** TanStack Start client navigation (no board HTML swap). */
+    spa?: boolean;
+    /** Filter change in flight — hold prior rows to avoid layout jump. */
+    pending?: boolean;
 }
 
 const heroTitle = (
@@ -79,6 +83,8 @@ export const Home: FC<HomeProps> = (p) => (
             country={p.country}
             models={p.models}
             countries={p.countries}
+            spa={p.spa}
+            pending={p.pending}
         />
 
         <aside className="spotlight spotlight-violet mt-4 flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">

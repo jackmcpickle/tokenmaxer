@@ -1,16 +1,27 @@
-import type { FC } from 'react';
+import {
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+    type CSSProperties,
+    type FC,
+} from 'react';
 import {
     type LeaderboardEntry,
     grandTotal,
     metricValue,
 } from '@/lib/aggregate';
 import { formatTokens, formatUsd } from '@/lib/format';
+import { BoardBar } from '@/pages/components/board-bar';
 import { BoardFilters } from '@/pages/components/board-filters';
 import { BOARD_ID, BoardScript } from '@/pages/components/board-script';
 import { Button } from '@/pages/components/button';
 import { boardHref } from '@/pages/leaderboard-href';
 import { empty } from '@/pages/ui';
 import { METRICS, type Metric, type TimeWindow } from '@/types';
+
+/** Rows shown initially / each Load more click. */
+export const BOARD_PAGE_SIZE = 10;
 
 const WINDOW_LABELS: Record<TimeWindow, string> = {
     today: 'Today',
@@ -67,6 +78,24 @@ function tipLines(e: LeaderboardEntry, metric: Metric): string[] {
     ];
 }
 
+function filterKey(opts: {
+    window: TimeWindow;
+    metric: Metric;
+    source?: string;
+    model?: string;
+    country?: string;
+}): string {
+    return [
+        opts.window,
+        opts.metric,
+        opts.source ?? '',
+        opts.model ?? '',
+        opts.country ?? '',
+    ].join('|');
+}
+
+type BoxEl = { offsetHeight: number };
+
 export const LeaderboardChart: FC<{
     entries: LeaderboardEntry[];
     window: TimeWindow;
@@ -76,6 +105,10 @@ export const LeaderboardChart: FC<{
     country?: string;
     models: string[];
     countries: string[];
+    /** TanStack Start: client nav, no HTML swap, load-more + bar motion. */
+    spa?: boolean;
+    /** Filter navigation in flight — keep prior rows / reserve height. */
+    pending?: boolean;
 }> = ({
     entries,
     window,
@@ -85,15 +118,59 @@ export const LeaderboardChart: FC<{
     country,
     models,
     countries,
+    spa,
+    pending = false,
 }) => {
-    const totals = entryTotals(entries);
-    const max = Math.max(...entries.map((e) => metricValue(e, metric)), 1);
+    const key = filterKey({ window, metric, source, model, country });
+    const listRef = useRef<BoxEl | null>(null);
+    const [minListHeight, setMinListHeight] = useState<number | undefined>();
+    const [displayEntries, setDisplayEntries] = useState(entries);
+    const [visibleCount, setVisibleCount] = useState(BOARD_PAGE_SIZE);
+
+    // Keep prior rows visible while the next filter load is in flight.
+    useEffect(() => {
+        if (!pending) setDisplayEntries(entries);
+    }, [entries, pending]);
+
+    useEffect(() => {
+        setVisibleCount(BOARD_PAGE_SIZE);
+    }, [key]);
+
+    useLayoutEffect(() => {
+        if (!spa) return;
+        const el = listRef.current;
+        if (pending && el) {
+            setMinListHeight(el.offsetHeight);
+            return;
+        }
+        setMinListHeight(undefined);
+    }, [pending, spa]);
+
+    const totals = entryTotals(displayEntries);
+    const max = Math.max(
+        ...displayEntries.map((e) => metricValue(e, metric)),
+        1,
+    );
+    // SPA: page in chunks of 10. Static HTML (no hydration): show everyone.
+    const shown = spa ? displayEntries.slice(0, visibleCount) : displayEntries;
+    const hasMore = Boolean(spa) && visibleCount < displayEntries.length;
+
+    const sectionStyle = (
+        minListHeight
+            ? {
+                  ['--board-list-min-height' as string]: `${minListHeight}px`,
+              }
+            : undefined
+    ) as CSSProperties | undefined;
 
     return (
         <>
             <section
                 id={BOARD_ID}
+                data-spa-board={spa ? 'true' : undefined}
+                aria-busy={pending ? 'true' : undefined}
                 className="board-region mb-8 overflow-visible rounded-lg border border-border bg-panel"
+                style={sectionStyle}
             >
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
                     <div>
@@ -111,6 +188,7 @@ export const LeaderboardChart: FC<{
                         {WINDOWS.map((w) => (
                             <Button
                                 key={w}
+                                spa={spa}
                                 variant={w === window ? 'primary' : 'ghost'}
                                 href={boardHref({
                                     window: w,
@@ -139,6 +217,7 @@ export const LeaderboardChart: FC<{
                         return (
                             <Button
                                 key={m}
+                                spa={spa}
                                 variant={active ? 'secondary' : 'ghost'}
                                 href={boardHref({
                                     window,
@@ -169,6 +248,7 @@ export const LeaderboardChart: FC<{
                 </div>
 
                 <BoardFilters
+                    spa={spa}
                     window={window}
                     metric={metric}
                     source={source}
@@ -179,14 +259,17 @@ export const LeaderboardChart: FC<{
                 />
 
                 <div className="px-3 pt-4 pb-4 sm:px-5">
-                    {entries.length === 0 ? (
+                    {displayEntries.length === 0 ? (
                         <div className={empty}>
                             No builders on the board yet for this window.{' '}
                             <a href="/start">Be the first →</a>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-1">
-                            {entries.map((e) => {
+                        <div
+                            ref={listRef as never}
+                            className="board-entry-list flex flex-col gap-1"
+                        >
+                            {shown.map((e) => {
                                 const value = metricValue(e, metric);
                                 const pct = Math.max(
                                     4,
@@ -205,20 +288,10 @@ export const LeaderboardChart: FC<{
                                             <span className="truncate text-sm font-semibold text-text">
                                                 {e.username}
                                             </span>
-                                            <svg
-                                                className="h-3 w-full overflow-hidden rounded-sm bg-panel2"
-                                                viewBox="0 0 100 12"
-                                                preserveAspectRatio="none"
-                                                aria-hidden="true"
-                                            >
-                                                <rect
-                                                    x="0"
-                                                    y="0"
-                                                    width={String(pct)}
-                                                    height="12"
-                                                    className="fill-accent"
-                                                />
-                                            </svg>
+                                            <BoardBar
+                                                key={`${key}:${e.username}`}
+                                                pct={pct}
+                                            />
                                             <span className="text-right text-sm font-semibold text-text tabular-nums">
                                                 {formatMetric(metric, value)}
                                             </span>
@@ -242,11 +315,27 @@ export const LeaderboardChart: FC<{
                                     </details>
                                 );
                             })}
+                            {hasMore && (
+                                <div className="pt-3">
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        className="w-full sm:w-auto"
+                                        onClick={() =>
+                                            setVisibleCount(
+                                                (n) => n + BOARD_PAGE_SIZE,
+                                            )
+                                        }
+                                    >
+                                        Load more
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             </section>
-            <BoardScript />
+            {!spa && <BoardScript />}
         </>
     );
 };

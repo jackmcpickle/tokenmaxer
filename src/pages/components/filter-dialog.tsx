@@ -1,4 +1,5 @@
-import type { FC } from 'react';
+import { forwardRef } from 'react';
+import { BoardNav } from '@/pages/components/board-nav';
 import { boardHref } from '@/pages/leaderboard-href';
 import type { Metric, TimeWindow } from '@/types';
 
@@ -12,19 +13,29 @@ export type FilterDialogBase = {
 
 export type FilterDimension = 'source' | 'model' | 'country';
 
-export const FilterDialog: FC<{
-    dimension: FilterDimension;
-    title: string;
-    base: FilterDialogBase;
-    options: Array<{ value: string | undefined; label: string }>;
-    active?: string;
-}> = ({ dimension, title, base, options, active }) => {
+export type DialogHandle = {
+    showModal: () => void;
+    close: () => void;
+};
+
+export const FilterDialog = forwardRef<
+    DialogHandle,
+    {
+        dimension: FilterDimension;
+        title: string;
+        base: FilterDialogBase;
+        options: Array<{ value: string | undefined; label: string }>;
+        active?: string;
+        spa?: boolean;
+    }
+>(function FilterDialog({ dimension, title, base, options, active, spa }, ref) {
     const id = `filter-dialog-${dimension}`;
     return (
         <dialog
             id={id}
             className="board-filter-dialog"
             aria-labelledby={`${id}-title`}
+            ref={ref as never}
         >
             <div className="board-filter-dialog__header">
                 <h2
@@ -38,6 +49,14 @@ export const FilterDialog: FC<{
                     className="board-filter-dialog__close"
                     data-filter-close
                     aria-label={`Close ${title.toLowerCase()} filter`}
+                    onClick={(e) => {
+                        const dlg = (
+                            e.currentTarget as unknown as {
+                                closest: (s: string) => DialogHandle | null;
+                            }
+                        ).closest('dialog');
+                        dlg?.close();
+                    }}
                 >
                     ×
                 </button>
@@ -83,17 +102,28 @@ export const FilterDialog: FC<{
                                           : base.country,
                               });
                     return (
-                        <a
+                        <BoardNav
                             key={opt.value ?? '__all__'}
+                            spa={spa}
                             className="board-filter-option"
                             href={href}
                             aria-current={isActive ? 'true' : undefined}
+                            onClick={(e) => {
+                                const dlg = (
+                                    e.currentTarget as unknown as {
+                                        closest: (
+                                            s: string,
+                                        ) => DialogHandle | null;
+                                    }
+                                ).closest('dialog');
+                                dlg?.close();
+                            }}
                         >
                             {opt.label}
-                        </a>
+                        </BoardNav>
                     );
                 })}
             </div>
         </dialog>
     );
-};
+});

@@ -1037,11 +1037,30 @@
         }
     }
 
-    /* Board swaps in place on filter changes; dim it while the fetch is in flight. */
+    /* Filter load in flight: soft dim, keep height stable, no hard cut. */
     .board-region[aria-busy='true'] {
-        opacity: 0.55;
+        opacity: 0.72;
         pointer-events: none;
-        transition: opacity 120ms ease;
+        transition: opacity 180ms ease;
+    }
+
+    .board-region[aria-busy='true'] .board-entry-list {
+        min-height: var(--board-list-min-height, 0);
+    }
+
+    /* Rank bars grow from 0 → full width on first paint / filter remount. */
+    @keyframes board-bar-grow {
+        from {
+            transform: scaleX(0);
+        }
+        to {
+            transform: scaleX(1);
+        }
+    }
+
+    .board-bar-fill {
+        transform-origin: left center;
+        animation: board-bar-grow 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
 
     /* Board filter menu + dialogs */

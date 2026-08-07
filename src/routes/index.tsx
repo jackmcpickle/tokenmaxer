@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useRouterState } from '@tanstack/react-router';
 import {
     parseCountryParam,
     parseMetric,
@@ -69,6 +69,9 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
     const data = Route.useLoaderData();
+    const pending = useRouterState({
+        select: (s) => s.isLoading || s.status === 'pending',
+    });
     return (
         <Home
             base={data.base}
@@ -80,6 +83,8 @@ function HomePage() {
             source={data.source}
             model={data.model}
             country={data.country}
+            spa
+            pending={pending}
         />
     );
 }
