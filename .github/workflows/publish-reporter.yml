@@ -3,6 +3,9 @@ name: Publish reporter
 on:
   push:
     branches: [main]
+    # Only publish when the CLI package itself changes — ignore site/app updates.
+    paths:
+      - "reporter/**"
 
 concurrency:
   group: publish-reporter
