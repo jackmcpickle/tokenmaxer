@@ -94,6 +94,10 @@ const MAX_SESSION_ID_LEN = 200;
 const MIN_DAY = 19700101;
 const MAX_DAY = 99991231;
 
+// The ECMAScript maximum time value; timestamps outside this range are rejected
+// rather than stored verbatim, preventing RangeError in dayFromMs.
+const MAX_TIME_VALUE = 8_640_000_000_000_000;
+
 // Per-request session caps. Live reporting sends small, frequent batches; a
 // one-time history backfill sends far more rows at once, so it gets its own cap.
 export const MAX_INGEST_SESSIONS = 500;
@@ -200,7 +204,8 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
     const started_at =
         typeof s.started_at === 'number' &&
         Number.isFinite(s.started_at) &&
-        s.started_at > 0
+        s.started_at > 0 &&
+        s.started_at <= MAX_TIME_VALUE
             ? Math.floor(s.started_at)
             : Date.now();
 
