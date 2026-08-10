@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Attribute every token to the calendar day it was actually spent on, so a leaderboard window reports real usage in that window instead of the totals of sessions that happened to *start* in it.
+**Goal:** Attribute every token to the calendar day it was actually spent on, so a leaderboard window reports real usage in that window instead of the totals of sessions that happened to _start_ in it.
 
 **Architecture:** Today one row per `(user, source, session_id, model)` carries a session's whole lifetime total, stamped with `started_at`, and every window filters `started_at >= cutoff`. A 418-hour session therefore books a fortnight of work to the day it opened, and the UTC-midnight `today` boundary clips the first 9.5 hours of a UTC+9:30 user's day. The fix adds a `day` column (a `YYYYMMDD` integer in the **reporting machine's local timezone**) to the primary key. Only the reporter can do this split — it is the only component that sees per-entry timestamps — so each collector now buckets usage by the local day of each usage record, and each window query filters on `day` instead of `started_at`. Ingest gains an explicit `replace_sessions` list so a session's day rows atomically replace whatever was stored for it before, including its single legacy row.
 
@@ -23,62 +23,64 @@
 
 ## Design decisions already settled (do not relitigate)
 
-| Decision | Choice |
-|---|---|
-| Bucket key | Reporter's **local** calendar day, `YYYYMMDD` |
-| Existing rows | Migrate in place, seeding `day` from the **UTC** day of `started_at`; correct data arrives when a user runs `tokenmaxer backfill` |
-| Old reporters | Accepted; server derives `day` from `started_at` |
-| Scope | All five sources (claude_code, codex, opencode, pi, cursor) |
+| Decision         | Choice                                                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bucket key       | Reporter's **local** calendar day, `YYYYMMDD`                                                                                                |
+| Existing rows    | Migrate in place, seeding `day` from the **UTC** day of `started_at`; correct data arrives when a user runs `tokenmaxer backfill`            |
+| Old reporters    | Accepted; server derives `day` from `started_at`                                                                                             |
+| Scope            | All five sources (claude_code, codex, opencode, pi, cursor)                                                                                  |
 | Window semantics | `today` = viewer's local calendar date; `7d` = that date and the 6 before it (7 calendar days); `30d` = 30 calendar days; `all` = everything |
 | Hackathon ranges | Snap **outward** to whole UTC days. A hackathon is day-granular after this change — a sub-day range now includes both boundary days in full. |
-| Viewer timezone | `request.cf.timezone` when present, else `UTC`. Baked into every cache key so two zones never share a cached board. |
+| Viewer timezone  | `request.cf.timezone` when present, else `UTC`. Baked into every cache key so two zones never share a cached board.                          |
 
 ## File Structure
 
 **New files**
 
-| File | Responsibility |
-|---|---|
-| `reporter/src/lib/day.ts` | `localDay(ms)` — the reporter's only date authority. |
-| `src/lib/day.ts` | Server date maths: `dayFromMs`, `shiftDay`, `windowStartDay`, `timeZoneFromRequest`. |
-| `drizzle/0005_local_day_buckets.sql` | Table rebuild adding `day` to the primary key. |
-| `src/__tests__/day.test.ts` | Server date helpers. |
-| `src/__tests__/reporter-day.test.ts` | `localDay` + day-bucketing behaviour across collectors. |
+| File                                 | Responsibility                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `reporter/src/lib/day.ts`            | `localDay(ms)` — the reporter's only date authority.                                 |
+| `src/lib/day.ts`                     | Server date maths: `dayFromMs`, `shiftDay`, `windowStartDay`, `timeZoneFromRequest`. |
+| `drizzle/0005_local_day_buckets.sql` | Table rebuild adding `day` to the primary key.                                       |
+| `src/__tests__/day.test.ts`          | Server date helpers.                                                                 |
+| `src/__tests__/reporter-day.test.ts` | `localDay` + day-bucketing behaviour across collectors.                              |
 
 **Modified files**
 
-| File | Change |
-|---|---|
-| `reporter/src/lib/types.ts` | `DayTotals`; `ParsedTranscript.models: Map<string, DayTotals>`; `ReporterRow.day`. |
-| `reporter/src/lib/totals.ts` | `accumulateModelDayUsage`, `singleDayModels`. |
-| `reporter/src/lib/rows.ts` | `toRows` emits one row per (model, day). |
-| `reporter/src/agents/claude.ts` | Per-entry local-day buckets. |
-| `reporter/src/agents/claude-sessions.ts` | Session fallback day. |
-| `reporter/src/agents/codex-engine.ts` | `TokenCountRecord.tsMs`; day-aware delta accumulation. |
-| `reporter/src/agents/pi.ts` | Per-record local-day buckets. |
-| `reporter/src/agents/opencode.ts` | Per-message local-day buckets. |
-| `reporter/src/agents/cursor.ts` | Per-event local-day buckets inside each UTC-day session. |
-| `reporter/src/api.ts` | Session-contiguous batching + `replace_sessions`. |
-| `src/reporter.d.ts` | Mirror the reporter's new types. |
-| `src/types.ts` | `SessionUsageInput.day`. |
-| `src/lib/validate.ts` | Parse `day` and `replace_sessions`. |
-| `src/lib/store.ts` | Delete-then-insert per replaced session; write `day`. |
-| `src/lib/aggregate.ts` | Filter on `day`; `startDay`/`endDay` query fields. |
-| `src/lib/cached-aggregate.ts` | `startDay` in cache keys, keys bumped to `v2`. |
-| `src/lib/page-cache.ts` | Viewer-date component in the HTTP cache keys. |
-| `src/api/ingest.ts`, `src/api/history.ts` | Pass `replaceSessions` through. |
-| `src/api/leaderboard.ts`, `src/api/agent-pages.ts`, `src/api/og.ts`, `src/index.tsx`, `src/core/api/board.api.ts` | Resolve `startDay` from the viewer's timezone. |
-| `README.md`, `src/content/about.md.ts`, `src/pages/about.tsx` | Document local-day attribution. |
+| File                                                                                                              | Change                                                                             |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `reporter/src/lib/types.ts`                                                                                       | `DayTotals`; `ParsedTranscript.models: Map<string, DayTotals>`; `ReporterRow.day`. |
+| `reporter/src/lib/totals.ts`                                                                                      | `accumulateModelDayUsage`, `singleDayModels`.                                      |
+| `reporter/src/lib/rows.ts`                                                                                        | `toRows` emits one row per (model, day).                                           |
+| `reporter/src/agents/claude.ts`                                                                                   | Per-entry local-day buckets.                                                       |
+| `reporter/src/agents/claude-sessions.ts`                                                                          | Session fallback day.                                                              |
+| `reporter/src/agents/codex-engine.ts`                                                                             | `TokenCountRecord.tsMs`; day-aware delta accumulation.                             |
+| `reporter/src/agents/pi.ts`                                                                                       | Per-record local-day buckets.                                                      |
+| `reporter/src/agents/opencode.ts`                                                                                 | Per-message local-day buckets.                                                     |
+| `reporter/src/agents/cursor.ts`                                                                                   | Per-event local-day buckets inside each UTC-day session.                           |
+| `reporter/src/api.ts`                                                                                             | Session-contiguous batching + `replace_sessions`.                                  |
+| `src/reporter.d.ts`                                                                                               | Mirror the reporter's new types.                                                   |
+| `src/types.ts`                                                                                                    | `SessionUsageInput.day`.                                                           |
+| `src/lib/validate.ts`                                                                                             | Parse `day` and `replace_sessions`.                                                |
+| `src/lib/store.ts`                                                                                                | Delete-then-insert per replaced session; write `day`.                              |
+| `src/lib/aggregate.ts`                                                                                            | Filter on `day`; `startDay`/`endDay` query fields.                                 |
+| `src/lib/cached-aggregate.ts`                                                                                     | `startDay` in cache keys, keys bumped to `v2`.                                     |
+| `src/lib/page-cache.ts`                                                                                           | Viewer-date component in the HTTP cache keys.                                      |
+| `src/api/ingest.ts`, `src/api/history.ts`                                                                         | Pass `replaceSessions` through.                                                    |
+| `src/api/leaderboard.ts`, `src/api/agent-pages.ts`, `src/api/og.ts`, `src/index.tsx`, `src/core/api/board.api.ts` | Resolve `startDay` from the viewer's timezone.                                     |
+| `README.md`, `src/content/about.md.ts`, `src/pages/about.tsx`                                                     | Document local-day attribution.                                                    |
 
 ---
 
 ### Task 1: Reporter local-day helper
 
 **Files:**
+
 - Create: `reporter/src/lib/day.ts`
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `localDay(ms: number | null | undefined): number` — `YYYYMMDD` in the process's local timezone, `0` when the input is not a finite number.
 
@@ -103,7 +105,9 @@ describe('localDay', () => {
         expect(localDay(new Date(2026, 7, 6, 23, 59, 59).getTime())).toBe(
             20260806,
         );
-        expect(localDay(new Date(2026, 7, 7, 0, 0, 0).getTime())).toBe(20260807);
+        expect(localDay(new Date(2026, 7, 7, 0, 0, 0).getTime())).toBe(
+            20260807,
+        );
     });
 
     it('zero-pads month and day into the integer', () => {
@@ -162,16 +166,18 @@ git commit -m "feat(reporter): add local calendar day helper"
 ### Task 2: Server day maths
 
 **Files:**
+
 - Create: `src/lib/day.ts`
 - Test: `src/__tests__/day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `TimeWindow` from `@/types`.
 - Produces:
-  - `dayFromMs(ms: number, timeZone: string): number` — `YYYYMMDD` of `ms` in `timeZone`; `0` for non-finite input; falls back to UTC for an unknown zone.
-  - `shiftDay(day: number, deltaDays: number): number`
-  - `windowStartDay(window: TimeWindow, now: number, timeZone: string): number` — inclusive lower bound; `0` for `all`.
-  - `timeZoneFromRequest(req: Request): string`
+    - `dayFromMs(ms: number, timeZone: string): number` — `YYYYMMDD` of `ms` in `timeZone`; `0` for non-finite input; falls back to UTC for an unknown zone.
+    - `shiftDay(day: number, deltaDays: number): number`
+    - `windowStartDay(window: TimeWindow, now: number, timeZone: string): number` — inclusive lower bound; `0` for `all`.
+    - `timeZoneFromRequest(req: Request): string`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -259,9 +265,9 @@ describe('timeZoneFromRequest', () => {
         expect(timeZoneFromRequest(req)).toBe('Australia/Adelaide');
     });
     it('defaults to UTC when absent or not a string', () => {
-        expect(timeZoneFromRequest(new Request('https://tokenmaxer.quest/'))).toBe(
-            'UTC',
-        );
+        expect(
+            timeZoneFromRequest(new Request('https://tokenmaxer.quest/')),
+        ).toBe('UTC');
     });
 });
 ```
@@ -294,7 +300,9 @@ const UTC_FORMATTER = new Intl.DateTimeFormat('en-CA', {
     ...DATE_PARTS,
 });
 
-const formatters = new Map<string, Intl.DateTimeFormat>([['UTC', UTC_FORMATTER]]);
+const formatters = new Map<string, Intl.DateTimeFormat>([
+    ['UTC', UTC_FORMATTER],
+]);
 
 function formatterFor(timeZone: string): Intl.DateTimeFormat {
     const cached = formatters.get(timeZone);
@@ -395,86 +403,86 @@ git commit -m "feat: add timezone-aware calendar day helpers"
 This is a pure refactor: every row still lands on the session's start day, so totals and per-day attribution are unchanged. It exists so Tasks 9–13 can convert one collector at a time with the suite green throughout.
 
 **Files:**
+
 - Modify: `reporter/src/lib/types.ts`, `reporter/src/lib/totals.ts`, `reporter/src/lib/rows.ts`
 - Modify: `reporter/src/agents/claude.ts:108`, `reporter/src/agents/claude-sessions.ts:604-619`, `reporter/src/agents/codex-engine.ts:1380-1390`, `reporter/src/agents/pi.ts:122-126`, `reporter/src/agents/opencode.ts:73-77`, `reporter/src/agents/cursor.ts:50-62`
 - Modify: `src/reporter.d.ts`
 - Test: `src/__tests__/reporter-rows.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay` (Task 1).
 - Produces:
-  - `type DayTotals = Map<number, ReporterTotals>` — keyed by `YYYYMMDD`.
-  - `ParsedTranscript.models: Map<string, DayTotals>`
-  - `ReporterRow.day: number`
-  - `accumulateModelDayUsage(models: Map<string, DayTotals>, model: string, day: number, usage: ReporterTotals): void`
-  - `singleDayModels(models: Map<string, ReporterTotals>, day: number): Map<string, DayTotals>` — temporary bridge, deleted by Task 13.
+    - `type DayTotals = Map<number, ReporterTotals>` — keyed by `YYYYMMDD`.
+    - `ParsedTranscript.models: Map<string, DayTotals>`
+    - `ReporterRow.day: number`
+    - `accumulateModelDayUsage(models: Map<string, DayTotals>, model: string, day: number, usage: ReporterTotals): void`
+    - `singleDayModels(models: Map<string, ReporterTotals>, day: number): Map<string, DayTotals>` — temporary bridge, deleted by Task 13.
 
 - [ ] **Step 1: Write the failing test**
 
 Replace the `toRows` test in `src/__tests__/reporter-rows.test.ts` (the `it('toRows emits one API row per non-synthetic model', …)` block) with:
 
 ```ts
-    it('toRows emits one row per (model, day) and skips synthetic models', () => {
-        const models = new Map([
-            [
-                'claude-opus',
-                new Map([
-                    [
-                        20260806,
-                        { ...emptyTotals(), input_tokens: 10, output_tokens: 20 },
-                    ],
-                    [20260807, { ...emptyTotals(), output_tokens: 5 }],
-                ]),
-            ],
-            ['<synthetic>', new Map([[20260807, emptyTotals()]])],
-        ]);
-        const rows = toRows(
-            { session_id: 'sess-1', started_at: 1_000, models },
-            '/tmp/sess-1.jsonl',
-        );
-        expect(rows).toHaveLength(2);
-        expect(rows.map((r) => r.day)).toEqual([20260806, 20260807]);
-        expect(rows.every((r) => r.session_id === 'sess-1')).toBe(true);
-        // started_at stays the SESSION start on every row; `day` carries time.
-        expect(rows.every((r) => r.started_at === 1_000)).toBe(true);
-        expect(rows[0]?.input_tokens).toBe(10);
-        expect(rows[1]?.output_tokens).toBe(5);
-    });
+it('toRows emits one row per (model, day) and skips synthetic models', () => {
+    const models = new Map([
+        [
+            'claude-opus',
+            new Map([
+                [
+                    20260806,
+                    { ...emptyTotals(), input_tokens: 10, output_tokens: 20 },
+                ],
+                [20260807, { ...emptyTotals(), output_tokens: 5 }],
+            ]),
+        ],
+        ['<synthetic>', new Map([[20260807, emptyTotals()]])],
+    ]);
+    const rows = toRows(
+        { session_id: 'sess-1', started_at: 1_000, models },
+        '/tmp/sess-1.jsonl',
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.day)).toEqual([20260806, 20260807]);
+    expect(rows.every((r) => r.session_id === 'sess-1')).toBe(true);
+    // started_at stays the SESSION start on every row; `day` carries time.
+    expect(rows.every((r) => r.started_at === 1_000)).toBe(true);
+    expect(rows[0]?.input_tokens).toBe(10);
+    expect(rows[1]?.output_tokens).toBe(5);
+});
 ```
 
 Append to the same `describe` block:
 
 ```ts
-    it('accumulateModelDayUsage keeps days and models separate', () => {
-        const models = new Map<string, Map<number, ReporterTotals>>();
-        accumulateModelDayUsage(models, 'opus', 20260807, {
-            ...emptyTotals(),
-            output_tokens: 3,
-        });
-        accumulateModelDayUsage(models, 'opus', 20260807, {
-            ...emptyTotals(),
-            output_tokens: 4,
-        });
-        accumulateModelDayUsage(models, 'opus', 20260808, {
-            ...emptyTotals(),
-            output_tokens: 5,
-        });
-        accumulateModelDayUsage(models, 'sonnet', 20260807, {
-            ...emptyTotals(),
-            output_tokens: 6,
-        });
-        expect(models.get('opus')?.get(20260807)?.output_tokens).toBe(7);
-        expect(models.get('opus')?.get(20260808)?.output_tokens).toBe(5);
-        expect(models.get('sonnet')?.get(20260807)?.output_tokens).toBe(6);
+it('accumulateModelDayUsage keeps days and models separate', () => {
+    const models = new Map<string, Map<number, ReporterTotals>>();
+    accumulateModelDayUsage(models, 'opus', 20260807, {
+        ...emptyTotals(),
+        output_tokens: 3,
     });
+    accumulateModelDayUsage(models, 'opus', 20260807, {
+        ...emptyTotals(),
+        output_tokens: 4,
+    });
+    accumulateModelDayUsage(models, 'opus', 20260808, {
+        ...emptyTotals(),
+        output_tokens: 5,
+    });
+    accumulateModelDayUsage(models, 'sonnet', 20260807, {
+        ...emptyTotals(),
+        output_tokens: 6,
+    });
+    expect(models.get('opus')?.get(20260807)?.output_tokens).toBe(7);
+    expect(models.get('opus')?.get(20260808)?.output_tokens).toBe(5);
+    expect(models.get('sonnet')?.get(20260807)?.output_tokens).toBe(6);
+});
 
-    it('singleDayModels puts every model total on one day', () => {
-        const flat = new Map([
-            ['opus', { ...emptyTotals(), input_tokens: 9 }],
-        ]);
-        const byDay = singleDayModels(flat, 20260807);
-        expect(byDay.get('opus')?.get(20260807)?.input_tokens).toBe(9);
-    });
+it('singleDayModels puts every model total on one day', () => {
+    const flat = new Map([['opus', { ...emptyTotals(), input_tokens: 9 }]]);
+    const byDay = singleDayModels(flat, 20260807);
+    expect(byDay.get('opus')?.get(20260807)?.input_tokens).toBe(9);
+});
 ```
 
 Update that file's imports:
@@ -623,79 +631,70 @@ Add `import { localDay } from '../lib/day';` and `import { singleDayModels } fro
 `reporter/src/agents/codex-engine.ts` — `ParsedCodexRollout.models` becomes `Map<string, DayTotals>`; keep the internal `models` map flat for now and wrap at the single return site (`return { session_id: …, started_at: …, models, parent_id: … }` near line 1385):
 
 ```ts
-    const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
-    return {
-        session_id: sessionId,
-        started_at: resolvedStartedAt,
-        models: singleDayModels(
-            models,
-            localDay(resolvedStartedAt ?? Date.now()),
-        ),
-        parent_id: forkedFromId,
-    };
+const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
+return {
+    session_id: sessionId,
+    started_at: resolvedStartedAt,
+    models: singleDayModels(models, localDay(resolvedStartedAt ?? Date.now())),
+    parent_id: forkedFromId,
+};
 ```
 
 `reporter/src/agents/pi.ts` — same shape:
 
 ```ts
-    const resolvedStartedAt = state.startedAt ?? opts.fallbackStartedAt ?? null;
-    return {
-        session_id: state.sessionId ?? opts.sessionId ?? null,
-        started_at: resolvedStartedAt,
-        models: singleDayModels(
-            models,
-            localDay(resolvedStartedAt ?? Date.now()),
-        ),
-    };
+const resolvedStartedAt = state.startedAt ?? opts.fallbackStartedAt ?? null;
+return {
+    session_id: state.sessionId ?? opts.sessionId ?? null,
+    started_at: resolvedStartedAt,
+    models: singleDayModels(models, localDay(resolvedStartedAt ?? Date.now())),
+};
 ```
 
 `reporter/src/agents/opencode.ts` — same shape in `parseOpencodeMessages`:
 
 ```ts
-    const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
-    return {
-        session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: resolvedStartedAt,
-        models: singleDayModels(
-            models,
-            localDay(resolvedStartedAt ?? Date.now()),
-        ),
-    };
+const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
+return {
+    session_id: sessionId ?? opts.sessionId ?? null,
+    started_at: resolvedStartedAt,
+    models: singleDayModels(models, localDay(resolvedStartedAt ?? Date.now())),
+};
 ```
 
 `reporter/src/agents/cursor.ts` — its rows are built directly, so give them the exact day of the UTC-day bucket they already carry (no `localDay` here; Task 13 revisits this):
 
 ```ts
-    for (const [day, byModel] of days) {
-        const startedAt = Date.parse(`${day}T00:00:00Z`);
-        const dayNumber = Number.parseInt(day.replace(/-/gu, ''), 10);
-        for (const [model, t] of byModel) {
-            rows.push({
-                session_id: `cursor-${day}`,
-                model,
-                day: dayNumber,
-                started_at: startedAt,
-                ...t,
-            });
-        }
+for (const [day, byModel] of days) {
+    const startedAt = Date.parse(`${day}T00:00:00Z`);
+    const dayNumber = Number.parseInt(day.replace(/-/gu, ''), 10);
+    for (const [model, t] of byModel) {
+        rows.push({
+            session_id: `cursor-${day}`,
+            model,
+            day: dayNumber,
+            started_at: startedAt,
+            ...t,
+        });
     }
+}
 ```
 
 Finally mirror the types in `src/reporter.d.ts`:
 
 ```ts
-    export type DayTotals = Map<number, ReporterTotals>;
-    export interface ParsedTranscript {
-        session_id: string | null;
-        started_at: number | null;
-        models: Map<string, DayTotals>;
-    }
-    export interface ReporterRow extends ReporterTotals {
-        session_id: string;
-        model: string;
-        day: number;
-        started_at: number;
-    }
+export type DayTotals = Map<number, ReporterTotals>;
+export interface ParsedTranscript {
+    session_id: string | null;
+    started_at: number | null;
+    models: Map<string, DayTotals>;
+}
+export interface ReporterRow extends ReporterTotals {
+    session_id: string;
+    model: string;
+    day: number;
+    started_at: number;
+}
 ```
 
 - [ ] **Step 4: Run the full suite**
@@ -728,9 +727,11 @@ git commit -m "refactor(reporter): thread a per-day dimension through parsed usa
 ### Task 4: Migration — add `day` to the primary key
 
 **Files:**
+
 - Create: `drizzle/0005_local_day_buckets.sql`
 
 **Interfaces:**
+
 - Consumes: the `session_usage` table from `drizzle/0000_init.sql`.
 - Produces: `session_usage` with a `day INTEGER NOT NULL` column and primary key `(user_id, source, session_id, model, day)`, plus `idx_session_usage_day`.
 
@@ -818,15 +819,17 @@ git commit -m "feat(db): key session usage by local calendar day"
 ### Task 5: Accept `day` and `replace_sessions` on ingest
 
 **Files:**
+
 - Modify: `src/types.ts:31-40`, `src/lib/validate.ts:159-275`
 - Test: `src/__tests__/validate.test.ts`
 
 **Interfaces:**
+
 - Consumes: `dayFromMs` (Task 2).
 - Produces:
-  - `SessionUsageInput.day: number`
-  - `IngestPayload.replaceSessions: string[]`
-  - Rule: a row without a usable `day` gets `dayFromMs(started_at, 'UTC')`.
+    - `SessionUsageInput.day: number`
+    - `IngestPayload.replaceSessions: string[]`
+    - Rule: a row without a usable `day` gets `dayFromMs(started_at, 'UTC')`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -926,8 +929,8 @@ Expected: FAIL — `day` is `undefined` and `replaceSessions` does not exist.
 In `src/types.ts`, add to `SessionUsageInput`:
 
 ```ts
-    /** Local calendar day the usage was spent on, YYYYMMDD. */
-    day: number;
+/** Local calendar day the usage was spent on, YYYYMMDD. */
+day: number;
 ```
 
 In `src/lib/validate.ts`, add the import and bounds:
@@ -943,16 +946,16 @@ const MAX_DAY = 99991231;
 Inside `parseSessionEntry`, after `started_at` is resolved:
 
 ```ts
-    // Reporters from before day bucketing send no `day`; the UTC day of
-    // started_at reproduces the old attribution exactly, so old installs keep
-    // reporting with no coordinated release.
-    const day =
-        typeof s.day === 'number' &&
-        Number.isFinite(s.day) &&
-        s.day >= MIN_DAY &&
-        s.day <= MAX_DAY
-            ? Math.floor(s.day)
-            : dayFromMs(started_at, 'UTC');
+// Reporters from before day bucketing send no `day`; the UTC day of
+// started_at reproduces the old attribution exactly, so old installs keep
+// reporting with no coordinated release.
+const day =
+    typeof s.day === 'number' &&
+    Number.isFinite(s.day) &&
+    s.day >= MIN_DAY &&
+    s.day <= MAX_DAY
+        ? Math.floor(s.day)
+        : dayFromMs(started_at, 'UTC');
 ```
 
 and add `day,` to the `row` literal (immediately after `model`).
@@ -976,31 +979,31 @@ export interface IngestPayload {
 In `parseIngestBody`, before the per-row loop:
 
 ```ts
-    const replaceSessions: string[] = [];
-    if (b.replace_sessions !== undefined) {
-        if (!Array.isArray(b.replace_sessions)) {
-            return { ok: false, error: 'replace_sessions must be an array' };
-        }
-        if (b.replace_sessions.length > maxSessions) {
+const replaceSessions: string[] = [];
+if (b.replace_sessions !== undefined) {
+    if (!Array.isArray(b.replace_sessions)) {
+        return { ok: false, error: 'replace_sessions must be an array' };
+    }
+    if (b.replace_sessions.length > maxSessions) {
+        return {
+            ok: false,
+            error: `too many replace_sessions (max ${maxSessions})`,
+        };
+    }
+    for (const id of b.replace_sessions) {
+        if (
+            typeof id !== 'string' ||
+            id.length === 0 ||
+            id.length > MAX_SESSION_ID_LEN
+        ) {
             return {
                 ok: false,
-                error: `too many replace_sessions (max ${maxSessions})`,
+                error: 'replace_sessions must be non-empty session ids',
             };
         }
-        for (const id of b.replace_sessions) {
-            if (
-                typeof id !== 'string' ||
-                id.length === 0 ||
-                id.length > MAX_SESSION_ID_LEN
-            ) {
-                return {
-                    ok: false,
-                    error: 'replace_sessions must be non-empty session ids',
-                };
-            }
-            replaceSessions.push(id);
-        }
+        replaceSessions.push(id);
     }
+}
 ```
 
 and return `{ source: b.source, sessions, rejected, replaceSessions }`.
@@ -1022,10 +1025,12 @@ git commit -m "feat(api): accept per-day usage rows and an explicit replace scop
 ### Task 6: Store day rows and replace a session atomically
 
 **Files:**
+
 - Modify: `src/lib/store.ts`, `src/api/ingest.ts:39`, `src/api/history.ts:42`
 - Test: `src/__tests__/store.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `SessionUsageInput.day`, `IngestPayload.replaceSessions`.
 - Produces: `upsertSessions(db, userId, source, sessions, now, replaceSessions?: string[]): Promise<number>` — deletes every stored row for each id in `replaceSessions` (scoped to `user_id` + `source`) before inserting, so a new reporter's day rows cannot coexist with the legacy single row they supersede.
 
@@ -1078,10 +1083,13 @@ function row(day: number, model = 'claude-opus-5'): SessionUsageInput {
 describe('upsertSessions', () => {
     it('writes the day column on every insert', async () => {
         const log: Recorded[][] = [];
-        await upsertSessions(recordingDb(log), 'u1', 'claude_code', [
-            row(20260806),
-            row(20260807),
-        ], 42);
+        await upsertSessions(
+            recordingDb(log),
+            'u1',
+            'claude_code',
+            [row(20260806), row(20260807)],
+            42,
+        );
         const inserts = log.flat().filter((s) => s.sql.includes('INSERT'));
         expect(inserts).toHaveLength(2);
         expect(inserts[0]?.sql).toContain('day');
@@ -1104,12 +1112,22 @@ describe('upsertSessions', () => {
         const firstInsert = flat.findIndex((s) => s.sql.includes('INSERT'));
         expect(deleteIndex).toBeGreaterThanOrEqual(0);
         expect(deleteIndex).toBeLessThan(firstInsert);
-        expect(flat[deleteIndex]?.args).toEqual(['u1', 'claude_code', 'sess-1']);
+        expect(flat[deleteIndex]?.args).toEqual([
+            'u1',
+            'claude_code',
+            'sess-1',
+        ]);
     });
 
     it('issues no delete when nothing is being replaced', async () => {
         const log: Recorded[][] = [];
-        await upsertSessions(recordingDb(log), 'u1', 'claude_code', [row(20260807)], 42);
+        await upsertSessions(
+            recordingDb(log),
+            'u1',
+            'claude_code',
+            [row(20260807)],
+            42,
+        );
         expect(log.flat().some((s) => s.sql.startsWith('DELETE'))).toBe(false);
     });
 
@@ -1123,7 +1141,9 @@ describe('upsertSessions', () => {
             42,
             ['sess-1', 'sess-1'],
         );
-        expect(log.flat().filter((s) => s.sql.startsWith('DELETE'))).toHaveLength(1);
+        expect(
+            log.flat().filter((s) => s.sql.startsWith('DELETE')),
+        ).toHaveLength(1);
     });
 });
 ```
@@ -1226,20 +1246,20 @@ export async function upsertSessions(
 In `src/api/ingest.ts`, destructure and forward the new field:
 
 ```ts
-    const { source, sessions, rejected, replaceSessions } = parsed.value;
-    // A batch whose rows were all rejected changes nothing: skip the upsert
-    // and keep the user's cached profile aggregates warm.
-    if (sessions.length > 0) {
-        await upsertSessions(
-            c.env.DB,
-            user.id,
-            source,
-            sessions,
-            Date.now(),
-            replaceSessions,
-        );
-        await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
-    }
+const { source, sessions, rejected, replaceSessions } = parsed.value;
+// A batch whose rows were all rejected changes nothing: skip the upsert
+// and keep the user's cached profile aggregates warm.
+if (sessions.length > 0) {
+    await upsertSessions(
+        c.env.DB,
+        user.id,
+        source,
+        sessions,
+        Date.now(),
+        replaceSessions,
+    );
+    await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
+}
 ```
 
 Apply the identical change in `src/api/history.ts`.
@@ -1274,6 +1294,7 @@ git commit -m "feat(api): store day-bucketed rows and replace re-reported sessio
 ### Task 7: Query windows by calendar day and resolve the viewer's day
 
 **Files:**
+
 - Modify: `src/lib/aggregate.ts:9-27,131-214,216-278,294-357,375-411`
 - Test: `src/__tests__/aggregate.test.ts`
 - Modify: `src/lib/cached-aggregate.ts:21-53,66-97,118-130`
@@ -1283,12 +1304,13 @@ git commit -m "feat(api): store day-bucketed rows and replace re-reported sessio
 - Test: `src/__tests__/cached-aggregate.test.ts`, `src/__tests__/page-cache-headers.test.ts`
 
 **Interfaces:**
+
 - Consumes: `windowStartDay`, `dayFromMs` (Task 2).
 - Produces:
-  - `LeaderboardQuery` gains `startDay: number` (inclusive, `0` = all time); `getLeaderboard(db, q)` loses its `now` parameter.
-  - `HackathonLeaderboardQuery` replaces `startAt`/`endAt` with `startDay: number` / `endDay: number` (both inclusive).
-  - `getProfileWindowTotals(db, username, startDay)`.
-  - `windowStart` is removed from this module (it lives in `src/lib/day.ts` as `windowStartDay`).
+    - `LeaderboardQuery` gains `startDay: number` (inclusive, `0` = all time); `getLeaderboard(db, q)` loses its `now` parameter.
+    - `HackathonLeaderboardQuery` replaces `startAt`/`endAt` with `startDay: number` / `endDay: number` (both inclusive).
+    - `getProfileWindowTotals(db, username, startDay)`.
+    - `windowStart` is removed from this module (it lives in `src/lib/day.ts` as `windowStartDay`).
 - Consumes: `windowStartDay`, `dayFromMs`, `timeZoneFromRequest` (Task 2); the query signatures produced in Steps 1–3 of this task.
 - Produces: every cached read keyed by the resolved `startDay`; cache keys bumped to `v2`; HTTP cache keys carry the viewer's date.
 
@@ -1302,7 +1324,10 @@ interface Captured {
     binds: unknown[];
 }
 
-function capturingDb(captured: Captured[], results: unknown[] = []): D1Database {
+function capturingDb(
+    captured: Captured[],
+    results: unknown[] = [],
+): D1Database {
     return {
         prepare(sql: string) {
             const self = {
@@ -1416,11 +1441,11 @@ export interface HackathonLeaderboardQuery {
 ```
 
 ```ts
-    const sql = `${GROUP_SELECT} WHERE su.day >= ? AND su.day <= ? AND su.user_id IN (${placeholders}) GROUP BY su.user_id, su.source, su.model`;
-    const res = await db
-        .prepare(sql)
-        .bind(q.startDay, q.endDay, ...q.memberIds)
-        .all<GroupedRow>();
+const sql = `${GROUP_SELECT} WHERE su.day >= ? AND su.day <= ? AND su.user_id IN (${placeholders}) GROUP BY su.user_id, su.source, su.model`;
+const res = await db
+    .prepare(sql)
+    .bind(q.startDay, q.endDay, ...q.memberIds)
+    .all<GroupedRow>();
 ```
 
 Add a note above `getHackathonLeaderboard`:
@@ -1447,12 +1472,12 @@ export async function getProfileWindowTotals(
 and its query bind:
 
 ```ts
-    const { results } = await db
-        .prepare(
-            `${GROUP_SELECT} WHERE su.user_id = ? AND su.day >= ? GROUP BY su.source, su.model`,
-        )
-        .bind(user.id, startDay)
-        .all<GroupedRow>();
+const { results } = await db
+    .prepare(
+        `${GROUP_SELECT} WHERE su.user_id = ? AND su.day >= ? GROUP BY su.source, su.model`,
+    )
+    .bind(user.id, startDay)
+    .all<GroupedRow>();
 ```
 
 - [ ] **Step 4: Write the failing test**
@@ -1624,19 +1649,19 @@ Now update every call site. `src/api/leaderboard.ts`:
 ```ts
 import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 // …
-    const entries = await cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+const entries = await cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+    window,
+    startDay: windowStartDay(
         window,
-        startDay: windowStartDay(
-            window,
-            Date.now(),
-            timeZoneFromRequest(c.req.raw),
-        ),
-        metric,
-        source,
-        model,
-        country,
-        limit,
-    });
+        Date.now(),
+        timeZoneFromRequest(c.req.raw),
+    ),
+    metric,
+    source,
+    model,
+    country,
+    limit,
+});
 ```
 
 `src/api/agent-pages.ts:66` — the same shape. That route already has `window` in scope from `parseWindow(c.req.query('window'))`; add the two imports and insert one field into the object literal it passes, removing the trailing `Date.now(),` argument:
@@ -1654,11 +1679,11 @@ import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 ```ts
 import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 // …
-    const startDay = windowStartDay('7d', now, timeZoneFromRequest(c.req.raw));
-    const [profile, last7d] = await Promise.all([
-        cachedProfile(DB, RATE_LIMIT, username),
-        cachedProfileWindow(DB, RATE_LIMIT, username, '7d', startDay),
-    ]);
+const startDay = windowStartDay('7d', now, timeZoneFromRequest(c.req.raw));
+const [profile, last7d] = await Promise.all([
+    cachedProfile(DB, RATE_LIMIT, username),
+    cachedProfileWindow(DB, RATE_LIMIT, username, '7d', startDay),
+]);
 ```
 
 `src/index.tsx:155` and `:252` — replace the trailing `Date.now(),` argument of each `cachedLeaderboard` call with a resolved `startDay` field:
@@ -1758,10 +1783,12 @@ git commit -m "feat: window leaderboards by calendar day in the viewer's zone"
 ### Task 8: Post sessions in session-contiguous batches
 
 **Files:**
+
 - Modify: `reporter/src/api.ts:40-125`
 - Test: `src/__tests__/reporter-api-batching.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `ReporterRow.day` (Task 3).
 - Produces: `planBatches(rows: ReporterRow[], chunkSize: number): PostBatch[]` (exported for tests), where `PostBatch = { rows: ReporterRow[]; baseIndex: number; replaceSessions: string[] }`. Every request body gains `replace_sessions`.
 
@@ -1991,10 +2018,12 @@ git commit -m "feat(reporter): post session-contiguous batches with an explicit 
 ### Task 9: Claude Code — bucket by each entry's local day
 
 **Files:**
+
 - Modify: `reporter/src/agents/claude.ts:21-48,50-58,100-110`, `reporter/src/agents/claude-sessions.ts:604-619`
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay`, `accumulateModelDayUsage`.
 - Produces: `ClaudeUsageRow.day: number` (`0` when the line has no usable timestamp); `sumClaudeRows(rows, fallbackDay): Map<string, DayTotals>`.
 
@@ -2166,10 +2195,7 @@ function sessionRows(sessions: Map<string, SessionState>): ReporterRow[] {
                 session_id: s.sid,
                 started_at: s.startedAt,
                 models: sumClaudeRows(
-                    [
-                        ...[...s.keyed.values()].map((k) => k.row),
-                        ...s.unkeyed,
-                    ],
+                    [...[...s.keyed.values()].map((k) => k.row), ...s.unkeyed],
                     localDay(s.startedAt ?? Date.now()),
                 ),
             }),
@@ -2196,10 +2222,12 @@ git commit -m "feat(reporter): attribute Claude Code usage to each entry's local
 ### Task 10: Codex — bucket each token_count delta by its local day
 
 **Files:**
+
 - Modify: `reporter/src/agents/codex-engine.ts:313-317,481-492,884-889,924-934,1004-1009,1168,1380-1390`
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay`, `accumulateModelDayUsage`.
 - Produces: `TokenCountRecord.tsMs: number | null`; `addModelDelta(model, day, delta)`; `ensureModelRow(model, day)`.
 
@@ -2299,37 +2327,37 @@ interface TokenCountRecord {
 In `codexLineFrom`, populate it (the function already receives the whole `obj`):
 
 ```ts
-        return {
-            kind: 'tokenCount',
-            rec: { model, last, total, tsMs: toMs(obj.timestamp) },
-        };
+return {
+    kind: 'tokenCount',
+    rec: { model, last, total, tsMs: toMs(obj.timestamp) },
+};
 ```
 
 Change the model map and its two writers inside `parseCodexRollout`:
 
 ```ts
-    const models = new Map<string, DayTotals>();
+const models = new Map<string, DayTotals>();
 ```
 
 ```ts
-    // The session's own start day, for token_count lines with no timestamp.
-    function fallbackDay(): number {
-        return localDay(startedAt ?? opts.fallbackStartedAt ?? Date.now());
-    }
+// The session's own start day, for token_count lines with no timestamp.
+function fallbackDay(): number {
+    return localDay(startedAt ?? opts.fallbackStartedAt ?? Date.now());
+}
 
-    function ensureModelRow(model: string, day: number): void {
-        // Zero-total rows keep the server upsert able to overwrite rows an
-        // earlier reporter version inflated for this (session, model, day).
-        const byDay = models.get(model) ?? new Map<number, Totals>();
-        if (!byDay.has(day)) byDay.set(day, emptyTotals());
-        models.set(model, byDay);
-    }
+function ensureModelRow(model: string, day: number): void {
+    // Zero-total rows keep the server upsert able to overwrite rows an
+    // earlier reporter version inflated for this (session, model, day).
+    const byDay = models.get(model) ?? new Map<number, Totals>();
+    if (!byDay.has(day)) byDay.set(day, emptyTotals());
+    models.set(model, byDay);
+}
 
-    function addModelDelta(model: string, day: number, delta: Totals): void {
-        ensureModelRow(model, day);
-        const t = models.get(model)?.get(day) as Totals;
-        for (const k of TOTAL_KEYS) t[k] += delta[k];
-    }
+function addModelDelta(model: string, day: number, delta: Totals): void {
+    ensureModelRow(model, day);
+    const t = models.get(model)?.get(day) as Totals;
+    for (const k of TOTAL_KEYS) t[k] += delta[k];
+}
 ```
 
 At the top of `handleTokenCount`, resolve the day once and use it for both calls:
@@ -2348,19 +2376,19 @@ At the top of `handleTokenCount`, resolve the day once and use it for both calls
 and at its end (line 1168):
 
 ```ts
-        commitObserved();
-        if (totalsHaveUsage(delta)) addModelDelta(model, day, delta);
+commitObserved();
+if (totalsHaveUsage(delta)) addModelDelta(model, day, delta);
 ```
 
 Finally simplify the return — `models` is already day-keyed, so drop `singleDayModels`:
 
 ```ts
-    return {
-        session_id: sessionId,
-        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
-        models,
-        parent_id: forkedFromId,
-    };
+return {
+    session_id: sessionId,
+    started_at: startedAt ?? opts.fallbackStartedAt ?? null,
+    models,
+    parent_id: forkedFromId,
+};
 ```
 
 Keep `ParsedCodexRollout.models: Map<string, DayTotals>` from Task 3, and remove the now-unused `singleDayModels`/`localDay`-wrapping import lines that Task 3 added here (`localDay` is still needed).
@@ -2382,10 +2410,12 @@ git commit -m "feat(reporter): attribute Codex turn deltas to their local day"
 ### Task 11: pi — bucket by each record's local day
 
 **Files:**
+
 - Modify: `reporter/src/agents/pi.ts:19-22,70-96,103-127`
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay`, `accumulateModelDayUsage`.
 - Produces: `PiKeyedUsage` gains `day: number`; `processPiLine` writes into a `Map<string, DayTotals>`.
 
@@ -2542,10 +2572,12 @@ git commit -m "feat(reporter): attribute pi usage to each record's local day"
 ### Task 12: opencode — bucket by each message's local day
 
 **Files:**
+
 - Modify: `reporter/src/agents/opencode.ts:24-47,54-78`
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay`, `accumulateModelDayUsage`.
 - Produces: `accumulateOpencodeTokens(models: Map<string, DayTotals>, msg: JsonObject, day: number)`.
 
@@ -2586,7 +2618,11 @@ describe('parseOpencodeMessages day buckets', () => {
                     role: 'assistant',
                     sessionID: 'oc-1',
                     modelID: 'claude-sonnet-5',
-                    tokens: { input: 1, output: 5, cache: { read: 0, write: 0 } },
+                    tokens: {
+                        input: 1,
+                        output: 5,
+                        cache: { read: 0, write: 0 },
+                    },
                 },
             ],
             { fallbackStartedAt: new Date(2026, 7, 7, 10, 0).getTime() },
@@ -2657,11 +2693,7 @@ export function parseOpencodeMessages(
         if (ts !== null && (startedAt === null || ts < startedAt))
             startedAt = ts;
         if (msg.role === 'assistant') {
-            accumulateOpencodeTokens(
-                models,
-                msg,
-                localDay(ts) || fallbackDay,
-            );
+            accumulateOpencodeTokens(models, msg, localDay(ts) || fallbackDay);
         }
     }
 
@@ -2692,11 +2724,13 @@ git commit -m "feat(reporter): attribute opencode usage to each message's local 
 Cursor's session ids stay `cursor-<UTC date>`: they are the unit the replace contract deletes, and renaming them would orphan every row already stored. Only the `day` inside them becomes local, so a UTC day that straddles two local days yields two rows.
 
 **Files:**
+
 - Modify: `reporter/src/agents/cursor.ts:25-63`
 - Modify: `reporter/src/lib/totals.ts` (delete the now-unused `singleDayModels`)
 - Test: `src/__tests__/reporter-day.test.ts`
 
 **Interfaces:**
+
 - Consumes: `localDay`.
 - Produces: `parseCursorEvents` rows with `session_id = cursor-<UTC date>`, `day = local day of the event`.
 
@@ -2841,10 +2875,12 @@ git commit -m "feat(reporter): attribute Cursor usage to each event's local day"
 ### Task 14: Document the new attribution
 
 **Files:**
+
 - Modify: `README.md`, `src/content/about.md.ts:12`, `src/pages/about.tsx:36`
 - Test: `src/__tests__/agent-content.test.ts`, `src/__tests__/agent-markdown.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: user-facing copy explaining that windows count the day usage was spent, and that older data needs one `tokenmaxer backfill`.
 
@@ -2919,11 +2955,11 @@ git commit -m "docs: explain local-day usage attribution"
 2. Apply the migration against production: `pnpm db:migrate` (it rebuilds the table; totals are preserved).
 3. Release the reporter (Tasks 1, 3, 8–13). CI publishes `tokenmaxer` when `reporter/` changes.
 4. Verify with a dry run before any upload (esbuild writes the bundle to `reporter/tokentally.mjs`, per `reporter/package.json`'s `build` script):
-   ```bash
-   pnpm build:reporter
-   node reporter/tokentally.mjs claude-sessionstart --dry-run | head -40
-   ```
-   Expect `replace_sessions` in the body and several rows per session with distinct `day` values.
+    ```bash
+    pnpm build:reporter
+    node reporter/tokentally.mjs claude-sessionstart --dry-run | head -40
+    ```
+    Expect `replace_sessions` in the body and several rows per session with distinct `day` values.
 5. Re-derive your own history once: `tokenmaxer backfill claude` (then `codex`, `opencode`, `pi`, `cursor`).
 6. Spot-check against `bunx ccusage daily --since <date>`: a day's four token columns should now agree with the board's per-day totals to within the known 0.17% (cross-session duplicate messages, which tokenmaxer dedupes per session and ccusage dedupes globally).
 
