@@ -339,3 +339,83 @@ describe('validateCountry', () => {
         expect(validateCountry(42).ok).toBe(false);
     });
 });
+
+describe('parseIngestBody day handling', () => {
+    const base = { session_id: 's0', model: 'claude-opus-5', input_tokens: 1 };
+
+    it('keeps a reporter-supplied day verbatim', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, started_at: 1, day: 20260807 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('derives the day from started_at (UTC) for pre-day reporters', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, started_at: Date.parse('2026-08-07T23:47:00Z') },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('rejects an out-of-range day by falling back to started_at', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    ...base,
+                    started_at: Date.parse('2026-08-07T00:00:00Z'),
+                    day: 42,
+                },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('defaults replace_sessions to empty', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [base],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.replaceSessions).toEqual([]);
+    });
+
+    it('passes replace_sessions through', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [base],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.replaceSessions).toEqual(['s0']);
+    });
+
+    it('rejects a malformed replace_sessions list', () => {
+        expect(
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [base],
+                replace_sessions: 's0',
+            }).ok,
+        ).toBe(false);
+        expect(
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [base],
+                replace_sessions: [''],
+            }).ok,
+        ).toBe(false);
+    });
+});

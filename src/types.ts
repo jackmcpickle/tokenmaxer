@@ -37,6 +37,8 @@ export interface SessionUsageInput {
     cache_read_tokens: number;
     cache_creation_tokens: number;
     reasoning_tokens: number;
+    /** Local calendar day the usage was spent on, YYYYMMDD. */
+    day: number;
 }
 
 export interface UserRow {
