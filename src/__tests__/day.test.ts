@@ -11,11 +11,13 @@ const NOW = Date.parse('2026-08-07T09:54:00Z');
 describe('dayFromMs', () => {
     it('reads the calendar date in the given zone', () => {
         expect(dayFromMs(NOW, 'UTC')).toBe(20260807);
-        // UTC+9:30 — already the 7th, 19:24 local.
-        expect(dayFromMs(NOW, 'Australia/Adelaide')).toBe(20260807);
-        // UTC-7 — 02:54 local, still the 7th.
-        expect(dayFromMs(NOW, 'America/Los_Angeles')).toBe(20260807);
-        // Four hours earlier is 21:00 on the 6th in Los Angeles.
+        // 23:00Z on the 6th is already 08:30 on the 7th in Adelaide (UTC+9:30);
+        // a UTC reading would say 20260806.
+        expect(
+            dayFromMs(Date.parse('2026-08-06T23:00:00Z'), 'Australia/Adelaide'),
+        ).toBe(20260807);
+        // 04:00Z on the 7th is still 21:00 on the 6th in Los Angeles (UTC-7);
+        // a UTC reading would say 20260807.
         expect(
             dayFromMs(
                 Date.parse('2026-08-07T04:00:00Z'),
@@ -47,6 +49,10 @@ describe('shiftDay', () => {
     it('walks forwards too', () => {
         expect(shiftDay(20260228, 1)).toBe(20260301);
     });
+    it('treats 0 as unknown, passing it through unchanged', () => {
+        expect(shiftDay(0, -6)).toBe(0);
+        expect(shiftDay(0, 1)).toBe(0);
+    });
 });
 
 describe('windowStartDay', () => {
@@ -67,6 +73,9 @@ describe('windowStartDay', () => {
         expect(windowStartDay('today', earlyUtc, 'America/Los_Angeles')).toBe(
             20260806,
         );
+    });
+    it('degrades non-finite input to all-time rather than computing an 1899 date', () => {
+        expect(windowStartDay('7d', Number.NaN, 'UTC')).toBe(0);
     });
 });
 

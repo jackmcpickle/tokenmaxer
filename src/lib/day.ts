@@ -53,6 +53,9 @@ export function dayFromMs(ms: number, timeZone: string): number {
 
 /** The calendar date `deltaDays` away from `day`, month/year/leap aware. */
 export function shiftDay(day: number, deltaDays: number): number {
+    // Shifting an unknown day (0) is still unknown. Treat as sentinel passthrough
+    // rather than computing an 1899 date from the legacy two-digit-year rule.
+    if (day === 0) return 0;
     const year = Math.floor(day / 10_000);
     const month = Math.floor((day % 10_000) / 100);
     const date = day % 100;
