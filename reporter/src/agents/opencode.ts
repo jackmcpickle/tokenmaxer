@@ -2,9 +2,14 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { localDay } from '../lib/day';
 import { asObject, toMs } from '../lib/parse-utils';
 import { toRows } from '../lib/rows';
-import { accumulateModelUsage, usageFromFields } from '../lib/totals';
+import {
+    accumulateModelUsage,
+    singleDayModels,
+    usageFromFields,
+} from '../lib/totals';
 import type {
     JsonObject,
     ParseOpts,
@@ -77,10 +82,11 @@ function finishOpencodeParse(
     ctx: OpencodeParseCtx,
     opts: ParseOpts,
 ): ParsedTranscript {
+    const startedAt = ctx.startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: ctx.sessionId ?? opts.sessionId ?? null,
-        started_at: ctx.startedAt ?? opts.fallbackStartedAt ?? null,
-        models: ctx.models,
+        started_at: startedAt,
+        models: singleDayModels(ctx.models, localDay(startedAt ?? Date.now())),
     };
 }
 

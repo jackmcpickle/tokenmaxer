@@ -15,14 +15,22 @@ export function isSyntheticModel(model: unknown): boolean {
     return m === 'synthetic';
 }
 
-/** Turn a parsed result into API session rows (one per model). */
+/** Turn a parsed result into API session rows (one per model per local day). */
 export function toRows(parsed: ParsedTranscript, path?: string): ReporterRow[] {
     const sid = parsed.session_id ?? sessionIdFromPath(path ?? '');
     const startedAt = parsed.started_at ?? Date.now();
     const rows: ReporterRow[] = [];
-    for (const [model, t] of parsed.models) {
+    for (const [model, byDay] of parsed.models) {
         if (isSyntheticModel(model)) continue;
-        rows.push({ session_id: sid, model, started_at: startedAt, ...t });
+        for (const [day, t] of byDay) {
+            rows.push({
+                session_id: sid,
+                model,
+                day,
+                started_at: startedAt,
+                ...t,
+            });
+        }
     }
     return rows;
 }

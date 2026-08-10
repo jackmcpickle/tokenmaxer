@@ -1,6 +1,7 @@
+import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { emptyTotals, num } from '../lib/totals';
-import type { JsonObject, ReporterTotals } from '../lib/types';
+import { emptyTotals, num, singleDayModels } from '../lib/totals';
+import type { DayTotals, JsonObject, ReporterTotals } from '../lib/types';
 
 /**
  * Codex rollout counting engine, ported from CodexBar's CostUsageScanner
@@ -884,7 +885,7 @@ export interface CodexEngineOpts {
 export interface ParsedCodexRollout {
     session_id: string | null;
     started_at: number | null;
-    models: Map<string, ReporterTotals>;
+    models: Map<string, DayTotals>;
     parent_id: string | null;
 }
 
@@ -1382,10 +1383,11 @@ export function parseCodexRollout(
         }
     }
 
+    startedAt = startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
-        models,
+        started_at: startedAt,
+        models: singleDayModels(models, localDay(startedAt ?? Date.now())),
         parent_id: forkedFromId,
     };
 }

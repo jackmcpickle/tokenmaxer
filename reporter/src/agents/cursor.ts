@@ -40,10 +40,12 @@ function cursorRowsFromDayMap(
     const rows: ReporterRow[] = [];
     for (const [day, byModel] of days) {
         const startedAt = Date.parse(`${day}T00:00:00Z`);
+        const dayNumber = Number.parseInt(day.replace(/-/gu, ''), 10);
         for (const [model, t] of byModel) {
             rows.push({
                 session_id: `cursor-${day}`,
                 model,
+                day: dayNumber,
                 started_at: startedAt,
                 ...t,
             });

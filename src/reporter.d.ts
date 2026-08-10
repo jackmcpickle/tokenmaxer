@@ -11,10 +11,11 @@ declare module '*/tokentally.mjs' {
         cache_creation_tokens: number;
         reasoning_tokens: number;
     }
+    export type DayTotals = Map<number, ReporterTotals>;
     export interface ParsedTranscript {
         session_id: string | null;
         started_at: number | null;
-        models: Map<string, ReporterTotals>;
+        models: Map<string, DayTotals>;
     }
     export interface ParsedCodexRollout extends ParsedTranscript {
         parent_id: string | null;
@@ -29,6 +30,7 @@ declare module '*/tokentally.mjs' {
     export interface ReporterRow extends ReporterTotals {
         session_id: string;
         model: string;
+        day: number;
         started_at: number;
     }
     export function parseClaudeTranscript(

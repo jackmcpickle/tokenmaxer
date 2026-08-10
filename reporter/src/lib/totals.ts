@@ -1,4 +1,4 @@
-import type { JsonObject, ReporterTotals, TotalsKey } from './types';
+import type { DayTotals, JsonObject, ReporterTotals, TotalsKey } from './types';
 
 export function emptyTotals(): ReporterTotals {
     return {
@@ -59,4 +59,30 @@ export function accumulateModelUsage(
     const t = models.get(model) ?? emptyTotals();
     addUsage(t, usage);
     models.set(model, t);
+}
+
+export function accumulateModelDayUsage(
+    models: Map<string, DayTotals>,
+    model: string,
+    day: number,
+    usage: ReporterTotals,
+): void {
+    const byDay = models.get(model) ?? new Map<number, ReporterTotals>();
+    const t = byDay.get(day) ?? emptyTotals();
+    addUsage(t, usage);
+    byDay.set(day, t);
+    models.set(model, byDay);
+}
+
+/**
+ * Bridge for collectors that have not been converted to per-entry day
+ * bucketing yet: puts each model's whole total on one day.
+ */
+export function singleDayModels(
+    models: Map<string, ReporterTotals>,
+    day: number,
+): Map<string, DayTotals> {
+    const out = new Map<string, DayTotals>();
+    for (const [model, t] of models) out.set(model, new Map([[day, t]]));
+    return out;
 }

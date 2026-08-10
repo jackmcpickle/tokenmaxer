@@ -6,15 +6,20 @@ export interface ReporterTotals {
     reasoning_tokens: number;
 }
 
+/** Per-day totals for one model, keyed by YYYYMMDD in the reporter's local zone. */
+export type DayTotals = Map<number, ReporterTotals>;
+
 export interface ParsedTranscript {
     session_id: string | null;
     started_at: number | null;
-    models: Map<string, ReporterTotals>;
+    models: Map<string, DayTotals>;
 }
 
 export interface ReporterRow extends ReporterTotals {
     session_id: string;
     model: string;
+    /** Local calendar day the usage was spent on, YYYYMMDD. */
+    day: number;
     started_at: number;
 }
 

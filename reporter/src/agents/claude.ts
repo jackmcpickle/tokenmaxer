@@ -1,7 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { accumulateModelUsage, usageFromFields } from '../lib/totals';
+import {
+    accumulateModelUsage,
+    singleDayModels,
+    usageFromFields,
+} from '../lib/totals';
 import type {
     JsonObject,
     ParseOpts,
@@ -109,9 +114,13 @@ export function parseClaudeTranscript(
     opts: ParseOpts = {},
 ): ParsedTranscript {
     const scan = scanClaudeTranscript(text);
+    const startedAt = scan.startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: opts.sessionId || scan.sessionId || null,
-        started_at: scan.startedAt ?? opts.fallbackStartedAt ?? null,
-        models: sumClaudeRows([...scan.keyed.values(), ...scan.unkeyed]),
+        started_at: startedAt,
+        models: singleDayModels(
+            sumClaudeRows([...scan.keyed.values(), ...scan.unkeyed]),
+            localDay(startedAt ?? Date.now()),
+        ),
     };
 }
