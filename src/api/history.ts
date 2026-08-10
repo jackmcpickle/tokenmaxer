@@ -37,7 +37,10 @@ app.post('/history', async (c) => {
 
     const { source, sessions, rejected, replaceSessions } = parsed.value;
     // A batch whose rows were all rejected changes nothing: skip the upsert
-    // and keep the user's cached profile aggregates warm.
+    // and keep the user's cached profile aggregates warm. This guard also
+    // prevents issuing a replace_sessions delete with nothing left to
+    // reinsert, which would destroy previously stored usage for a replaced
+    // session — do not remove it just because replace_sessions is set.
     if (sessions.length > 0) {
         await upsertSessions(
             c.env.DB,

@@ -441,4 +441,73 @@ describe('parseIngestBody day handling', () => {
             }).ok,
         ).toBe(false);
     });
+
+    it('rejects the whole request when a replaced session has an invalid row', () => {
+        // Honouring replace_sessions would delete s0's stored rows before
+        // reinserting only the rows that passed validation, permanently
+        // losing the rejected row's usage. Refuse instead.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, session_id: 's0', input_tokens: 2 ** 53 }],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(false);
+        if (parsed.ok) return;
+        expect(parsed.error).toContain('replace_sessions');
+    });
+
+    it('still accepts per-row when the invalid row belongs to a different session', () => {
+        // The invalid row's session ('other') is not in replace_sessions, so
+        // only that row is rejected by index; s0's valid rows still land.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, session_id: 's0' },
+                {
+                    ...base,
+                    session_id: 'other',
+                    input_tokens: 2 ** 53,
+                },
+            ],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions).toHaveLength(1);
+        expect(parsed.value.sessions[0]?.session_id).toBe('s0');
+        expect(parsed.value.rejected).toEqual([
+            { index: 1, error: 'token count exceeds safe integer range' },
+        ]);
+    });
+
+    it('rejects the whole request when an invalid row has no usable session_id', () => {
+        // An unattributable rejected row can't be proven safe against
+        // replace_sessions, so it is treated as a collision.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, session_id: 's0' },
+                { model: 'm', input_tokens: 1 }, // missing session_id
+            ],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(false);
+        if (parsed.ok) return;
+        expect(parsed.error).toContain('replace_sessions');
+    });
+
+    it('keeps today’s per-row rejection behaviour when replace_sessions is empty', () => {
+        // Backward compatibility: no replace_sessions means the collision
+        // guard never engages, even with an invalid row present.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, session_id: 's0', input_tokens: 2 ** 53 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions).toEqual([]);
+        expect(parsed.value.rejected).toEqual([
+            { index: 0, error: 'token count exceeds safe integer range' },
+        ]);
+    });
 });

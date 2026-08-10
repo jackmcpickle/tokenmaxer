@@ -249,6 +249,62 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
     return { ok: true, value: row };
 }
 
+function parseReplaceSessions(
+    raw: unknown,
+    maxSessions: number,
+): Result<string[]> {
+    if (raw === undefined) return { ok: true, value: [] };
+    if (!Array.isArray(raw)) {
+        return { ok: false, error: 'replace_sessions must be an array' };
+    }
+    if (raw.length > maxSessions) {
+        return {
+            ok: false,
+            error: `too many replace_sessions (max ${maxSessions})`,
+        };
+    }
+    const replaceSessions: string[] = [];
+    for (const id of raw) {
+        if (
+            typeof id !== 'string' ||
+            id.length === 0 ||
+            id.length > MAX_SESSION_ID_LEN
+        ) {
+            return {
+                ok: false,
+                error: 'replace_sessions must be non-empty session ids',
+            };
+        }
+        replaceSessions.push(id);
+    }
+    return { ok: true, value: replaceSessions };
+}
+
+/** The session a rejected row claims to belong to, read straight off the raw
+ * object since a row can be rejected for reasons unrelated to its id. */
+function rejectedSessionId(raw: unknown): string | null {
+    if (typeof raw !== 'object' || raw === null) return null;
+    const id = (raw as Record<string, unknown>).session_id;
+    return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+/**
+ * Honouring replace_sessions deletes a session's stored rows before
+ * re-inserting them, so a rejected row would delete usage that nothing
+ * replaces. A rejected row with no usable session_id cannot be attributed, so
+ * it is treated as a collision too.
+ */
+function replacesRejectedSession(
+    replaceSessions: string[],
+    rejectedSessionIds: Array<string | null>,
+): boolean {
+    if (replaceSessions.length === 0 || rejectedSessionIds.length === 0) {
+        return false;
+    }
+    const replaced = new Set(replaceSessions);
+    return rejectedSessionIds.some((id) => id === null || replaced.has(id));
+}
+
 export function parseIngestBody(
     body: unknown,
     opts: { maxSessions?: number } = {},
@@ -278,46 +334,37 @@ export function parseIngestBody(
         };
     }
 
-    const replaceSessions: string[] = [];
-    if (b.replace_sessions !== undefined) {
-        if (!Array.isArray(b.replace_sessions)) {
-            return { ok: false, error: 'replace_sessions must be an array' };
-        }
-        if (b.replace_sessions.length > maxSessions) {
-            return {
-                ok: false,
-                error: `too many replace_sessions (max ${maxSessions})`,
-            };
-        }
-        for (const id of b.replace_sessions) {
-            if (
-                typeof id !== 'string' ||
-                id.length === 0 ||
-                id.length > MAX_SESSION_ID_LEN
-            ) {
-                return {
-                    ok: false,
-                    error: 'replace_sessions must be non-empty session ids',
-                };
-            }
-            replaceSessions.push(id);
-        }
-    }
+    const parsedReplace = parseReplaceSessions(b.replace_sessions, maxSessions);
+    if (!parsedReplace.ok) return parsedReplace;
+    const replaceSessions = parsedReplace.value;
 
     // Structurally invalid rows are rejected individually (by their index in
     // the submitted array) instead of failing the whole batch, so one bad row
-    // never blocks the rest of a report.
+    // never blocks the rest of a report. `rejectedSessionIds` tracks, in
+    // parallel with `rejected`, which session each rejected row claims to
+    // belong to, so it can be checked against `replaceSessions` below.
     const sessions: SessionUsageInput[] = [];
     const rejected: RejectedSession[] = [];
+    const rejectedSessionIds: Array<string | null> = [];
     for (const [index, raw] of b.sessions.entries()) {
         const parsed = parseSessionEntry(raw);
         if (!parsed.ok) {
             rejected.push({ index, error: parsed.error });
+            rejectedSessionIds.push(rejectedSessionId(raw));
             continue;
         }
         // Skip Claude Code `<synthetic>` rows; all-synthetic batches still succeed.
         if (isSyntheticModel(parsed.value.model)) continue;
         sessions.push(parsed.value);
+    }
+
+    // Refuse the whole request rather than lose a rejected row's usage to a
+    // replace_sessions delete that nothing will reinsert.
+    if (replacesRejectedSession(replaceSessions, rejectedSessionIds)) {
+        return {
+            ok: false,
+            error: 'a session in replace_sessions has an invalid row; nothing was stored so no usage is deleted',
+        };
     }
 
     return {
