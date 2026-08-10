@@ -52,8 +52,25 @@ describe('upsertSessions', () => {
         const inserts = log.flat().filter((s) => s.sql.includes('INSERT'));
         expect(inserts).toHaveLength(2);
         expect(inserts[0]?.sql).toContain('day');
-        expect(inserts[0]?.args).toContain(20260806);
-        expect(inserts[1]?.args).toContain(20260807);
+        // Positional, not just membership: a transposed bind (e.g. day swapped
+        // with input_tokens, or cache_read swapped with cache_creation) would
+        // still contain every expected value, so only an exact ordered vector
+        // catches it.
+        expect(inserts[0]?.args).toEqual([
+            'u1',
+            'claude_code',
+            'sess-1',
+            'claude-opus-5',
+            20260806,
+            1,
+            2,
+            3,
+            4,
+            5,
+            1_000,
+            42,
+        ]);
+        expect(inserts[1]?.args[4]).toBe(20260807);
     });
 
     it('deletes a replaced session before inserting its rows', async () => {
