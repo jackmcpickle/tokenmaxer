@@ -4,11 +4,14 @@ import type { SessionUsageInput, Source } from '@/types';
 // history backfill can send thousands of rows) are written in chunks.
 const DB_BATCH_CHUNK = 500;
 
+const DELETE_SESSION_SQL = `DELETE FROM session_usage
+ WHERE user_id = ? AND source = ? AND session_id = ?`;
+
 const UPSERT_SQL = `INSERT INTO session_usage
-   (user_id, source, session_id, model, input_tokens, output_tokens,
+   (user_id, source, session_id, model, day, input_tokens, output_tokens,
     cache_read_tokens, cache_creation_tokens, reasoning_tokens, started_at, updated_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
- ON CONFLICT (user_id, source, session_id, model) DO UPDATE SET
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ ON CONFLICT (user_id, source, session_id, model, day) DO UPDATE SET
    input_tokens = excluded.input_tokens,
    output_tokens = excluded.output_tokens,
    cache_read_tokens = excluded.cache_read_tokens,
@@ -18,9 +21,17 @@ const UPSERT_SQL = `INSERT INTO session_usage
    updated_at = excluded.updated_at`;
 
 /**
- * Idempotently upsert per-session usage rows. Re-reporting the same
- * (user, source, session, model) REPLACEs the row rather than adding, so live
- * reporting and history backfill can overlap without double-counting.
+ * Idempotently write per-(session, model, day) usage rows.
+ *
+ * `replaceSessions` names the sessions this request fully re-reports: their
+ * stored rows are deleted first, so a reporter that now splits a session across
+ * days cannot leave the pre-split row behind to be counted twice. The reporter
+ * lists a session only in the first request carrying its rows, so a session
+ * spread over several requests is cleared exactly once and later chunks land
+ * through the upsert.
+ *
+ * Requests from reporters that predate this contract send no `replaceSessions`
+ * and behave exactly as before: a pure upsert keyed by (session, model, day).
  *
  * Returns the number of rows written.
  */
@@ -30,7 +41,20 @@ export async function upsertSessions(
     source: Source,
     sessions: SessionUsageInput[],
     now: number,
+    replaceSessions: string[] = [],
 ): Promise<number> {
+    const unique = [...new Set(replaceSessions)];
+    if (unique.length > 0) {
+        const del = db.prepare(DELETE_SESSION_SQL);
+        for (let i = 0; i < unique.length; i += DB_BATCH_CHUNK) {
+            const chunk = unique.slice(i, i + DB_BATCH_CHUNK);
+            // Deletes complete before any insert lands, so a replaced session
+            // is never observed as "old rows plus new rows".
+            // eslint-disable-next-line no-await-in-loop
+            await db.batch(chunk.map((id) => del.bind(userId, source, id)));
+        }
+    }
+
     const stmt = db.prepare(UPSERT_SQL);
     for (let i = 0; i < sessions.length; i += DB_BATCH_CHUNK) {
         const chunk = sessions.slice(i, i + DB_BATCH_CHUNK);
@@ -40,6 +64,7 @@ export async function upsertSessions(
                 source,
                 s.session_id,
                 s.model,
+                s.day,
                 s.input_tokens,
                 s.output_tokens,
                 s.cache_read_tokens,
