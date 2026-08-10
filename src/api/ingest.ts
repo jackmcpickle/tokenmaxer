@@ -9,8 +9,13 @@ import type { Env } from '@/types';
 const app = new Hono<{ Bindings: Env }>();
 
 // POST /api/ingest  (Bearer)
-// { source, sessions: [{ session_id, model, started_at, input_tokens, output_tokens,
-//   cache_read_tokens, cache_creation_tokens, reasoning_tokens }] }
+// { source, sessions: [{ session_id, model, day, started_at, input_tokens,
+//   output_tokens, cache_read_tokens, cache_creation_tokens, reasoning_tokens }],
+//   replace_sessions?: string[] }
+// `day` is a YYYYMMDD calendar day in the reporter's local timezone; omitted by
+// reporters older than day bucketing, in which case it is derived from
+// started_at in UTC. Sessions listed in `replace_sessions` have their stored
+// rows cleared first, so re-reporting can never leave a superseded row behind.
 // Upserts each session row; re-reporting the same session REPLACEs it (idempotent).
 // Structurally invalid rows are reported per-index in `rejected` while the
 // valid rows are still upserted; `accepted` counts the rows actually written.
@@ -32,11 +37,18 @@ app.post('/ingest', async (c) => {
     const parsed = parseIngestBody(body);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
-    const { source, sessions, rejected } = parsed.value;
+    const { source, sessions, rejected, replaceSessions } = parsed.value;
     // A batch whose rows were all rejected changes nothing: skip the upsert
     // and keep the user's cached profile aggregates warm.
     if (sessions.length > 0) {
-        await upsertSessions(c.env.DB, user.id, source, sessions, Date.now());
+        await upsertSessions(
+            c.env.DB,
+            user.id,
+            source,
+            sessions,
+            Date.now(),
+            replaceSessions,
+        );
         await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
     }
 
