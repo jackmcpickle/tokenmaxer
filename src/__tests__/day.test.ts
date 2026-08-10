@@ -33,6 +33,18 @@ describe('dayFromMs', () => {
     it('returns 0 for non-finite input', () => {
         expect(dayFromMs(Number.NaN, 'UTC')).toBe(0);
     });
+
+    it('returns 0 for out-of-range positive input', () => {
+        expect(dayFromMs(1e20, 'UTC')).toBe(0);
+    });
+
+    it('returns 0 for out-of-range negative input', () => {
+        expect(dayFromMs(-1e20, 'UTC')).toBe(0);
+    });
+
+    it('accepts the maximum representable instant', () => {
+        expect(dayFromMs(8_640_000_000_000_000, 'UTC')).not.toBe(0);
+    });
 });
 
 describe('shiftDay', () => {

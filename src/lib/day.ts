@@ -11,6 +11,11 @@ const DATE_PARTS = {
     day: '2-digit',
 } as const;
 
+// The ECMAScript maximum time value; beyond it `new Date(ms)` is an Invalid
+// Date and Intl throws RangeError rather than formatting. Callers get the same
+// "unknown day" sentinel as a non-finite input.
+const MAX_TIME_VALUE = 8_640_000_000_000_000;
+
 const UTC_FORMATTER = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'UTC',
     ...DATE_PARTS,
@@ -37,7 +42,7 @@ function formatterFor(timeZone: string): Intl.DateTimeFormat {
 
 /** YYYYMMDD of `ms` in `timeZone`; 0 when `ms` is not a finite instant. */
 export function dayFromMs(ms: number, timeZone: string): number {
-    if (!Number.isFinite(ms)) return 0;
+    if (!Number.isFinite(ms) || Math.abs(ms) > MAX_TIME_VALUE) return 0;
     // formatToParts, not format(): part order is locale data we don't control.
     let year = 0;
     let month = 0;

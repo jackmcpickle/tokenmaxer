@@ -343,6 +343,29 @@ describe('validateCountry', () => {
 describe('parseIngestBody day handling', () => {
     const base = { session_id: 's0', model: 'claude-opus-5', input_tokens: 1 };
 
+    it('does not throw on out-of-range started_at, and yields a valid day', () => {
+        // Regression test: started_at outside ECMAScript time range must not
+        // reach dayFromMs (which would throw RangeError on Invalid Date),
+        // and must not crash the entire batch.
+        expect(() => {
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [{ ...base, started_at: 1e20 }],
+            });
+        }).not.toThrow();
+
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, started_at: 1e20 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.started_at).not.toBe(1e20);
+        expect(parsed.value.sessions[0]?.started_at).toBeGreaterThan(0);
+        expect(parsed.value.sessions[0]?.day).toBeGreaterThan(0);
+        expect(parsed.value.sessions[0]?.day).not.toBe(0);
+    });
+
     it('keeps a reporter-supplied day verbatim', () => {
         const parsed = parseIngestBody({
             source: 'claude_code',
