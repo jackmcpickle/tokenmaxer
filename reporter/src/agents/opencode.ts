@@ -1,9 +1,14 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { localDay } from '../lib/day';
 import { asObject, toMs } from '../lib/parse-utils';
 import { toRows } from '../lib/rows';
-import { accumulateModelUsage, usageFromFields } from '../lib/totals';
+import {
+    accumulateModelUsage,
+    singleDayModels,
+    usageFromFields,
+} from '../lib/totals';
 import type {
     JsonObject,
     ParseOpts,
@@ -70,10 +75,14 @@ export function parseOpencodeMessages(
         if (msg.role === 'assistant') accumulateOpencodeTokens(models, msg);
     }
 
+    const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
-        models,
+        started_at: resolvedStartedAt,
+        models: singleDayModels(
+            models,
+            localDay(resolvedStartedAt ?? Date.now()),
+        ),
     };
 }
 

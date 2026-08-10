@@ -18,8 +18,10 @@ import {
     statSync,
 } from 'node:fs';
 import { basename, dirname, join, sep } from 'node:path';
+import { localDay } from '../lib/day';
 import { jsonlObjects } from '../lib/parse-utils';
 import { sessionIdFromPath, toRows } from '../lib/rows';
+import { singleDayModels } from '../lib/totals';
 import type { ReporterRow } from '../lib/types';
 import type { ClaudeFileScan, ClaudeUsageRow } from './claude';
 import { claudeDirs, scanClaudeTranscript, sumClaudeRows } from './claude';
@@ -608,10 +610,13 @@ function sessionRows(sessions: Map<string, SessionState>): ReporterRow[] {
             ...toRows({
                 session_id: s.sid,
                 started_at: s.startedAt,
-                models: sumClaudeRows([
-                    ...[...s.keyed.values()].map((k) => k.row),
-                    ...s.unkeyed,
-                ]),
+                models: singleDayModels(
+                    sumClaudeRows([
+                        ...[...s.keyed.values()].map((k) => k.row),
+                        ...s.unkeyed,
+                    ]),
+                    localDay(s.startedAt ?? Date.now()),
+                ),
             }),
         );
     }

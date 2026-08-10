@@ -1,7 +1,12 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { accumulateModelUsage, usageFromFields } from '../lib/totals';
+import {
+    accumulateModelUsage,
+    singleDayModels,
+    usageFromFields,
+} from '../lib/totals';
 import type {
     JsonObject,
     ParseOpts,
@@ -119,10 +124,14 @@ export function parsePiRollout(
         accumulateModelUsage(models, model, usage);
     }
 
+    const resolvedStartedAt = state.startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: state.sessionId ?? opts.sessionId ?? null,
-        started_at: state.startedAt ?? opts.fallbackStartedAt ?? null,
-        models,
+        started_at: resolvedStartedAt,
+        models: singleDayModels(
+            models,
+            localDay(resolvedStartedAt ?? Date.now()),
+        ),
     };
 }
 
