@@ -48,13 +48,31 @@ describe('reporter shared rows helpers', () => {
             { session_id: 'sess-1', started_at: 1_000, models },
             '/tmp/sess-1.jsonl',
         );
-        expect(rows).toHaveLength(2);
-        expect(rows.map((r) => r.day)).toEqual([20260806, 20260807]);
-        expect(rows.every((r) => r.session_id === 'sess-1')).toBe(true);
         // started_at stays the SESSION start on every row; `day` carries time.
-        expect(rows.every((r) => r.started_at === 1_000)).toBe(true);
-        expect(rows[0]?.input_tokens).toBe(10);
-        expect(rows[1]?.output_tokens).toBe(5);
+        expect(rows).toEqual([
+            {
+                session_id: 'sess-1',
+                model: 'claude-opus',
+                day: 20260806,
+                started_at: 1_000,
+                input_tokens: 10,
+                output_tokens: 20,
+                cache_read_tokens: 0,
+                cache_creation_tokens: 0,
+                reasoning_tokens: 0,
+            },
+            {
+                session_id: 'sess-1',
+                model: 'claude-opus',
+                day: 20260807,
+                started_at: 1_000,
+                input_tokens: 0,
+                output_tokens: 5,
+                cache_read_tokens: 0,
+                cache_creation_tokens: 0,
+                reasoning_tokens: 0,
+            },
+        ]);
     });
 
     it('toRows falls back to path-derived session id and Date.now when missing', () => {
