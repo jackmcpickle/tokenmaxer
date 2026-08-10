@@ -7,6 +7,12 @@
 -- total exactly while leaving the old (wrong) per-day attribution in place
 -- until the owner runs `tokenmaxer backfill`, which re-derives real day rows
 -- and replaces the seeded ones via the ingest replace_sessions contract.
+
+-- Clean up a transient table left behind by a partially applied earlier
+-- attempt: D1 does not guarantee a migration file runs as one transaction, and
+-- `session_usage_new` is a name owned solely by this migration.
+DROP TABLE IF EXISTS session_usage_new;
+
 CREATE TABLE session_usage_new (
   user_id               TEXT NOT NULL,
   source                TEXT NOT NULL,
