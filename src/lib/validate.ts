@@ -1,4 +1,5 @@
 import { isValidCountry } from '@/lib/countries';
+import { dayFromMs } from '@/lib/day';
 import { isSyntheticModel } from '@/lib/model-family';
 import { isSource, type SessionUsageInput, type Source } from '@/types';
 
@@ -89,6 +90,10 @@ const MAX_TOKENS_PER_CATEGORY = Number.MAX_SAFE_INTEGER;
 const MAX_MODEL_LEN = 128;
 const MAX_SESSION_ID_LEN = 200;
 
+// Guardrails for a reporter-supplied calendar day: a plausible YYYYMMDD.
+const MIN_DAY = 19700101;
+const MAX_DAY = 99991231;
+
 // Per-request session caps. Live reporting sends small, frequent batches; a
 // one-time history backfill sends far more rows at once, so it gets its own cap.
 export const MAX_INGEST_SESSIONS = 500;
@@ -166,6 +171,12 @@ export interface IngestPayload {
     source: Source;
     sessions: SessionUsageInput[];
     rejected: RejectedSession[];
+    /**
+     * Session ids whose stored rows this request fully replaces. The reporter
+     * lists a session here in the FIRST request that carries any of its rows,
+     * so a session split across requests is cleared exactly once.
+     */
+    replaceSessions: string[];
 }
 
 function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
@@ -193,6 +204,17 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
             ? Math.floor(s.started_at)
             : Date.now();
 
+    // Reporters from before day bucketing send no `day`; the UTC day of
+    // started_at reproduces the old attribution exactly, so old installs keep
+    // reporting with no coordinated release.
+    const day =
+        typeof s.day === 'number' &&
+        Number.isFinite(s.day) &&
+        s.day >= MIN_DAY &&
+        s.day <= MAX_DAY
+            ? Math.floor(s.day)
+            : dayFromMs(started_at, 'UTC');
+
     const row: SessionUsageInput = {
         session_id: s.session_id,
         model: s.model,
@@ -202,6 +224,7 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
         cache_read_tokens: coerceCount(s.cache_read_tokens),
         cache_creation_tokens: coerceCount(s.cache_creation_tokens),
         reasoning_tokens: coerceCount(s.reasoning_tokens),
+        day,
     };
 
     for (const n of [
@@ -250,6 +273,32 @@ export function parseIngestBody(
         };
     }
 
+    const replaceSessions: string[] = [];
+    if (b.replace_sessions !== undefined) {
+        if (!Array.isArray(b.replace_sessions)) {
+            return { ok: false, error: 'replace_sessions must be an array' };
+        }
+        if (b.replace_sessions.length > maxSessions) {
+            return {
+                ok: false,
+                error: `too many replace_sessions (max ${maxSessions})`,
+            };
+        }
+        for (const id of b.replace_sessions) {
+            if (
+                typeof id !== 'string' ||
+                id.length === 0 ||
+                id.length > MAX_SESSION_ID_LEN
+            ) {
+                return {
+                    ok: false,
+                    error: 'replace_sessions must be non-empty session ids',
+                };
+            }
+            replaceSessions.push(id);
+        }
+    }
+
     // Structurally invalid rows are rejected individually (by their index in
     // the submitted array) instead of failing the whole batch, so one bad row
     // never blocks the rest of a report.
@@ -266,7 +315,10 @@ export function parseIngestBody(
         sessions.push(parsed.value);
     }
 
-    return { ok: true, value: { source: b.source, sessions, rejected } };
+    return {
+        ok: true,
+        value: { source: b.source, sessions, rejected, replaceSessions },
+    };
 }
 
 /** Same shape as ingest, but with the larger bulk-backfill session cap. */
