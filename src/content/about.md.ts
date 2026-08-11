@@ -19,7 +19,7 @@ Claude Code, Codex, opencode, pi, and Cursor each write local session files (or 
 
 Usage is attributed to the local calendar day it was spent on, not to the day a session happened to start — so a session you keep open for a fortnight counts against every day it actually burned tokens. Data reported before this change is still attributed to its session's start day; run \`tokenmaxer backfill\` once to re-derive it.
 
-Reporting is triggered by **SessionStart** and **SessionEnd** hooks — no background daemon, no cron. Because each row is keyed by session, model and day — and re-reporting a session replaces every row it owns rather than adding to them — reporting the same session twice never double-counts.
+Reporting is triggered by **SessionStart** and **SessionEnd** hooks — no background daemon, no cron. Because each row is scoped to one user, tool, session, model, and day — and re-reporting a session replaces every row it owns rather than adding to them — reporting the same session twice never double-counts.
 
 ## The honest part
 

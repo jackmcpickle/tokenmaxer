@@ -30,11 +30,11 @@ sending them.
   (deduped by `id`, since pi stores a branching tree)
 - **Cursor** — dashboard API fetch via local auth (reporter calls `cursor-sync`)
 
-Each row is one `(session, model, day)` bucket, where `day` is the calendar day
-**on the machine that reported it**. Leaderboard windows are whole calendar days
-(`today` is your local date; `7d` is that date plus the six before it), so a
-long-running session contributes to every day it touched instead of booking its
-lifetime total to the day it opened.
+Each row is your usage for one tool, session, model and day, where `day` is the
+calendar day **on the machine that reported it**. Leaderboard windows are whole
+calendar days (`today` is your local date; `7d` is that date plus the six
+before it), so a long-running session contributes to every day it touched
+instead of booking its lifetime total to the day it opened.
 
 Reporting fires on Claude Code / Codex **SessionStart** / **SessionEnd** hooks (no cron,
 no daemon). opencode and pi have no shell hooks, so a small **shell wrapper function**
