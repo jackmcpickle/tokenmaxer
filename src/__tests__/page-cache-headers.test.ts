@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { stubKv } from '@/__tests__/helpers/kv';
 import app from '@/index';
+import {
+    apiCacheKeyFor,
+    pageCacheKeyFor,
+    viewerDayFor,
+} from '@/lib/page-cache';
 import type { Env } from '@/types';
 
 function emptyDb(): D1Database {
@@ -79,5 +84,46 @@ describe('public read Cache-Control', () => {
         );
         expect(res.status).toBe(404);
         expect(res.headers.get('Cache-Control')).toBeNull();
+    });
+});
+
+function requestWithZone(timezone: string): Request {
+    const req = new Request('https://tokenmaxer.quest/');
+    Object.defineProperty(req, 'cf', { value: { timezone } });
+    return req;
+}
+
+describe('viewer-day cache keys', () => {
+    // 2026-08-07T20:00Z: Auckland (UTC+12, no DST in August) has already
+    // rolled over to the 8th; Honolulu (UTC-10, no DST) is still on the 7th —
+    // two real zones whose local calendar dates differ at the same instant.
+    const T = Date.parse('2026-08-07T20:00:00Z');
+
+    it("resolves each viewer's own calendar date from cf.timezone", () => {
+        expect(viewerDayFor(requestWithZone('Pacific/Auckland'), T)).toBe(
+            20260808,
+        );
+        expect(viewerDayFor(requestWithZone('Pacific/Honolulu'), T)).toBe(
+            20260807,
+        );
+    });
+
+    it('falls back to the UTC date when cf is absent', () => {
+        expect(viewerDayFor(new Request('https://tokenmaxer.quest/'), T)).toBe(
+            20260807,
+        );
+    });
+
+    it('page and API cache keys differ across the two viewer dates', () => {
+        const url = 'https://tokenmaxer.quest/';
+        const auckland = viewerDayFor(requestWithZone('Pacific/Auckland'), T);
+        const honolulu = viewerDayFor(requestWithZone('Pacific/Honolulu'), T);
+
+        expect(pageCacheKeyFor(url, false, auckland)).not.toBe(
+            pageCacheKeyFor(url, false, honolulu),
+        );
+        expect(apiCacheKeyFor(url, auckland)).not.toBe(
+            apiCacheKeyFor(url, honolulu),
+        );
     });
 });
