@@ -1,6 +1,6 @@
 import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { emptyTotals, num, singleDayModels } from '../lib/totals';
+import { emptyTotals, num } from '../lib/totals';
 import type { DayTotals, JsonObject, ReporterTotals } from '../lib/types';
 
 /**
@@ -315,6 +315,8 @@ interface TokenCountRecord {
     model: string | null;
     last: Totals | null;
     total: Totals | null;
+    /** Instant of the rollout line, for local-day attribution. */
+    tsMs: number | null;
 }
 
 type CodexLine =
@@ -489,7 +491,10 @@ function codexLineFrom(obj: JsonObject): CodexLine | null {
             modelEvidence(info.model_name) ??
             modelEvidence(payload.model) ??
             modelEvidence(obj.model);
-        return { kind: 'tokenCount', rec: { model, last, total } };
+        return {
+            kind: 'tokenCount',
+            rec: { model, last, total, tsMs: toMs(obj.timestamp) },
+        };
     }
     return null;
 }
@@ -896,7 +901,7 @@ export function parseCodexRollout(
     text: string,
     opts: CodexEngineOpts = {},
 ): ParsedCodexRollout {
-    const models = new Map<string, ReporterTotals>();
+    const models = new Map<string, DayTotals>();
 
     let currentModel: string | null = null;
     let previousTotals: Totals | null = null;
@@ -922,15 +927,22 @@ export function parseCodexRollout(
 
     let pendingSubagentLines: BufferedLine[] | null = null;
 
-    function ensureModelRow(model: string): void {
-        // Zero-total rows keep the server upsert able to overwrite rows an
-        // earlier reporter version inflated for this (session, model).
-        if (!models.has(model)) models.set(model, emptyTotals());
+    // The session's own start day, for token_count lines with no timestamp.
+    function fallbackDay(): number {
+        return localDay(startedAt ?? opts.fallbackStartedAt ?? Date.now());
     }
 
-    function addModelDelta(model: string, delta: Totals): void {
-        ensureModelRow(model);
-        const t = models.get(model) as Totals;
+    function ensureModelRow(model: string, day: number): void {
+        // Zero-total rows keep the server upsert able to overwrite rows an
+        // earlier reporter version inflated for this (session, model, day).
+        const byDay = models.get(model) ?? new Map<number, Totals>();
+        if (!byDay.has(day)) byDay.set(day, emptyTotals());
+        models.set(model, byDay);
+    }
+
+    function addModelDelta(model: string, day: number, delta: Totals): void {
+        ensureModelRow(model, day);
+        const t = models.get(model)?.get(day) as Totals;
         for (const k of TOTAL_KEYS) t[k] += delta[k];
     }
 
@@ -1007,7 +1019,8 @@ export function parseCodexRollout(
             modelEvidence(currentModel) ??
             modelEvidence(rec.model) ??
             'unknown';
-        ensureModelRow(model);
+        const day = rec.tsMs === null ? fallbackDay() : localDay(rec.tsMs);
+        ensureModelRow(model, day);
         if (suppressUnownedCopiedPrefix) return;
 
         const { total, last } = rec;
@@ -1166,7 +1179,7 @@ export function parseCodexRollout(
         }
 
         commitObserved();
-        if (totalsHaveUsage(delta)) addModelDelta(model, delta);
+        if (totalsHaveUsage(delta)) addModelDelta(model, day, delta);
     }
 
     function processLine(line: CodexLine): void {
@@ -1374,20 +1387,24 @@ export function parseCodexRollout(
                 droppedModel = b.line.model;
                 if (legacyBoundary) currentModel = b.line.model;
             } else if (b.line.kind === 'tokenCount') {
+                const droppedDay =
+                    b.line.rec.tsMs === null
+                        ? fallbackDay()
+                        : localDay(b.line.rec.tsMs);
                 ensureModelRow(
                     modelEvidence(droppedModel) ??
                         modelEvidence(b.line.rec.model) ??
                         'unknown',
+                    droppedDay,
                 );
             }
         }
     }
 
-    startedAt = startedAt ?? opts.fallbackStartedAt ?? null;
     return {
         session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: startedAt,
-        models: singleDayModels(models, localDay(startedAt ?? Date.now())),
+        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
+        models,
         parent_id: forkedFromId,
     };
 }
