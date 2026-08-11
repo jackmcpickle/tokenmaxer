@@ -1,6 +1,6 @@
 import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { emptyTotals, num } from '../lib/totals';
+import { accumulateModelDayUsage, emptyTotals, num } from '../lib/totals';
 import type { DayTotals, JsonObject, ReporterTotals } from '../lib/types';
 
 /**
@@ -317,6 +317,16 @@ interface TokenCountRecord {
     total: Totals | null;
     /** Instant of the rollout line, for local-day attribution. */
     tsMs: number | null;
+}
+
+// A timestamp-less token_count books to day 0 (the "unknown day" sentinel)
+// rather than a fallback day computed mid-scan: the session's start day
+// isn't settled until scanning finishes (an untimestamped line can precede
+// the file's first timestamped one), so resolving it early can misattribute
+// to the wrong day. parseCodexRollout folds every day-0 bucket into the
+// session's real fallback day in one pass after scanning completes.
+function dayOf(rec: TokenCountRecord): number {
+    return rec.tsMs === null ? 0 : localDay(rec.tsMs);
 }
 
 type CodexLine =
@@ -927,23 +937,14 @@ export function parseCodexRollout(
 
     let pendingSubagentLines: BufferedLine[] | null = null;
 
-    // The session's own start day, for token_count lines with no timestamp.
-    function fallbackDay(): number {
-        return localDay(startedAt ?? opts.fallbackStartedAt ?? Date.now());
-    }
-
+    // Zero-total rows keep the server upsert able to overwrite rows an
+    // earlier reporter version inflated for this (session, model, day).
     function ensureModelRow(model: string, day: number): void {
-        // Zero-total rows keep the server upsert able to overwrite rows an
-        // earlier reporter version inflated for this (session, model, day).
-        const byDay = models.get(model) ?? new Map<number, Totals>();
-        if (!byDay.has(day)) byDay.set(day, emptyTotals());
-        models.set(model, byDay);
+        accumulateModelDayUsage(models, model, day, emptyTotals());
     }
 
     function addModelDelta(model: string, day: number, delta: Totals): void {
-        ensureModelRow(model, day);
-        const t = models.get(model)?.get(day) as Totals;
-        for (const k of TOTAL_KEYS) t[k] += delta[k];
+        accumulateModelDayUsage(models, model, day, delta);
     }
 
     function resolveForkBaseline(parentSessionId: string, at: string): void {
@@ -1019,7 +1020,7 @@ export function parseCodexRollout(
             modelEvidence(currentModel) ??
             modelEvidence(rec.model) ??
             'unknown';
-        const day = rec.tsMs === null ? fallbackDay() : localDay(rec.tsMs);
+        const day = dayOf(rec);
         ensureModelRow(model, day);
         if (suppressUnownedCopiedPrefix) return;
 
@@ -1387,18 +1388,31 @@ export function parseCodexRollout(
                 droppedModel = b.line.model;
                 if (legacyBoundary) currentModel = b.line.model;
             } else if (b.line.kind === 'tokenCount') {
-                const droppedDay =
-                    b.line.rec.tsMs === null
-                        ? fallbackDay()
-                        : localDay(b.line.rec.tsMs);
                 ensureModelRow(
                     modelEvidence(droppedModel) ??
                         modelEvidence(b.line.rec.model) ??
                         'unknown',
-                    droppedDay,
+                    dayOf(b.line.rec),
                 );
             }
         }
+    }
+
+    // Fold every day-0 ("unknown day") bucket into the session's resolved
+    // fallback day now that scanning has finished — startedAt reflects
+    // whichever rollout line carried the first parseable timestamp, so it
+    // isn't settled until the whole file has been seen. Merge rather than
+    // overwrite: a real bucket for the same day can already hold usage.
+    // Date.now() is the last resort, for the rare rollout with no usable
+    // timestamp anywhere and no caller-supplied fallbackStartedAt.
+    const fallbackDay = localDay(
+        startedAt ?? opts.fallbackStartedAt ?? Date.now(),
+    );
+    for (const [model, byDay] of models) {
+        const unknown = byDay.get(0);
+        if (unknown === undefined) continue;
+        byDay.delete(0);
+        accumulateModelDayUsage(models, model, fallbackDay, unknown);
     }
 
     return {
