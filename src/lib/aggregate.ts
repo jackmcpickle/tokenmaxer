@@ -230,7 +230,10 @@ export interface HackathonLeaderboardQuery {
  * Leaderboard scoped to an inclusive [startDay, endDay] calendar-day range and
  * a fixed member set. Rows are day-granular, so a contest range is snapped
  * outward to whole UTC days by the caller: a sub-day range counts both boundary
- * days in full.
+ * days in full. Row `day` values are each reporter's *local* calendar day, not
+ * UTC, so for a contest with participants across timezones this is fuzzy by
+ * up to a day at each boundary — a session just inside the UTC window edge for
+ * one participant's local day can land just outside another's.
  */
 export async function getHackathonLeaderboard(
     db: D1Database,

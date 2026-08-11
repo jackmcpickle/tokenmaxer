@@ -13,8 +13,10 @@ const DATE_PARTS = {
 
 // The ECMAScript maximum time value; beyond it `new Date(ms)` is an Invalid
 // Date and Intl throws RangeError rather than formatting. Callers get the same
-// "unknown day" sentinel as a non-finite input.
-const MAX_TIME_VALUE = 8_640_000_000_000_000;
+// "unknown day" sentinel as a non-finite input. Exported so `validate.ts` can
+// reject the same range at the source instead of keeping its own copy that
+// could drift out of sync.
+export const MAX_TIME_VALUE = 8_640_000_000_000_000;
 
 const UTC_FORMATTER = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'UTC',

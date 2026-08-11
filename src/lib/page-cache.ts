@@ -7,6 +7,15 @@ import {
 import { dayFromMs, timeZoneFromRequest } from '@/lib/day';
 import { READ_CACHE_TTL_SECONDS } from '@/lib/read-cache';
 
+// Deliberately `public`, not `private`, even though content now depends on
+// `cf.timezone` — a geo-IP signal no request header expresses, so no `Vary`
+// can describe it. A shared proxy could in principle serve one viewer's
+// local-day board to another. `private` would disable the Workers Cache API
+// layer below entirely, which is a bigger loss than that exposure: Cloudflare
+// doesn't edge-cache Worker responses by default, so the blast radius is
+// third-party shared caches only, and the error is the same "adjacent
+// calendar date" magnitude already tolerated for VPN users. Accepted trade,
+// not an oversight.
 const CACHE_CONTROL = `public, max-age=${READ_CACHE_TTL_SECONDS}`;
 
 /** Local wrangler hosts — Cache API would otherwise pin stale HTML for the full TTL. */
