@@ -121,6 +121,10 @@ describe('parseCodexRollout day buckets', () => {
         // Cumulative totals: day one counts 100, day two the 150 delta.
         expect(byDay?.get(20260806)?.output_tokens).toBe(100);
         expect(byDay?.get(20260807)?.output_tokens).toBe(150);
+        // input_tokens never changes between the two cumulative readings, so
+        // day two's delta for it is 0 — proves the whole vector is delta'd,
+        // not just output_tokens.
+        expect(byDay?.get(20260807)?.input_tokens).toBe(0);
     });
 
     it('uses the session start day when a token_count has no timestamp', () => {
@@ -146,6 +150,129 @@ describe('parseCodexRollout day buckets', () => {
         expect(
             parsed.models.get('gpt-5.2-codex')?.get(20260807)?.output_tokens,
         ).toBe(9);
+    });
+
+    it('resolves the session start day from the file, not the mtime fallback, for a timestamp-less token_count that precedes the first timestamped line', () => {
+        const meta = JSON.stringify({
+            type: 'session_meta',
+            payload: { id: 'codex-3', model: 'gpt-5.2-codex' },
+        });
+        const untimestamped = JSON.stringify({
+            type: 'event_msg',
+            payload: {
+                type: 'token_count',
+                info: {
+                    model: 'gpt-5.2-codex',
+                    total_token_usage: {
+                        input_tokens: 10,
+                        output_tokens: 100,
+                        cached_input_tokens: 0,
+                        cache_write_input_tokens: 0,
+                        reasoning_output_tokens: 0,
+                    },
+                },
+            },
+        });
+        const parsed = parseCodexRollout(
+            [
+                meta,
+                untimestamped,
+                codexTokenCount(new Date(2026, 7, 10, 9, 0).toISOString(), 250),
+            ].join('\n'),
+            // The file's mtime is a third, unrelated day; it must never be
+            // used once the file itself supplies a real timestamp.
+            { fallbackStartedAt: new Date(2026, 7, 1, 9, 0).getTime() },
+        );
+        const byDay = parsed.models.get('gpt-5.2-codex');
+        // The timestamp-less line's delta (100) joins the session start day
+        // — resolved from the file's first timestamped line, 10 Aug — with
+        // the second delta (150), landing on 20260810 as 250 total. It must
+        // not land on 1 Aug (the mtime fallback).
+        expect(byDay?.get(20260801)).toBeUndefined();
+        expect(byDay?.get(20260810)?.output_tokens).toBe(250);
+        expect([...(byDay?.keys() ?? [])]).not.toContain(0);
+    });
+
+    it("books a dropped subagent-replay placeholder to the replayed line's own day, not the owned suffix's day", () => {
+        const subagentMeta = JSON.stringify({
+            type: 'session_meta',
+            timestamp: new Date(2026, 7, 6, 21, 0).toISOString(),
+            payload: {
+                id: 'child-1',
+                source: { subagent: { thread_spawn: { depth: 1 } } },
+            },
+        });
+        const embeddedParentMeta = JSON.stringify({
+            type: 'session_meta',
+            timestamp: new Date(2026, 7, 6, 21, 0).toISOString(),
+            payload: { id: 'parent-1', model: 'gpt-5.2-codex' },
+        });
+        function tokenCount(iso: string, total: object, last?: object) {
+            const info: Record<string, unknown> = { total_token_usage: total };
+            if (last) info.last_token_usage = last;
+            return JSON.stringify({
+                type: 'event_msg',
+                timestamp: iso,
+                payload: { type: 'token_count', info },
+            });
+        }
+        const copiedPrefixTokenCount = tokenCount(
+            new Date(2026, 7, 6, 22, 0).toISOString(), // day A: 6 Aug
+            {
+                input_tokens: 100,
+                output_tokens: 80,
+                cached_input_tokens: 10,
+                cache_write_input_tokens: 0,
+                reasoning_output_tokens: 2,
+            },
+        );
+        const turnContext = JSON.stringify({
+            type: 'turn_context',
+            timestamp: new Date(2026, 7, 7, 1, 0).toISOString(),
+            payload: { model: 'gpt-5.2-codex' },
+        });
+        const triggerTurn = JSON.stringify({
+            type: 'inter_agent_communication_metadata',
+            timestamp: new Date(2026, 7, 7, 1, 0).toISOString(),
+            payload: { trigger_turn: true },
+        });
+        const ownedSuffixTokenCount = tokenCount(
+            new Date(2026, 7, 7, 1, 5).toISOString(), // day B: 7 Aug
+            {
+                input_tokens: 130,
+                output_tokens: 95,
+                cached_input_tokens: 10,
+                cache_write_input_tokens: 0,
+                reasoning_output_tokens: 2,
+            },
+            {
+                input_tokens: 30,
+                output_tokens: 15,
+                cached_input_tokens: 0,
+                cache_write_input_tokens: 0,
+                reasoning_output_tokens: 0,
+            },
+        );
+        const parsed = parseCodexRollout(
+            [
+                subagentMeta,
+                embeddedParentMeta,
+                copiedPrefixTokenCount,
+                turnContext,
+                triggerTurn,
+                ownedSuffixTokenCount,
+            ].join('\n'),
+        );
+        expect(parsed.parent_id).toBe('parent-1');
+        // The dropped copied-prefix event still pins a zero-total placeholder
+        // row (for overwrite repair), but on the day IT happened (6 Aug),
+        // not the owned suffix's day (7 Aug).
+        const unknown = parsed.models.get('unknown');
+        expect(unknown?.get(20260806)?.input_tokens).toBe(0);
+        expect(unknown?.get(20260807)).toBeUndefined();
+        const gpt = parsed.models.get('gpt-5.2-codex');
+        expect(gpt?.get(20260807)?.input_tokens).toBe(30);
+        expect(gpt?.get(20260807)?.output_tokens).toBe(15);
     });
 });
 
