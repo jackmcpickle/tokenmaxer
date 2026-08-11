@@ -6,26 +6,6 @@ import {
 import { estimateCost } from '@/lib/pricing';
 import type { Metric, Source, TimeWindow } from '@/types';
 
-const DAY_MS = 86_400_000;
-
-export function windowStart(window: TimeWindow, now: number): number {
-    switch (window) {
-        case 'today':
-            // start of current UTC day
-            return now - (now % DAY_MS);
-        case '7d':
-            return now - 7 * DAY_MS;
-        case '30d':
-            return now - 30 * DAY_MS;
-        case 'all':
-            return 0;
-        default: {
-            const exhaustive: never = window;
-            return exhaustive;
-        }
-    }
-}
-
 export interface Totals {
     input_tokens: number;
     output_tokens: number;
@@ -141,7 +121,14 @@ const GROUP_SELECT = `
 `;
 
 export interface LeaderboardQuery {
+    /** Echoed back to clients and used as a cache-key label. */
     window: TimeWindow;
+    /**
+     * Inclusive lower bound as a YYYYMMDD calendar day, already resolved in the
+     * viewer's timezone by the caller (0 = all time). Resolving it outside this
+     * function is what lets the cache key pin the exact day being served.
+     */
+    startDay: number;
     metric: Metric;
     source?: Source;
     /** Model family id (e.g. `sonnet`), not a raw versioned model string. */
@@ -207,10 +194,9 @@ function rankFolded(
 export async function getLeaderboard(
     db: D1Database,
     q: LeaderboardQuery,
-    now: number,
 ): Promise<LeaderboardEntry[]> {
-    const conditions = ['su.started_at >= ?'];
-    const binds: (string | number)[] = [windowStart(q.window, now)];
+    const conditions = ['su.day >= ?'];
+    const binds: (string | number)[] = [q.startDay];
     if (q.source) {
         conditions.push('su.source = ?');
         binds.push(q.source);
@@ -231,8 +217,9 @@ export async function getLeaderboard(
 
 export interface HackathonLeaderboardQuery {
     metric: Metric;
-    startAt: number;
-    endAt: number;
+    /** Inclusive YYYYMMDD bounds, snapped outward to whole UTC days. */
+    startDay: number;
+    endDay: number;
     memberIds: string[];
     /** Model family id (e.g. `sonnet`); undefined = all models count. */
     model?: string;
@@ -240,8 +227,10 @@ export interface HackathonLeaderboardQuery {
 }
 
 /**
- * Leaderboard scoped to an explicit [startAt, endAt) range and a fixed member
- * set. Reuses the same folding/ranking as getLeaderboard.
+ * Leaderboard scoped to an inclusive [startDay, endDay] calendar-day range and
+ * a fixed member set. Rows are day-granular, so a contest range is snapped
+ * outward to whole UTC days by the caller: a sub-day range counts both boundary
+ * days in full.
  */
 export async function getHackathonLeaderboard(
     db: D1Database,
@@ -249,10 +238,10 @@ export async function getHackathonLeaderboard(
 ): Promise<LeaderboardEntry[]> {
     if (q.memberIds.length === 0) return [];
     const placeholders = q.memberIds.map(() => '?').join(', ');
-    const sql = `${GROUP_SELECT} WHERE su.started_at >= ? AND su.started_at < ? AND su.user_id IN (${placeholders}) GROUP BY su.user_id, su.source, su.model`;
+    const sql = `${GROUP_SELECT} WHERE su.day >= ? AND su.day <= ? AND su.user_id IN (${placeholders}) GROUP BY su.user_id, su.source, su.model`;
     const res = await db
         .prepare(sql)
-        .bind(q.startAt, q.endAt, ...q.memberIds)
+        .bind(q.startDay, q.endDay, ...q.memberIds)
         .all<GroupedRow>();
     return rankFolded(foldGroupedRows(res.results, q.model), q.metric, q.limit);
 }
@@ -360,8 +349,7 @@ export async function getDistinctCountries(db: D1Database): Promise<string[]> {
 export async function getProfileWindowTotals(
     db: D1Database,
     username: string,
-    window: TimeWindow,
-    now: number,
+    startDay: number,
 ): Promise<ProfileWindowTotals | null> {
     const user = await db
         .prepare('SELECT id FROM users WHERE username_lower = ?')
@@ -371,9 +359,9 @@ export async function getProfileWindowTotals(
 
     const { results } = await db
         .prepare(
-            `${GROUP_SELECT} WHERE su.user_id = ? AND su.started_at >= ? GROUP BY su.source, su.model`,
+            `${GROUP_SELECT} WHERE su.user_id = ? AND su.day >= ? GROUP BY su.source, su.model`,
         )
-        .bind(user.id, windowStart(window, now))
+        .bind(user.id, startDay)
         .all<GroupedRow>();
 
     const totals = emptyTotals();

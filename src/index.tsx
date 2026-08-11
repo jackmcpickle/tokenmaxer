@@ -34,6 +34,7 @@ import {
     cachedProfile,
     invalidateHackathonCache,
 } from '@/lib/cached-aggregate';
+import { dayFromMs, timeZoneFromRequest, windowStartDay } from '@/lib/day';
 import {
     getHackathonBySlug,
     hackathonState,
@@ -152,12 +153,19 @@ app.get('/', pageCache, async (c) => {
     const base = baseUrl(c.env, c.req.url);
 
     const [entries, models, countries] = await Promise.all([
-        cachedLeaderboard(
-            c.env.DB,
-            c.env.RATE_LIMIT,
-            { window, metric, source, model, country, limit: 100 },
-            Date.now(),
-        ),
+        cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+            window,
+            startDay: windowStartDay(
+                window,
+                Date.now(),
+                timeZoneFromRequest(c.req.raw),
+            ),
+            metric,
+            source,
+            model,
+            country,
+            limit: 100,
+        }),
         cachedDistinctModelFamilies(c.env.DB, c.env.RATE_LIMIT),
         cachedDistinctCountries(c.env.DB, c.env.RATE_LIMIT),
     ]);
@@ -249,12 +257,19 @@ app.get('/footprint', pageCache, async (c) => {
 
     // Fetch with token metric so cache keys stay shared with Home; re-rank by impact.
     const [rawEntries, models, countries] = await Promise.all([
-        cachedLeaderboard(
-            c.env.DB,
-            c.env.RATE_LIMIT,
-            { window, metric: 'total', source, model, country, limit: 100 },
-            Date.now(),
-        ),
+        cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+            window,
+            startDay: windowStartDay(
+                window,
+                Date.now(),
+                timeZoneFromRequest(c.req.raw),
+            ),
+            metric: 'total',
+            source,
+            model,
+            country,
+            limit: 100,
+        }),
         cachedDistinctModelFamilies(c.env.DB, c.env.RATE_LIMIT),
         cachedDistinctCountries(c.env.DB, c.env.RATE_LIMIT),
     ]);
@@ -467,8 +482,8 @@ app.get('/h/:slug', async (c) => {
                   h.slug,
                   {
                       metric,
-                      startAt: h.start_at,
-                      endAt: h.end_at,
+                      startDay: dayFromMs(h.start_at, 'UTC'),
+                      endDay: dayFromMs(h.end_at - 1, 'UTC'),
                       memberIds: ids,
                       model: h.model_family ?? undefined,
                       limit: 100,

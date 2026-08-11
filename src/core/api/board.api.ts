@@ -13,6 +13,7 @@ import {
     cachedLeaderboard,
     cachedProfile,
 } from '@/lib/cached-aggregate';
+import { dayFromMs, timeZoneFromRequest, windowStartDay } from '@/lib/day';
 import {
     getHackathonBySlug,
     hackathonState,
@@ -39,6 +40,10 @@ function getEnv(): Env {
 async function requestBase(): Promise<string> {
     const e = getEnv();
     return baseUrl(e, getRequestUrl().toString());
+}
+
+function viewerTimeZone(): string {
+    return timeZoneFromRequest(getRequest());
 }
 
 async function currentUser(): Promise<Awaited<
@@ -72,7 +77,11 @@ export const getLeaderboardPageData = createServerFn({ method: 'GET' })
         const e = getEnv();
         const now = Date.now();
         const [entries, models, countries] = await Promise.all([
-            cachedLeaderboard(e.DB, e.RATE_LIMIT, { ...data, limit: 100 }, now),
+            cachedLeaderboard(e.DB, e.RATE_LIMIT, {
+                ...data,
+                startDay: windowStartDay(data.window, now, viewerTimeZone()),
+                limit: 100,
+            }),
             cachedDistinctModelFamilies(e.DB, e.RATE_LIMIT),
             cachedDistinctCountries(e.DB, e.RATE_LIMIT),
         ]);
@@ -85,19 +94,15 @@ export const getFootprintPageData = createServerFn({ method: 'GET' })
         const e = getEnv();
         const now = Date.now();
         const [rawEntries, models, countries] = await Promise.all([
-            cachedLeaderboard(
-                e.DB,
-                e.RATE_LIMIT,
-                {
-                    window: data.window,
-                    metric: 'total',
-                    source: data.source,
-                    model: data.model,
-                    country: data.country,
-                    limit: 100,
-                },
-                now,
-            ),
+            cachedLeaderboard(e.DB, e.RATE_LIMIT, {
+                window: data.window,
+                startDay: windowStartDay(data.window, now, viewerTimeZone()),
+                metric: 'total',
+                source: data.source,
+                model: data.model,
+                country: data.country,
+                limit: 100,
+            }),
             cachedDistinctModelFamilies(e.DB, e.RATE_LIMIT),
             cachedDistinctCountries(e.DB, e.RATE_LIMIT),
         ]);
@@ -191,8 +196,8 @@ export const getHackathonBoardPageData = createServerFn({ method: 'GET' })
                 ? []
                 : await cachedHackathonLeaderboard(e.DB, e.RATE_LIMIT, h.slug, {
                       metric: data.metric,
-                      startAt: h.start_at,
-                      endAt: h.end_at,
+                      startDay: dayFromMs(h.start_at, 'UTC'),
+                      endDay: dayFromMs(h.end_at - 1, 'UTC'),
                       memberIds: ids,
                       model: h.model_family ?? undefined,
                       limit: 100,

@@ -4,6 +4,7 @@ import {
     AGENT_PAGE_VARY_HEADERS,
     isLinkPreviewBot,
 } from '@/lib/agent-markdown';
+import { dayFromMs, timeZoneFromRequest } from '@/lib/day';
 import { READ_CACHE_TTL_SECONDS } from '@/lib/read-cache';
 
 const CACHE_CONTROL = `public, max-age=${READ_CACHE_TTL_SECONDS}`;
@@ -79,12 +80,20 @@ function createCacheMiddleware(options: {
     };
 }
 
-/** Workers cache key for negotiated page HTML (preview-bot bucket). */
+/** The viewer's own calendar date — `today`/`7d` windows resolve against it. */
+function viewerDay(c: Context): number {
+    return dayFromMs(Date.now(), timeZoneFromRequest(c.req.raw));
+}
+
+/**
+ * Workers cache key for negotiated page HTML: preview-bot bucket plus the
+ * viewer's calendar day, so day windows never serve another zone's "today".
+ */
 export function pageCacheKey(c: Context): string {
     const preview = isLinkPreviewBot(c.req.header('user-agent') ?? '')
         ? '1'
         : '0';
-    return `${c.req.url}::preview=${preview}`;
+    return `${c.req.url}::preview=${preview}::vday=${viewerDay(c)}`;
 }
 
 /**
@@ -102,6 +111,7 @@ export const apiCache = createCacheMiddleware({
     cacheName: 'tokentally-api',
     // Reflects request Origin on ACAO; must not reuse another site's CORS headers.
     vary: ['Origin'],
+    keyGenerator: (c) => `${c.req.url}::vday=${viewerDay(c)}`,
 });
 
 /** Dynamic profile OG PNGs — keyed by URL only. */

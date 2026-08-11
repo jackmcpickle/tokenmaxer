@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cachedProfile, cachedProfileWindow } from '@/lib/cached-aggregate';
+import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 import { ogCache } from '@/lib/page-cache';
 import { READ_CACHE_TTL_SECONDS } from '@/lib/read-cache';
 import { buildShareCardPayload, buildShareCardSvg } from '@/lib/share-card';
@@ -12,9 +13,10 @@ ogRoutes.get('/u/:username/og.png', ogCache, async (c) => {
     const username = c.req.param('username');
     const { DB, RATE_LIMIT } = c.env;
     const now = Date.now();
+    const startDay = windowStartDay('7d', now, timeZoneFromRequest(c.req.raw));
     const [profile, last7d] = await Promise.all([
         cachedProfile(DB, RATE_LIMIT, username),
-        cachedProfileWindow(DB, RATE_LIMIT, username, '7d', now),
+        cachedProfileWindow(DB, RATE_LIMIT, username, '7d', startDay),
     ]);
     if (!profile || !last7d) {
         return c.text('Not found', 404);
