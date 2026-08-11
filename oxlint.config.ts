@@ -222,6 +222,7 @@ export default defineConfig({
                 'src/__tests__/reporter-claude-sessions.test.ts',
                 'src/__tests__/reporter-pi-cursor.test.ts',
                 'src/__tests__/reporter-day.test.ts',
+                'src/__tests__/reporter-api-batching.test.ts',
             ],
             rules: {
                 'import/no-relative-parent-imports': 'off',
