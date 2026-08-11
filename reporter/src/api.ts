@@ -48,8 +48,11 @@ export interface PostBatch {
 
 /**
  * Group rows so every session's rows are contiguous, then cut fixed-size
- * batches. Contiguity is what makes the replace contract safe: a session's
- * later chunks land through the upsert instead of behind a second delete.
+ * batches. Grouping keeps each session's rows adjacent so a session spans as
+ * few batches as possible; the `claimed` Set below is what actually
+ * guarantees a session is claimed exactly once, independent of ordering —
+ * sequential posting in `postSessions` then guarantees the resulting delete
+ * lands before any later batch's upsert for that session.
  */
 export function planBatches(
     rows: ReporterRow[],
@@ -69,6 +72,13 @@ export function planBatches(
     }
 
     const batches: PostBatch[] = [];
+    // If the batch that first claims a session fails outright (network error
+    // or non-OK response), that session's delete never happens server-side,
+    // yet later batches for it were already planned with an empty
+    // replaceSessions and will upsert without deleting. This self-corrects on
+    // a full retry (a fresh planBatches run re-claims the session), and the
+    // failure is already surfaced through the `failed` count rather than
+    // swallowed.
     const claimed = new Set<string>();
     for (let i = 0; i < ordered.length; i += chunkSize) {
         const slice = ordered.slice(i, i + chunkSize);
