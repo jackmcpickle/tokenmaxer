@@ -80,9 +80,27 @@ function createCacheMiddleware(options: {
     };
 }
 
-/** The viewer's own calendar date — `today`/`7d` windows resolve against it. */
-function viewerDay(c: Context): number {
-    return dayFromMs(Date.now(), timeZoneFromRequest(c.req.raw));
+/**
+ * The viewer's own calendar date — `today`/`7d` windows resolve against it.
+ * Exported (with an injectable clock) so key-shape tests don't need a live
+ * Workers Cache API, which vitest doesn't provide.
+ */
+export function viewerDayFor(req: Request, now: number = Date.now()): number {
+    return dayFromMs(now, timeZoneFromRequest(req));
+}
+
+/** Exported so cache-key shape can be asserted without a Hono Context. */
+export function pageCacheKeyFor(
+    url: string,
+    preview: boolean,
+    viewerDay: number,
+): string {
+    return `${url}::preview=${preview ? '1' : '0'}::vday=${viewerDay}`;
+}
+
+/** Exported so cache-key shape can be asserted without a Hono Context. */
+export function apiCacheKeyFor(url: string, viewerDay: number): string {
+    return `${url}::vday=${viewerDay}`;
 }
 
 /**
@@ -90,10 +108,8 @@ function viewerDay(c: Context): number {
  * viewer's calendar day, so day windows never serve another zone's "today".
  */
 export function pageCacheKey(c: Context): string {
-    const preview = isLinkPreviewBot(c.req.header('user-agent') ?? '')
-        ? '1'
-        : '0';
-    return `${c.req.url}::preview=${preview}::vday=${viewerDay(c)}`;
+    const preview = isLinkPreviewBot(c.req.header('user-agent') ?? '');
+    return pageCacheKeyFor(c.req.url, preview, viewerDayFor(c.req.raw));
 }
 
 /**
@@ -111,10 +127,16 @@ export const apiCache = createCacheMiddleware({
     cacheName: 'tokentally-api',
     // Reflects request Origin on ACAO; must not reuse another site's CORS headers.
     vary: ['Origin'],
-    keyGenerator: (c) => `${c.req.url}::vday=${viewerDay(c)}`,
+    keyGenerator: (c) => apiCacheKeyFor(c.req.url, viewerDayFor(c.req.raw)),
 });
 
-/** Dynamic profile OG PNGs — keyed by URL only. */
+/**
+ * Dynamic profile OG PNGs — keyed by URL only, deliberately. The route below
+ * resolves its 7d window in UTC rather than the requester's zone (crawlers and
+ * reshared-link viewers have no meaningful "viewer timezone"), so the asset is
+ * the same for everyone regardless of where they are; one shared cache entry
+ * per profile is correct, not a missed vday key.
+ */
 export const ogCache = createCacheMiddleware({
     cacheName: 'tokentally-og',
 });
