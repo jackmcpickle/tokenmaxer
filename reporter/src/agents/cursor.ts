@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { localDay } from '../lib/day';
 import { asObject } from '../lib/parse-utils';
 import { accumulateModelUsage, usageFromFields } from '../lib/totals';
 import type {
@@ -22,53 +23,68 @@ function cursorUsage(raw: JsonObject): ReporterTotals {
     return usageFromFields(coerced, CURSOR_USAGE_FIELDS);
 }
 
-function cursorEventDayModel(
-    e: JsonObject,
-): { day: string; model: string; usage: ReporterTotals } | null {
+// 'YYYY-MM-DD' (UTC) -> local day -> model -> totals
+type CursorDayMap = Map<string, Map<number, Map<string, ReporterTotals>>>;
+
+function cursorEventDayModel(e: JsonObject): {
+    utcDay: string;
+    day: number;
+    model: string;
+    usage: ReporterTotals;
+} | null {
     const ms = Number(e.timestamp);
     if (!Number.isFinite(ms) || ms <= 0) return null;
     if (!e.tokenUsage || typeof e.tokenUsage !== 'object') return null;
+    // Zero-usage events (aborted/refunded requests) still produce a
+    // zero-total row when a day has nothing else: the replace-upsert needs
+    // it to overwrite a stale non-zero day.
     const usage = cursorUsage(asObject(e.tokenUsage));
-    const day = new Date(ms).toISOString().slice(0, 10);
+    const utcDay = new Date(ms).toISOString().slice(0, 10);
     const model = typeof e.model === 'string' && e.model ? e.model : 'unknown';
-    return { day, model, usage };
+    return { utcDay, day: localDay(ms), model, usage };
 }
 
-function cursorRowsFromDayMap(
-    days: Map<string, Map<string, ReporterTotals>>,
-): ReporterRow[] {
+function cursorRowsFromDayMap(days: CursorDayMap): ReporterRow[] {
     const rows: ReporterRow[] = [];
-    for (const [day, byModel] of days) {
-        const startedAt = Date.parse(`${day}T00:00:00Z`);
-        const dayNumber = Number.parseInt(day.replace(/-/gu, ''), 10);
-        for (const [model, t] of byModel) {
-            rows.push({
-                session_id: `cursor-${day}`,
-                model,
-                day: dayNumber,
-                started_at: startedAt,
-                ...t,
-            });
+    for (const [utcDay, byLocalDay] of days) {
+        const startedAt = Date.parse(`${utcDay}T00:00:00Z`);
+        for (const [day, byModel] of byLocalDay) {
+            for (const [model, t] of byModel) {
+                rows.push({
+                    session_id: `cursor-${utcDay}`,
+                    model,
+                    day,
+                    started_at: startedAt,
+                    ...t,
+                });
+            }
         }
     }
     return rows;
 }
 
 /**
- * Bucket Cursor dashboard usage events by UTC day + model into session rows.
- * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
- * on every run keeps ingestion idempotent (server upserts by session+model).
+ * Bucket Cursor dashboard usage events by UTC day (the session id) and local
+ * day (the usage day) per model. One synthetic session per UTC day
+ * ("cursor-YYYY-MM-DD"); re-summing whole days on every run keeps ingestion
+ * idempotent. The session id stays UTC-keyed because it is the unit the ingest
+ * replace contract clears — re-keying it would orphan stored rows — while
+ * `day` is local, like every other source.
  */
 export function parseCursorEvents(events: unknown[]): ReporterRow[] {
-    const days = new Map<string, Map<string, ReporterTotals>>();
+    const days: CursorDayMap = new Map();
     for (const raw of Array.isArray(events) ? events : []) {
         if (!raw || typeof raw !== 'object') continue;
         const parsed = cursorEventDayModel(raw as JsonObject);
         if (!parsed) continue;
+        const byLocalDay =
+            days.get(parsed.utcDay) ??
+            new Map<number, Map<string, ReporterTotals>>();
         const byModel =
-            days.get(parsed.day) ?? new Map<string, ReporterTotals>();
+            byLocalDay.get(parsed.day) ?? new Map<string, ReporterTotals>();
         accumulateModelUsage(byModel, parsed.model, parsed.usage);
-        days.set(parsed.day, byModel);
+        byLocalDay.set(parsed.day, byModel);
+        days.set(parsed.utcDay, byLocalDay);
     }
     return cursorRowsFromDayMap(days);
 }
