@@ -15,22 +15,24 @@ describe('cache keys', () => {
         expect(
             leaderboardCacheKey({
                 window: '7d',
+                startDay: 20260807,
                 metric: 'total',
                 source: 'claude_code',
                 model: 'sonnet',
                 limit: 100,
             }),
-        ).toBe('agg:lb:v1:7d:total:claude_code:sonnet::100');
+        ).toBe('agg:lb:v2:7d:20260807:total:claude_code:sonnet::100');
     });
 
     it('leaderboard key separates by country', () => {
         const base = {
             window: '7d' as const,
+            startDay: 20260807,
             metric: 'total' as const,
             limit: 100,
         };
         expect(leaderboardCacheKey({ ...base, country: 'AU' })).toBe(
-            'agg:lb:v1:7d:total:::AU:100',
+            'agg:lb:v2:7d:20260807:total:::AU:100',
         );
         expect(leaderboardCacheKey({ ...base, country: 'US' })).not.toBe(
             leaderboardCacheKey({ ...base, country: 'AU' }),
@@ -38,11 +40,13 @@ describe('cache keys', () => {
     });
 
     it('profile key is lowercased', () => {
-        expect(profileCacheKey('Ada')).toBe('agg:profile:v1:ada');
+        expect(profileCacheKey('Ada')).toBe('agg:profile:v2:ada');
     });
 
     it('profile window key includes the window', () => {
-        expect(profileWindowCacheKey('Ada', '7d')).toBe('agg:profile7d:v1:ada');
+        expect(profileWindowCacheKey('Ada', '7d', 20260807)).toBe(
+            'agg:profile7d:v2:ada:20260807',
+        );
     });
 });
 
@@ -58,11 +62,12 @@ describe('cachedLeaderboard', () => {
 
         const query = {
             window: '7d' as const,
+            startDay: 20260807,
             metric: 'total' as const,
             limit: 10,
         };
-        await cachedLeaderboard(db, kv, query, Date.now());
-        await cachedLeaderboard(db, kv, query, Date.now());
+        await cachedLeaderboard(db, kv, query);
+        await cachedLeaderboard(db, kv, query);
 
         expect(all).toHaveBeenCalledTimes(1);
     });
@@ -83,16 +88,20 @@ describe('cachedProfile', () => {
         expect(first).toHaveBeenCalledTimes(2);
     });
 
-    it('drops all-time and 7d KV entries on invalidateProfileCache', async () => {
+    it('drops all-time and the surrounding 7d KV entries on invalidateProfileCache', async () => {
         const kv = memoryKv();
+        // 2026-08-07 UTC: the 7d start day a viewer sitting on that "today" sees.
+        const now = Date.parse('2026-08-07T12:00:00Z');
         await kv.put(profileCacheKey('Ada'), '{"username":"Ada"}');
         await kv.put(
-            profileWindowCacheKey('Ada', '7d'),
+            profileWindowCacheKey('Ada', '7d', 20260801),
             '{"grand_total":1,"cost":2,"sessions":3}',
         );
-        await invalidateProfileCache(kv, 'Ada');
+        await invalidateProfileCache(kv, 'Ada', now);
         expect(await kv.get(profileCacheKey('Ada'))).toBeNull();
-        expect(await kv.get(profileWindowCacheKey('Ada', '7d'))).toBeNull();
+        expect(
+            await kv.get(profileWindowCacheKey('Ada', '7d', 20260801)),
+        ).toBeNull();
     });
 });
 
@@ -122,5 +131,37 @@ describe('cachedDistinctModelFamilies', () => {
 
         expect(first).toEqual(second);
         expect(all).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('cache keys pin the resolved day', () => {
+    it('leaderboard keys include the start day and are v2', () => {
+        const key = leaderboardCacheKey({
+            window: 'today',
+            startDay: 20260807,
+            metric: 'total',
+        });
+        expect(key).toContain('agg:lb:v2');
+        expect(key).toContain('20260807');
+    });
+
+    it('two viewer days never share a leaderboard key', () => {
+        const a = leaderboardCacheKey({
+            window: 'today',
+            startDay: 20260807,
+            metric: 'total',
+        });
+        const b = leaderboardCacheKey({
+            window: 'today',
+            startDay: 20260806,
+            metric: 'total',
+        });
+        expect(a).not.toBe(b);
+    });
+
+    it('profile window keys include the start day', () => {
+        expect(profileWindowCacheKey('tester', '7d', 20260801)).toContain(
+            '20260801',
+        );
     });
 });

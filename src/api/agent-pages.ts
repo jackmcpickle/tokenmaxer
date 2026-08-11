@@ -16,6 +16,7 @@ import {
 } from '@/lib/agent-markdown';
 import { baseUrl } from '@/lib/base-url';
 import { cachedLeaderboard, cachedProfile } from '@/lib/cached-aggregate';
+import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 import { getInviteCookie, inviteSessionAllowed } from '@/lib/invite';
 import { pageCache } from '@/lib/page-cache';
 import type { Env } from '@/types';
@@ -63,12 +64,18 @@ export async function serveHomeMarkdown(
     const source = parseSourceParam(c.req.query('source'));
     const modelRaw = c.req.query('model');
     const model = modelRaw && modelRaw.length > 0 ? modelRaw : undefined;
-    const entries = await cachedLeaderboard(
-        c.env.DB,
-        c.env.RATE_LIMIT,
-        { window, metric: 'total', source, model, limit: 10 },
-        Date.now(),
-    );
+    const entries = await cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+        window,
+        startDay: windowStartDay(
+            window,
+            Date.now(),
+            timeZoneFromRequest(c.req.raw),
+        ),
+        metric: 'total',
+        source,
+        model,
+        limit: 10,
+    });
     return markdownBody(
         homeMarkdown({
             base: baseUrl(c.env, c.req.url),

@@ -11,6 +11,7 @@ import {
     type Profile,
     type ProfileWindowTotals,
 } from '@/lib/aggregate';
+import { dayFromMs, shiftDay } from '@/lib/day';
 import {
     getOrSet,
     HACKATHON_CACHE_TTL_SECONDS,
@@ -20,8 +21,10 @@ import type { Metric, TimeWindow } from '@/types';
 
 export function leaderboardCacheKey(query: LeaderboardQuery): string {
     return [
-        'agg:lb:v1',
+        'agg:lb:v2',
         query.window,
+        // The resolved day, so viewers in different zones never share a board.
+        String(query.startDay),
         query.metric,
         query.source ?? '',
         query.model ?? '',
@@ -31,24 +34,35 @@ export function leaderboardCacheKey(query: LeaderboardQuery): string {
 }
 
 export function profileCacheKey(username: string): string {
-    return `agg:profile:v1:${username.toLowerCase()}`;
+    return `agg:profile:v2:${username.toLowerCase()}`;
 }
 
 export function profileWindowCacheKey(
     username: string,
     window: TimeWindow,
+    startDay: number,
 ): string {
-    return `agg:profile${window}:v1:${username.toLowerCase()}`;
+    return `agg:profile${window}:v2:${username.toLowerCase()}:${startDay}`;
 }
 
-/** Drop a user's profile aggregates after ingest/history so the next read is fresh. */
+/**
+ * Drop a user's profile aggregates after ingest/history so the next read is
+ * fresh. The windowed key carries the viewer's resolved day, and at any instant
+ * the world spans at most three calendar dates, so all three candidates around
+ * "now" are cleared.
+ */
 export async function invalidateProfileCache(
     kv: KVNamespace,
     username: string,
+    now: number = Date.now(),
 ): Promise<void> {
+    const today = dayFromMs(now, 'UTC');
+    const days = [shiftDay(today, -1), today, shiftDay(today, 1)];
     await Promise.all([
         kv.delete(profileCacheKey(username)),
-        kv.delete(profileWindowCacheKey(username, '7d')),
+        ...days.map((day) =>
+            kv.delete(profileWindowCacheKey(username, '7d', shiftDay(day, -6))),
+        ),
     ]);
 }
 
@@ -67,10 +81,9 @@ export async function cachedLeaderboard(
     db: D1Database,
     kv: KVNamespace,
     query: LeaderboardQuery,
-    now: number,
 ): Promise<LeaderboardEntry[]> {
     return withReadCache(kv, leaderboardCacheKey(query), () =>
-        getLeaderboard(db, query, now),
+        getLeaderboard(db, query),
     );
 }
 
@@ -89,10 +102,12 @@ export async function cachedProfileWindow(
     kv: KVNamespace,
     username: string,
     window: TimeWindow,
-    now: number,
+    startDay: number,
 ): Promise<ProfileWindowTotals | null> {
-    return withReadCache(kv, profileWindowCacheKey(username, window), () =>
-        getProfileWindowTotals(db, username, window, now),
+    return withReadCache(
+        kv,
+        profileWindowCacheKey(username, window, startDay),
+        () => getProfileWindowTotals(db, username, startDay),
     );
 }
 

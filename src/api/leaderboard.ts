@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cachedLeaderboard, cachedProfile } from '@/lib/cached-aggregate';
 import { isValidCountry } from '@/lib/countries';
+import { timeZoneFromRequest, windowStartDay } from '@/lib/day';
 import { apiCache } from '@/lib/page-cache';
 import {
     type Env,
@@ -42,12 +43,19 @@ app.get('/leaderboard', apiCache, async (c) => {
         ? Math.min(Math.max(limitRaw, 1), 500)
         : 100;
 
-    const entries = await cachedLeaderboard(
-        c.env.DB,
-        c.env.RATE_LIMIT,
-        { window, metric, source, model, country, limit },
-        Date.now(),
-    );
+    const entries = await cachedLeaderboard(c.env.DB, c.env.RATE_LIMIT, {
+        window,
+        startDay: windowStartDay(
+            window,
+            Date.now(),
+            timeZoneFromRequest(c.req.raw),
+        ),
+        metric,
+        source,
+        model,
+        country,
+        limit,
+    });
     return c.json({
         window,
         metric,
