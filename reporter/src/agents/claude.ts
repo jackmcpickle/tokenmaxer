@@ -2,12 +2,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import {
-    accumulateModelUsage,
-    singleDayModels,
-    usageFromFields,
-} from '../lib/totals';
+import { accumulateModelDayUsage, usageFromFields } from '../lib/totals';
 import type {
+    DayTotals,
     JsonObject,
     ParseOpts,
     ParsedTranscript,
@@ -27,6 +24,8 @@ export interface ClaudeUsageRow {
     key: string | null;
     model: string;
     usage: ReporterTotals;
+    /** Local day of this line's timestamp; 0 when it carries none. */
+    day: number;
     // When the same message chunk appears in several of a session's files,
     // the non-sidechain copy is authoritative (CodexBar's winner rule) —
     // sidechain copies can be stale partials of the final cumulative chunk.
@@ -55,16 +54,23 @@ function claudeUsageRow(obj: JsonObject): ClaudeUsageRow | null {
         key: claudeUsageKey(msg, obj),
         model: claudeAssistantModel(msg),
         usage: usageFromFields(usage, CLAUDE_USAGE_FIELDS),
+        day: localDay(toMs(obj.timestamp)),
         sidechain: obj.isSidechain === true,
     };
 }
 
+/**
+ * Sum rows per (model, local day). `fallbackDay` covers lines with no usable
+ * timestamp — the session's own start day, so usage is never dropped and never
+ * invents a date from the wall clock.
+ */
 export function sumClaudeRows(
     rows: ClaudeUsageRow[],
-): Map<string, ReporterTotals> {
-    const models = new Map<string, ReporterTotals>();
-    for (const { model, usage } of rows) {
-        accumulateModelUsage(models, model, usage);
+    fallbackDay: number,
+): Map<string, DayTotals> {
+    const models = new Map<string, DayTotals>();
+    for (const { model, usage, day } of rows) {
+        accumulateModelDayUsage(models, model, day || fallbackDay, usage);
     }
     return models;
 }
@@ -118,8 +124,8 @@ export function parseClaudeTranscript(
     return {
         session_id: opts.sessionId || scan.sessionId || null,
         started_at: startedAt,
-        models: singleDayModels(
-            sumClaudeRows([...scan.keyed.values(), ...scan.unkeyed]),
+        models: sumClaudeRows(
+            [...scan.keyed.values(), ...scan.unkeyed],
             localDay(startedAt ?? Date.now()),
         ),
     };

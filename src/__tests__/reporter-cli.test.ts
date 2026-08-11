@@ -965,14 +965,23 @@ describe('tokenmaxer CLI', () => {
         const res = runCli(['claude-sessionstart', '--dry-run'], { home });
         expect(res.status).toBe(0);
         const payload = JSON.parse(res.stdout.trim());
-        expect(payload.body.sessions).toHaveLength(1);
-        // The uploaded row must be the COMPLETE session total, or the
-        // replace-upsert would erase the old activity from the server.
-        expect(payload.body.sessions[0]).toMatchObject({
-            session_id: 'sess-cli',
-            input_tokens: 111,
-            output_tokens: 202,
-        });
+        // The old copy's entry lands on its own local day (2026-07-01) and
+        // CLAUDE's on its own (2026-07-18) — two day rows for one session,
+        // not one merged row. Summing them must still equal the old total:
+        // the stale copy's usage must never be lost, or the replace-upsert
+        // would erase that day's activity from the server.
+        expect(payload.body.sessions).toHaveLength(2);
+        for (const row of payload.body.sessions) {
+            expect(row.session_id).toBe('sess-cli');
+        }
+        const totals = payload.body.sessions.reduce(
+            (acc: { input: number; output: number }, row: Record<string, number>) => ({
+                input: acc.input + row.input_tokens,
+                output: acc.output + row.output_tokens,
+            }),
+            { input: 0, output: 0 },
+        );
+        expect(totals).toEqual({ input: 111, output: 202 });
     });
 
     it('claude-sessionstart folds in a copy whose id sits beyond the peek window', () => {
