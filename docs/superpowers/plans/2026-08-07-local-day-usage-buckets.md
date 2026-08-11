@@ -2951,17 +2951,46 @@ git commit -m "docs: explain local-day usage attribution"
 
 ## Deployment order
 
-1. Merge and deploy the server (Tasks 2, 4–7, 14). Old reporters keep working: no `day`, no `replace_sessions`, attribution unchanged.
+**Merging this branch and releasing the reporter are not separable steps under
+this repo's CI.** `.github/workflows/publish-reporter.yml` triggers on push to
+`main` with `paths: reporter/**` and runs `npm publish`; there is no separate
+deploy workflow, `pnpm deploy` (`wrangler deploy`) and `pnpm db:migrate`
+(`wrangler d1 migrations apply --remote`) are both manual, and `wrangler
+deploy` does **not** apply D1 migrations despite `migrations_dir` being set in
+`wrangler.jsonc`. So **merging is what publishes the new reporter to npm.**
+The migrate-and-deploy steps below must therefore happen against production
+**before** the merge, not after it — otherwise the merge itself opens the
+window where the newly-published reporter posts per-day rows against a server
+(and table) that isn't deployed or migrated yet.
+
+The correct order is **migrate → deploy → verify → release the reporter**
+(deploying before migrating is the one sequence that takes the whole site
+down: the deployed code selects `su.day` and inserts `day`, and against an
+un-migrated table both fail with `no such column: day`):
+
+1. Pre-flight check that the migration can't abort partway through:
+    ```sql
+    SELECT COUNT(*) FROM session_usage
+     WHERE started_at IS NULL OR started_at < 0 OR started_at >= 253402300800000;
+    ```
+    Expect `0`. A non-zero result means those rows will seed to the
+    `19700101` sentinel (see `drizzle/0005_local_day_buckets.sql`) instead of
+    a real day — not fatal, but know it's coming before you see it live.
+    Then take a **D1 Time Travel bookmark immediately before applying** the
+    migration — it's the only cover for the window between `DROP TABLE
+ session_usage` and the `RENAME` in that same file.
 2. Apply the migration against production: `pnpm db:migrate` (it rebuilds the table; totals are preserved).
-3. Release the reporter (Tasks 1, 3, 8–13). CI publishes `tokenmaxer` when `reporter/` changes.
-4. Verify with a dry run before any upload (esbuild writes the bundle to `reporter/tokentally.mjs`, per `reporter/package.json`'s `build` script):
+3. Deploy the server: `pnpm deploy` (Tasks 2, 4–7, 14). Old reporters keep working against the migrated, deployed server: no `day`, no `replace_sessions`, attribution unchanged — which is exactly what makes it safe to deploy ahead of the reporter release.
+4. Verify the site against the migrated, deployed server (a leaderboard read, a live ingest).
+5. Merge this branch to `main`. Under this repo's CI that merge commit is the reporter release (Tasks 1, 3, 8–13): `publish-reporter.yml` publishes `tokenmaxer` to npm from it.
+6. Verify with a dry run before any upload (esbuild writes the bundle to `reporter/tokentally.mjs`, per `reporter/package.json`'s `build` script):
     ```bash
     pnpm build:reporter
     node reporter/tokentally.mjs claude-sessionstart --dry-run | head -40
     ```
     Expect `replace_sessions` in the body and several rows per session with distinct `day` values.
-5. Re-derive your own history once: `tokenmaxer backfill claude` (then `codex`, `opencode`, `pi`, `cursor`).
-6. Spot-check against `bunx ccusage daily --since <date>`: a day's four token columns should now agree with the board's per-day totals to within the known 0.17% (cross-session duplicate messages, which tokenmaxer dedupes per session and ccusage dedupes globally).
+7. Re-derive your own history once: `tokenmaxer backfill claude` (then `codex`, `opencode`, `pi`, `cursor`).
+8. Spot-check against `bunx ccusage daily --since <date>`: a day's four token columns should now agree with the board's per-day totals to within the known 0.17% (cross-session duplicate messages, which tokenmaxer dedupes per session and ccusage dedupes globally).
 
 ## Known consequences (accepted)
 
@@ -2969,4 +2998,4 @@ git commit -m "docs: explain local-day usage attribution"
 - **`7d`/`30d` are calendar windows, not rolling hour spans.** `7d` covers 7 calendar dates, so it spans up to 7 days and 23 hours of wall clock.
 - **Cross-user comparison inside a window is approximate.** Two users in different zones have different absolute 24-hour spans on the same `day`. This is the deliberate trade for "my today means my today".
 - **Old data stays mis-attributed until re-reported.** Seeded rows keep the UTC day of their session start. All-time totals are unaffected; a single `tokenmaxer backfill` fixes a user's per-day history.
-- **A downgraded reporter re-collapses a session.** An older install posting one row per session replaces the day rows for that session (via the day-less path plus no `replace_sessions`, it adds a legacy row alongside them). If this matters, treat the npm release as forward-only.
+- **A downgraded reporter double-counts a session, it does not "re-collapse" it.** An older install posts one row per session with no `day` and no `replace_sessions`. The day-less path derives a UTC day from `started_at` and, with no `replace_sessions`, `store.ts` issues no delete first — so the legacy row lands _alongside_ the day-split rows the new reporter already wrote (or, if its derived UTC day happens to match one of them, overwrites just that single row). Either way, the legacy row's value is the session's _whole lifetime_ total, stacked on top of totals already accounted for by the day rows: a mixed old/new reporter reporting the same session double-counts it. If this matters, treat the npm release as forward-only.

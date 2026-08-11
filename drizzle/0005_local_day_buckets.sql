@@ -37,7 +37,12 @@ INSERT INTO session_usage_new (
 )
 SELECT
   user_id, source, session_id, model,
-  CAST(strftime('%Y%m%d', started_at / 1000, 'unixepoch') AS INTEGER),
+  -- strftime returns NULL for started_at >= 253402300800000 (year 10000+,
+  -- e.g. a microsecond-unit timestamp), and `day` is NOT NULL — one such row
+  -- would abort this migration mid-release. COALESCE to an obviously-wrong
+  -- 19700101 sentinel instead: a later `tokenmaxer backfill` replaces it, and
+  -- that is far better than aborting. Do not "tidy" this away.
+  CAST(COALESCE(strftime('%Y%m%d', started_at / 1000, 'unixepoch'), '19700101') AS INTEGER),
   input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
   reasoning_tokens, started_at, updated_at
 FROM session_usage;
