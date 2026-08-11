@@ -88,18 +88,20 @@ describe('cachedProfile', () => {
         expect(first).toHaveBeenCalledTimes(2);
     });
 
-    it('drops all-time and every surrounding 7d KV entry on invalidateProfileCache', async () => {
+    it('drops all-time and exactly the one reachable 7d KV entry on invalidateProfileCache', async () => {
         const kv = memoryKv();
-        // 2026-08-07 UTC "today" widens to three candidate calendar dates
-        // (the day before, that day, and the day after), so a 7d key can sit
-        // at any of shiftDay(day, -6) for those three: 20260731/20260801/20260802.
-        // Seeding all three and asserting all three are cleared proves the
-        // widening itself, not just its middle candidate.
+        // og.ts is the only windowed consumer and it always resolves its 7d
+        // window in UTC "today" via windowStartDay('7d', now, 'UTC'), i.e.
+        // shiftDay(today, -6). For 2026-08-07 UTC that is 20260801 — the only
+        // key that can ever be live. 20260731/20260802 are neighbouring dates
+        // that no consumer resolves to; seeding them too proves invalidation
+        // no longer over-clears into dead slack.
         const now = Date.parse('2026-08-07T12:00:00Z');
-        const candidateStartDays = [20260731, 20260801, 20260802];
+        const reachableStartDay = 20260801;
+        const deadStartDays = [20260731, 20260802];
         await kv.put(profileCacheKey('Ada'), '{"username":"Ada"}');
         await Promise.all(
-            candidateStartDays.map((day) =>
+            [reachableStartDay, ...deadStartDays].map((day) =>
                 kv.put(
                     profileWindowCacheKey('Ada', '7d', day),
                     '{"grand_total":1,"cost":2,"sessions":3}',
@@ -108,12 +110,18 @@ describe('cachedProfile', () => {
         );
         await invalidateProfileCache(kv, 'Ada', now);
         expect(await kv.get(profileCacheKey('Ada'))).toBeNull();
-        const remaining = await Promise.all(
-            candidateStartDays.map((day) =>
+        expect(
+            await kv.get(profileWindowCacheKey('Ada', '7d', reachableStartDay)),
+        ).toBeNull();
+        const untouched = await Promise.all(
+            deadStartDays.map((day) =>
                 kv.get(profileWindowCacheKey('Ada', '7d', day)),
             ),
         );
-        expect(remaining).toEqual([null, null, null]);
+        expect(untouched).toEqual([
+            '{"grand_total":1,"cost":2,"sessions":3}',
+            '{"grand_total":1,"cost":2,"sessions":3}',
+        ]);
     });
 });
 

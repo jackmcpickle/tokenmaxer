@@ -1,5 +1,5 @@
 import { isValidCountry } from '@/lib/countries';
-import { dayFromMs } from '@/lib/day';
+import { dayFromMs, MAX_TIME_VALUE } from '@/lib/day';
 import { isSyntheticModel } from '@/lib/model-family';
 import { isSource, type SessionUsageInput, type Source } from '@/types';
 
@@ -93,10 +93,6 @@ const MAX_SESSION_ID_LEN = 200;
 // Guardrails for a reporter-supplied calendar day: a plausible YYYYMMDD.
 const MIN_DAY = 19700101;
 const MAX_DAY = 99991231;
-
-// The ECMAScript maximum time value; timestamps outside this range are rejected
-// rather than stored verbatim, preventing RangeError in dayFromMs.
-const MAX_TIME_VALUE = 8_640_000_000_000_000;
 
 // Per-request session caps. Live reporting sends small, frequent batches; a
 // one-time history backfill sends far more rows at once, so it gets its own cap.

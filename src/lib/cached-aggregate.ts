@@ -47,9 +47,12 @@ export function profileWindowCacheKey(
 
 /**
  * Drop a user's profile aggregates after ingest/history so the next read is
- * fresh. The windowed key carries the viewer's resolved day, and at any instant
- * the world spans at most three calendar dates, so all three candidates around
- * "now" are cleared.
+ * fresh. The only windowed consumer is `og.ts`, and it always resolves its 7d
+ * window in UTC "today" (`windowStartDay('7d', now, 'UTC')`), so that single
+ * key is the only one that can be live — clearing it is sufficient. This used
+ * to widen ±1 day against a viewer-zone consumer of the windowed key; there is
+ * none since the OG card moved to UTC (Task 7), so that slack was dead. If a
+ * viewer-zone windowed consumer is reintroduced, widen this back out then.
  */
 export async function invalidateProfileCache(
     kv: KVNamespace,
@@ -57,12 +60,9 @@ export async function invalidateProfileCache(
     now: number = Date.now(),
 ): Promise<void> {
     const today = dayFromMs(now, 'UTC');
-    const days = [shiftDay(today, -1), today, shiftDay(today, 1)];
     await Promise.all([
         kv.delete(profileCacheKey(username)),
-        ...days.map((day) =>
-            kv.delete(profileWindowCacheKey(username, '7d', shiftDay(day, -6))),
-        ),
+        kv.delete(profileWindowCacheKey(username, '7d', shiftDay(today, -6))),
     ]);
 }
 
