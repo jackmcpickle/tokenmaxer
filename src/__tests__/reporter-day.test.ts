@@ -5,6 +5,7 @@ process.env.TZ = 'Australia/Adelaide';
 import { describe, expect, it } from 'vitest';
 import { parseClaudeTranscript } from '../../reporter/src/agents/claude';
 import { parseCodexRollout } from '../../reporter/src/agents/codex-engine';
+import { parseOpencodeMessages } from '../../reporter/src/agents/opencode';
 import { parsePiRollout } from '../../reporter/src/agents/pi';
 import { localDay } from '../../reporter/src/lib/day';
 
@@ -342,6 +343,75 @@ describe('parsePiRollout day buckets', () => {
         const byDay = parsed.models.get('gpt-5.2');
         expect([...(byDay?.keys() ?? [])]).not.toContain(0);
         expect(byDay?.get(20260807)?.output_tokens).toBe(15);
+    });
+});
+
+describe('parseOpencodeMessages day buckets', () => {
+    it('splits messages across their local days', () => {
+        const parsed = parseOpencodeMessages([
+            {
+                role: 'assistant',
+                sessionID: 'oc-1',
+                modelID: 'claude-sonnet-5',
+                time: { created: new Date(2026, 7, 6, 23, 0).getTime() },
+                tokens: { input: 1, output: 10, cache: { read: 0, write: 0 } },
+            },
+            {
+                role: 'assistant',
+                sessionID: 'oc-1',
+                modelID: 'claude-sonnet-5',
+                time: { created: new Date(2026, 7, 7, 1, 0).getTime() },
+                tokens: { input: 1, output: 20, cache: { read: 0, write: 0 } },
+            },
+        ]);
+        const byDay = parsed.models.get('claude-sonnet-5');
+        expect(byDay?.get(20260806)?.output_tokens).toBe(10);
+        expect(byDay?.get(20260807)?.output_tokens).toBe(20);
+    });
+
+    it('uses the fallback day for a message with no timestamp', () => {
+        const parsed = parseOpencodeMessages(
+            [
+                {
+                    role: 'assistant',
+                    sessionID: 'oc-1',
+                    modelID: 'claude-sonnet-5',
+                    tokens: {
+                        input: 1,
+                        output: 5,
+                        cache: { read: 0, write: 0 },
+                    },
+                },
+            ],
+            { fallbackStartedAt: new Date(2026, 7, 7, 10, 0).getTime() },
+        );
+        expect(
+            parsed.models.get('claude-sonnet-5')?.get(20260807)?.output_tokens,
+        ).toBe(5);
+    });
+
+    it('never leaks the day-0 sentinel when a real day-0 bucket and the resolved fallback day coincide', () => {
+        // One message has a real, timestamped day; another has none and
+        // books internally to day 0. Both must fold into the SAME resolved
+        // day (the earliest real timestamp) via addition, not overwrite.
+        const parsed = parseOpencodeMessages([
+            {
+                role: 'assistant',
+                sessionID: 'oc-1',
+                modelID: 'claude-sonnet-5',
+                time: { created: new Date(2026, 7, 7, 9, 0).getTime() },
+                tokens: { input: 1, output: 7, cache: { read: 0, write: 0 } },
+            },
+            {
+                role: 'assistant',
+                sessionID: 'oc-1',
+                modelID: 'claude-sonnet-5',
+                tokens: { input: 1, output: 3, cache: { read: 0, write: 0 } },
+            },
+        ]);
+        const byDay = parsed.models.get('claude-sonnet-5');
+        expect([...(byDay?.keys() ?? [])]).not.toContain(0);
+        expect(byDay?.get(20260807)?.output_tokens).toBe(10);
     });
 });
 

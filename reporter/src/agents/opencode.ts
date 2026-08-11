@@ -5,17 +5,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { localDay } from '../lib/day';
 import { asObject, toMs } from '../lib/parse-utils';
 import { toRows } from '../lib/rows';
-import {
-    accumulateModelUsage,
-    singleDayModels,
-    usageFromFields,
-} from '../lib/totals';
+import { accumulateModelDayUsage, usageFromFields } from '../lib/totals';
 import type {
+    DayTotals,
     JsonObject,
     ParseOpts,
     ParsedTranscript,
     ReporterRow,
-    ReporterTotals,
 } from '../lib/types';
 import { OPENCODE_USAGE_FIELDS } from '../lib/usage-fields';
 
@@ -28,8 +24,9 @@ function opencodeTimestamp(msg: JsonObject): number | null {
 // Written defensively — opencode has revised its message shape, so both nested
 // (`tokens.cache.read`) and flat (`cache_read`) keys are tolerated.
 function accumulateOpencodeTokens(
-    models: Map<string, ReporterTotals>,
+    models: Map<string, DayTotals>,
     msg: JsonObject,
+    day: number,
 ): void {
     const tokens = asObject(msg.tokens);
     if (!msg.tokens || typeof msg.tokens !== 'object') return;
@@ -45,9 +42,10 @@ function accumulateOpencodeTokens(
         cache_read: cache.read ?? tokens.cache_read,
         cache_write: cache.write ?? tokens.cache_write,
     };
-    accumulateModelUsage(
+    accumulateModelDayUsage(
         models,
         model,
+        day,
         usageFromFields(flattenedUsage, OPENCODE_USAGE_FIELDS),
     );
 }
@@ -55,7 +53,7 @@ function accumulateOpencodeTokens(
 interface OpencodeParseCtx {
     sessionId: string | null;
     startedAt: number | null;
-    models: Map<string, ReporterTotals>;
+    models: Map<string, DayTotals>;
 }
 
 function ingestOpencodeMessage(msg: JsonObject, ctx: OpencodeParseCtx): void {
@@ -64,18 +62,37 @@ function ingestOpencodeMessage(msg: JsonObject, ctx: OpencodeParseCtx): void {
     const ts = opencodeTimestamp(msg);
     if (ts !== null && (ctx.startedAt === null || ts < ctx.startedAt))
         ctx.startedAt = ts;
-    if (msg.role === 'assistant') accumulateOpencodeTokens(ctx.models, msg);
+    // A message with no usable timestamp books to day 0 (the "unknown
+    // day" sentinel) rather than a fallback computed mid-parse: the
+    // session's real start instant (startedAt) isn't settled until every
+    // message has been seen, so resolving a fallback early can
+    // misattribute to the wrong day. finishOpencodeParse resolves it once,
+    // after the whole pass has run.
+    if (msg.role === 'assistant') {
+        accumulateOpencodeTokens(ctx.models, msg, localDay(ts));
+    }
 }
 
-/**
- * Parse a set of opencode assistant messages. The message object is the same
- * shape whether it came from a legacy `msg_*.json` file or from the `data`
- * column of the `message` table in opencode.db. Sums the `tokens.*` block per
- * model.
- */
 function asMessage(raw: unknown): JsonObject | null {
     if (!raw || typeof raw !== 'object') return null;
     return raw as JsonObject;
+}
+
+/**
+ * Fold every day-0 bucket into the session's resolved fallback day now that
+ * scanning has finished. Merge rather than overwrite: a real bucket for the
+ * same day can already hold usage.
+ */
+function foldUnknownDay(
+    models: Map<string, DayTotals>,
+    fallbackDay: number,
+): void {
+    for (const [model, byDay] of models) {
+        const unknown = byDay.get(0);
+        if (unknown === undefined) continue;
+        byDay.delete(0);
+        accumulateModelDayUsage(models, model, fallbackDay, unknown);
+    }
 }
 
 function finishOpencodeParse(
@@ -83,13 +100,22 @@ function finishOpencodeParse(
     opts: ParseOpts,
 ): ParsedTranscript {
     const startedAt = ctx.startedAt ?? opts.fallbackStartedAt ?? null;
+    // Date.now() is the last resort, for a session with no usable timestamp
+    // anywhere and no caller-supplied fallbackStartedAt.
+    foldUnknownDay(ctx.models, localDay(startedAt ?? Date.now()));
     return {
         session_id: ctx.sessionId ?? opts.sessionId ?? null,
         started_at: startedAt,
-        models: singleDayModels(ctx.models, localDay(startedAt ?? Date.now())),
+        models: ctx.models,
     };
 }
 
+/**
+ * Parse a set of opencode assistant messages. The message object is the same
+ * shape whether it came from a legacy `msg_*.json` file or from the `data`
+ * column of the `message` table in opencode.db. Sums the `tokens.*` block per
+ * model, bucketed by each message's own local day.
+ */
 export function parseOpencodeMessages(
     messages: unknown[],
     opts: ParseOpts = {},
