@@ -975,7 +975,10 @@ describe('tokenmaxer CLI', () => {
             expect(row.session_id).toBe('sess-cli');
         }
         const totals = payload.body.sessions.reduce(
-            (acc: { input: number; output: number }, row: Record<string, number>) => ({
+            (
+                acc: { input: number; output: number },
+                row: Record<string, number>,
+            ) => ({
                 input: acc.input + row.input_tokens,
                 output: acc.output + row.output_tokens,
             }),
