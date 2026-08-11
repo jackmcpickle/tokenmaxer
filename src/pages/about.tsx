@@ -74,10 +74,10 @@ export const About: FC<{ base: string }> = ({ base }) => (
                 Reporting is triggered by{' '}
                 <strong className="text-text">SessionStart</strong> and{' '}
                 <strong className="text-text">SessionEnd</strong> hooks — no
-                background daemon, no cron. Because each row is keyed by
-                session, model and day — and re-reporting a session replaces
-                every row it owns rather than adding to them — reporting the
-                same session twice never double-counts.
+                background daemon, no cron. Because each row is scoped to one
+                user, tool, session, model, and day — and re-reporting a session
+                replaces every row it owns rather than adding to them —
+                reporting the same session twice never double-counts.
             </p>
         </div>
 
