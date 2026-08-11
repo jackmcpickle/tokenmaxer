@@ -4,17 +4,13 @@ import { basename, join } from 'node:path';
 import { localDay } from '../lib/day';
 import { asObject, toMs } from '../lib/parse-utils';
 import { toRows } from '../lib/rows';
-import {
-    accumulateModelUsage,
-    singleDayModels,
-    usageFromFields,
-} from '../lib/totals';
+import { accumulateModelDayUsage, usageFromFields } from '../lib/totals';
 import type {
+    DayTotals,
     JsonObject,
     ParseOpts,
     ParsedTranscript,
     ReporterRow,
-    ReporterTotals,
 } from '../lib/types';
 import { OPENCODE_USAGE_FIELDS } from '../lib/usage-fields';
 
@@ -27,8 +23,9 @@ function opencodeTimestamp(msg: JsonObject): number | null {
 // Written defensively — opencode has revised its message shape, so both nested
 // (`tokens.cache.read`) and flat (`cache_read`) keys are tolerated.
 function accumulateOpencodeTokens(
-    models: Map<string, ReporterTotals>,
+    models: Map<string, DayTotals>,
     msg: JsonObject,
+    day: number,
 ): void {
     const tokens = asObject(msg.tokens);
     if (!msg.tokens || typeof msg.tokens !== 'object') return;
@@ -44,9 +41,10 @@ function accumulateOpencodeTokens(
         cache_read: cache.read ?? tokens.cache_read,
         cache_write: cache.write ?? tokens.cache_write,
     };
-    accumulateModelUsage(
+    accumulateModelDayUsage(
         models,
         model,
+        day,
         usageFromFields(flattenedUsage, OPENCODE_USAGE_FIELDS),
     );
 }
@@ -54,13 +52,13 @@ function accumulateOpencodeTokens(
 /**
  * Parse a set of opencode assistant messages (each `msg_*.json` under
  * `storage/message/<sessionID>/` is one message object). Sums the `tokens.*`
- * block per model.
+ * block per model, bucketed by each message's own local day.
  */
 export function parseOpencodeMessages(
     messages: unknown[],
     opts: ParseOpts = {},
 ): ParsedTranscript {
-    const models = new Map<string, ReporterTotals>();
+    const models = new Map<string, DayTotals>();
     let sessionId = opts.sessionId ?? null;
     let startedAt: number | null = null;
 
@@ -72,17 +70,36 @@ export function parseOpencodeMessages(
         const ts = opencodeTimestamp(msg);
         if (ts !== null && (startedAt === null || ts < startedAt))
             startedAt = ts;
-        if (msg.role === 'assistant') accumulateOpencodeTokens(models, msg);
+        // A message with no usable timestamp books to day 0 (the "unknown
+        // day" sentinel) rather than a fallback computed mid-parse: the
+        // session's real start instant (startedAt) isn't settled until every
+        // message has been seen, so resolving a fallback early can
+        // misattribute to the wrong day. The fold below resolves it once,
+        // after the whole pass has run.
+        if (msg.role === 'assistant') {
+            accumulateOpencodeTokens(models, msg, localDay(ts));
+        }
     }
 
-    const resolvedStartedAt = startedAt ?? opts.fallbackStartedAt ?? null;
+    // Fold every day-0 bucket into the session's resolved fallback day now
+    // that scanning has finished. Merge rather than overwrite: a real bucket
+    // for the same day can already hold usage. Date.now() is the last
+    // resort, for a session with no usable timestamp anywhere and no
+    // caller-supplied fallbackStartedAt.
+    const fallbackDay = localDay(
+        startedAt ?? opts.fallbackStartedAt ?? Date.now(),
+    );
+    for (const [model, byDay] of models) {
+        const unknown = byDay.get(0);
+        if (unknown === undefined) continue;
+        byDay.delete(0);
+        accumulateModelDayUsage(models, model, fallbackDay, unknown);
+    }
+
     return {
         session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: resolvedStartedAt,
-        models: singleDayModels(
-            models,
-            localDay(resolvedStartedAt ?? Date.now()),
-        ),
+        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
+        models,
     };
 }
 
