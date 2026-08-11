@@ -23,6 +23,14 @@ describe('aboutMarkdown', () => {
     });
 });
 
+describe('about copy documents day attribution', () => {
+    it('explains that usage counts on the day it was spent', () => {
+        const md = aboutMarkdown();
+        expect(md).toMatch(/local calendar day/iu);
+        expect(md).toContain('backfill');
+    });
+});
+
 describe('pricingMarkdown', () => {
     it('lists reference rates as a table', () => {
         const md = pricingMarkdown();

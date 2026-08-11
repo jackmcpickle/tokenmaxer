@@ -17,7 +17,9 @@ Claude Code, Codex, opencode, pi, and Cursor each write local session files (or 
 - **pi:** \`~/.pi/agent/sessions/**/*.jsonl\` — the \`usage\` on each assistant record (deduped by id).
 - **Cursor:** Cursor's dashboard API — synced on each session via a hook (no local session token files).
 
-Reporting is triggered by **SessionStart** and **SessionEnd** hooks — no background daemon, no cron. Because each session is keyed by its id and the server overwrites rather than adds, re-reporting the same session never double-counts.
+Usage is attributed to the local calendar day it was spent on, not to the day a session happened to start — so a session you keep open for a fortnight counts against every day it actually burned tokens. Data reported before this change is still attributed to its session's start day; run \`tokenmaxer backfill\` once to re-derive it.
+
+Reporting is triggered by **SessionStart** and **SessionEnd** hooks — no background daemon, no cron. Because each row is keyed by session, model and day — and re-reporting a session replaces every row it owns rather than adding to them — reporting the same session twice never double-counts.
 
 ## The honest part
 
