@@ -241,6 +241,7 @@ export default defineConfig({
                 'src/__tests__/reporter-pi-cursor.test.ts',
                 'src/__tests__/reporter-opencode-db.test.ts',
                 'src/__tests__/reporter-day.test.ts',
+                'src/__tests__/reporter-api-batching.test.ts',
             ],
             rules: {
                 'import/no-relative-parent-imports': 'off',

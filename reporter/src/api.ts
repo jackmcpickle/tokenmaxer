@@ -11,8 +11,8 @@ export interface PostResult {
 }
 
 // `baseIndex` converts the server's per-batch indices back into positions in
-// the caller's full row list — batches post in parallel, so a bare per-chunk
-// index would point at the wrong row.
+// the POSTED (session-grouped) order — planBatches reorders rows so each
+// session is contiguous, so this is not the caller's original array order.
 function describeRejections(
     data: Record<string, unknown>,
     baseIndex: number,
@@ -37,26 +37,72 @@ function describeRejections(
     return rejected.length;
 }
 
+export interface PostBatch {
+    rows: ReporterRow[];
+    baseIndex: number;
+    // Sessions this request fully re-reports. A session is claimed by the FIRST
+    // batch carrying any of its rows, so the server clears it exactly once even
+    // when its day rows span several requests.
+    replaceSessions: string[];
+}
+
+/**
+ * Group rows so every session's rows are contiguous, then cut fixed-size
+ * batches. Contiguity is what makes the replace contract safe: a session's
+ * later chunks land through the upsert instead of behind a second delete.
+ */
+export function planBatches(
+    rows: ReporterRow[],
+    chunkSize: number,
+): PostBatch[] {
+    const bySession = new Map<string, ReporterRow[]>();
+    for (const r of rows) {
+        const group = bySession.get(r.session_id);
+        if (group) group.push(r);
+        else bySession.set(r.session_id, [r]);
+    }
+    const ordered: ReporterRow[] = [];
+    // No spread: a session with tens of thousands of day rows must not blow
+    // the call stack.
+    for (const group of bySession.values()) {
+        for (const r of group) ordered.push(r);
+    }
+
+    const batches: PostBatch[] = [];
+    const claimed = new Set<string>();
+    for (let i = 0; i < ordered.length; i += chunkSize) {
+        const slice = ordered.slice(i, i + chunkSize);
+        const replaceSessions: string[] = [];
+        for (const r of slice) {
+            if (claimed.has(r.session_id)) continue;
+            claimed.add(r.session_id);
+            replaceSessions.push(r.session_id);
+        }
+        batches.push({ rows: slice, baseIndex: i, replaceSessions });
+    }
+    return batches;
+}
+
 async function postBatch(
     cfg: ReporterConfig,
     source: string,
-    batch: ReporterRow[],
+    batch: PostBatch,
     path: string,
-    baseIndex: number,
 ): Promise<PostResult> {
+    const body = {
+        source,
+        sessions: batch.rows,
+        replace_sessions: batch.replaceSessions,
+    };
     if (DRY_RUN) {
         process.stdout.write(
             `${JSON.stringify(
-                {
-                    dryRun: true,
-                    url: `${cfg.apiBase}${path}`,
-                    body: { source, sessions: batch },
-                },
+                { dryRun: true, url: `${cfg.apiBase}${path}`, body },
                 null,
                 2,
             )}\n`,
         );
-        return { accepted: batch.length, rejected: 0, failed: 0 };
+        return { accepted: batch.rows.length, rejected: 0, failed: 0 };
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
@@ -67,30 +113,30 @@ async function postBatch(
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${cfg.token}`,
             },
-            body: JSON.stringify({ source, sessions: batch }),
+            body: JSON.stringify(body),
             signal: controller.signal,
         });
         if (res.ok) {
             const data: unknown = await res.json().catch(() => ({}));
             const obj = asObject(data);
-            const rejected = describeRejections(obj, baseIndex);
+            const rejected = describeRejections(obj, batch.baseIndex);
             const accepted =
                 typeof obj.accepted === 'number'
                     ? obj.accepted
-                    : batch.length - rejected;
+                    : batch.rows.length - rejected;
             return { accepted, rejected, failed: 0 };
         }
         // Surface the response body: a silent status code hides which rows
         // (and why) a whole batch was refused.
-        const body = (await res.text().catch(() => '')).slice(0, 300);
+        const text = (await res.text().catch(() => '')).slice(0, 300);
         process.stderr.write(
-            `tokenmaxer: ingest failed (${res.status})${body ? `: ${body}` : ''}\n`,
+            `tokenmaxer: ingest failed (${res.status})${text ? `: ${text}` : ''}\n`,
         );
-        return { accepted: 0, rejected: 0, failed: batch.length };
+        return { accepted: 0, rejected: 0, failed: batch.rows.length };
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         process.stderr.write(`tokenmaxer: ingest failed: ${message}\n`);
-        return { accepted: 0, rejected: 0, failed: batch.length };
+        return { accepted: 0, rejected: 0, failed: batch.rows.length };
     } finally {
         clearTimeout(timer);
     }
@@ -105,15 +151,14 @@ export async function postSessions(
     if (rows.length === 0) return { accepted: 0, rejected: 0, failed: 0 };
     const path = opts.path ?? '/api/ingest';
     const chunkSize = opts.chunkSize ?? MAX_SESSIONS_PER_REQUEST;
-    const batches: { rows: ReporterRow[]; baseIndex: number }[] = [];
-    for (let i = 0; i < rows.length; i += chunkSize) {
-        batches.push({ rows: rows.slice(i, i + chunkSize), baseIndex: i });
+    const batches = planBatches(rows, chunkSize);
+    // Sequential, not Promise.all: a claimed session's delete must land before
+    // the continuation batches that carry the rest of its days.
+    const results: PostResult[] = [];
+    for (const batch of batches) {
+        // eslint-disable-next-line no-await-in-loop
+        results.push(await postBatch(cfg, source, batch, path));
     }
-    const results = await Promise.all(
-        batches.map((batch) =>
-            postBatch(cfg, source, batch.rows, path, batch.baseIndex),
-        ),
-    );
     return results.reduce(
         (sum, r) => ({
             accepted: sum.accepted + r.accepted,
