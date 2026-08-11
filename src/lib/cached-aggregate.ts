@@ -69,6 +69,7 @@ export async function invalidateProfileCache(
     await Promise.all([
         kv.delete(profileCacheKey(username)),
         kv.delete(profileWindowCacheKey(username, '7d', shiftDay(today, -6))),
+        kv.delete(profileWindowCacheKey(username, '7d', shiftDay(today, -7))),
     ]);
 }
 
