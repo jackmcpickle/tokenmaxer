@@ -5,8 +5,9 @@ tokens burned with Claude Code, Codex, opencode, pi and Cursor.
 
 A single zero-dependency Node script (`tokentally.mjs`, esbuild-bundled from
 strict TypeScript modules under `src/`). It parses your local session
-transcripts, sums token usage per model, and POSTs per-session totals to the
-tokenmaxer API on SessionStart/SessionEnd hooks.
+transcripts, sums token usage per model and calendar day, and POSTs those
+per-session-per-day totals to the tokenmaxer API on SessionStart/SessionEnd
+hooks.
 
 ## What leaves your machine
 
@@ -47,20 +48,28 @@ tokenmaxer set-profile-url <https-url> [--dry-run]
 tokenmaxer set-profile-url --clear [--dry-run]
 ```
 
-Reporting is idempotent (upsert keyed by session id) — re-running never
-double-counts. Source: <https://github.com/jackmcpickle/tokenmaxer>.
+Each row is scoped to one user, tool, session, model, and calendar day, and
+re-reporting a session **replaces** every row it owns — so running the same
+hook twice never double-counts. Source:
+<https://github.com/jackmcpickle/tokenmaxer>.
+
+If you were reporting before local-day attribution shipped, run `tokenmaxer
+backfill` once — existing data keeps its old (session-start-day) attribution
+until you do. Cursor backfill only reaches 90 days back
+(`reporter/src/commands.ts`), so Cursor days older than that can't be
+re-derived at all.
 
 ## Claude subagent sessions
 
 Claude Code splits one session across a root `<sessionId>.jsonl` and subagent
 transcripts under `<sessionId>/subagents/` (nesting deeper for workflow
 subagents), all sharing the same session id. The reporter aggregates a
-session's files into a single row per model — deduplicating streamed message
-chunks across copies — before uploading, so the files can't overwrite each
-other's totals on the server, and it never uploads a session's row unless
-every known contribution was readable. Because the aggregated rows keep the
-same session ids, upgrading and re-running `tokenmaxer backfill claude`
-repairs any previously collided history in place.
+session's files into one row per model and calendar day — deduplicating
+streamed message chunks across copies — before uploading, so the files can't
+overwrite each other's totals on the server, and it never uploads a session's
+rows unless every known contribution was readable. Because the aggregated
+rows keep the same session ids, upgrading and re-running `tokenmaxer backfill
+claude` repairs any previously collided history in place.
 
 ## Codex counting
 

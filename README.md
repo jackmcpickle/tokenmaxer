@@ -188,6 +188,11 @@ Uploads use the same idempotent upsert as `/api/ingest` — each row scoped to o
 tool, session, model, and day — so it's safe to run backfill while the hooks are active
 and safe to re-run.
 
+If you were reporting before local-day attribution shipped, run `tokenmaxer backfill`
+once — existing data keeps its old day attribution until you do. Cursor backfill only
+reaches back 90 days (`reporter/src/commands.ts`), so Cursor days older than that can't
+be re-derived at all.
+
 ## Pricing
 
 Estimated USD cost uses a hardcoded per-model table in `src/lib/pricing.ts` — update

@@ -336,13 +336,16 @@ export async function backfill(
         // A partial upload must not masquerade as success: report what was
         // lost and exit non-zero so scripts and humans notice. An aborted
         // cursor window is a whole unsynced range, not a row count;
-        // withheld sessions were never sent at all.
+        // withheld sessions were never sent at all. A session can now span
+        // multiple requests, so a failure on a continuation batch leaves it
+        // under-counted (its first batch already deleted the stored rows via
+        // replace_sessions) — re-running backfill is the remedy, so say so.
         process.stderr.write(
             `tokenmaxer: backfill finished with errors — ${total} row(s) stored, ${problems} row(s) rejected or failed${
                 withheldSessions > 0
                     ? `, ${withheldSessions} session(s) withheld`
                     : ''
-            }${cursorAborted ? ', cursor window not synced' : ''}\n`,
+            }${cursorAborted ? ', cursor window not synced' : ''} — re-run \`tokenmaxer backfill\` to repair\n`,
         );
         process.exitCode = 1;
         return;
