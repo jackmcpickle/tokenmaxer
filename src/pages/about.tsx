@@ -62,13 +62,22 @@ export const About: FC<{ base: string }> = ({ base }) => (
                     <code>usage</code> on each assistant record (deduped by id).
                 </li>
             </ul>
+            <p className="mb-4 text-muted">
+                Usage is attributed to the local calendar day it was spent on,
+                not to the day a session happened to start — so a session you
+                keep open for a fortnight counts against every day it actually
+                burned tokens. Data reported before this change is still
+                attributed to its session&apos;s start day; run{' '}
+                <code>tokenmaxer backfill</code> once to re-derive it.
+            </p>
             <p className="mb-6 text-muted">
                 Reporting is triggered by{' '}
                 <strong className="text-text">SessionStart</strong> and{' '}
                 <strong className="text-text">SessionEnd</strong> hooks — no
-                background daemon, no cron. Because each session is keyed by its
-                id and the server overwrites rather than adds, re-reporting the
-                same session never double-counts.
+                background daemon, no cron. Because each row is keyed by
+                session, model and day — and re-reporting a session replaces
+                every row it owns rather than adding to them — reporting the
+                same session twice never double-counts.
             </p>
         </div>
 

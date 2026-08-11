@@ -30,6 +30,12 @@ sending them.
   (deduped by `id`, since pi stores a branching tree)
 - **Cursor** — dashboard API fetch via local auth (reporter calls `cursor-sync`)
 
+Each row is one `(session, model, day)` bucket, where `day` is the calendar day
+**on the machine that reported it**. Leaderboard windows are whole calendar days
+(`today` is your local date; `7d` is that date plus the six before it), so a
+long-running session contributes to every day it touched instead of booking its
+lifetime total to the day it opened.
+
 Reporting fires on Claude Code / Codex **SessionStart** / **SessionEnd** hooks (no cron,
 no daemon). opencode and pi have no shell hooks, so a small **shell wrapper function**
 runs the reporter each time they exit. Every session is keyed by its id and the server
@@ -57,16 +63,16 @@ reporter/src/        # reporter modules (strict TS; esbuild → tokentally.mjs f
 
 ## API
 
-| Method | Path                | Auth   | Purpose                                             |
-| ------ | ------------------- | ------ | --------------------------------------------------- |
-| POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`              |
-| POST   | `/api/token/rotate` | Bearer | rotate your token                                   |
-| POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[]}` (live reporting)      |
-| POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[]}` (past history) |
-| POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)       |
-| GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=`            |
-| GET    | `/api/u/:username`  | —      | profile totals + breakdown                          |
-| GET    | `/api/health`       | —      | `{name, version}`                                   |
+| Method | Path                | Auth   | Purpose                                                                |
+| ------ | ------------------- | ------ | ---------------------------------------------------------------------- |
+| POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`                                 |
+| POST   | `/api/token/rotate` | Bearer | rotate your token                                                      |
+| POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[], replace_sessions?}` (live reporting)      |
+| POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[], replace_sessions?}` (past history) |
+| POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)                          |
+| GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=`                               |
+| GET    | `/api/u/:username`  | —      | profile totals + breakdown                                             |
+| GET    | `/api/health`       | —      | `{name, version}`                                                      |
 
 `window` ∈ `today|7d|30d|all`, `metric` ∈ `total|input|output|cached|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor`.
 
