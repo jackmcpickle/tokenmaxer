@@ -4,6 +4,7 @@ process.env.TZ = 'Australia/Adelaide';
 
 import { describe, expect, it } from 'vitest';
 import { parseClaudeTranscript } from '../../reporter/src/agents/claude';
+import { parseCodexRollout } from '../../reporter/src/agents/codex-engine';
 import { localDay } from '../../reporter/src/lib/day';
 
 function claudeLine(iso: string, output: number): string {
@@ -79,6 +80,72 @@ describe('parseClaudeTranscript day buckets', () => {
         expect(
             parsed.models.get('claude-opus-5')?.get(20260807)?.output_tokens,
         ).toBe(40);
+    });
+});
+
+function codexTokenCount(iso: string, totalOutput: number): string {
+    return JSON.stringify({
+        type: 'event_msg',
+        timestamp: iso,
+        payload: {
+            type: 'token_count',
+            info: {
+                model: 'gpt-5.2-codex',
+                total_token_usage: {
+                    input_tokens: 10,
+                    output_tokens: totalOutput,
+                    cached_input_tokens: 0,
+                    cache_write_input_tokens: 0,
+                    reasoning_output_tokens: 0,
+                },
+            },
+        },
+    });
+}
+
+describe('parseCodexRollout day buckets', () => {
+    it("books each turn's delta to the day the turn happened", () => {
+        const meta = JSON.stringify({
+            type: 'session_meta',
+            timestamp: new Date(2026, 7, 6, 21, 0).toISOString(),
+            payload: { id: 'codex-1', model: 'gpt-5.2-codex' },
+        });
+        const parsed = parseCodexRollout(
+            [
+                meta,
+                codexTokenCount(new Date(2026, 7, 6, 22, 0).toISOString(), 100),
+                codexTokenCount(new Date(2026, 7, 7, 1, 0).toISOString(), 250),
+            ].join('\n'),
+        );
+        const byDay = parsed.models.get('gpt-5.2-codex');
+        // Cumulative totals: day one counts 100, day two the 150 delta.
+        expect(byDay?.get(20260806)?.output_tokens).toBe(100);
+        expect(byDay?.get(20260807)?.output_tokens).toBe(150);
+    });
+
+    it('uses the session start day when a token_count has no timestamp', () => {
+        const line = JSON.stringify({
+            type: 'event_msg',
+            payload: {
+                type: 'token_count',
+                info: {
+                    model: 'gpt-5.2-codex',
+                    last_token_usage: {
+                        input_tokens: 1,
+                        output_tokens: 9,
+                        cached_input_tokens: 0,
+                        cache_write_input_tokens: 0,
+                        reasoning_output_tokens: 0,
+                    },
+                },
+            },
+        });
+        const parsed = parseCodexRollout(line, {
+            fallbackStartedAt: new Date(2026, 7, 7, 8, 0).getTime(),
+        });
+        expect(
+            parsed.models.get('gpt-5.2-codex')?.get(20260807)?.output_tokens,
+        ).toBe(9);
     });
 });
 
