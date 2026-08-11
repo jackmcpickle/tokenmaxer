@@ -48,11 +48,17 @@ export function profileWindowCacheKey(
 /**
  * Drop a user's profile aggregates after ingest/history so the next read is
  * fresh. The only windowed consumer is `og.ts`, and it always resolves its 7d
- * window in UTC "today" (`windowStartDay('7d', now, 'UTC')`), so that single
- * key is the only one that can be live — clearing it is sufficient. This used
- * to widen ±1 day against a viewer-zone consumer of the windowed key; there is
- * none since the OG card moved to UTC (Task 7), so that slack was dead. If a
- * viewer-zone windowed consumer is reintroduced, widen this back out then.
+ * window in UTC (`windowStartDay('7d', now, 'UTC')`), so every windowed key
+ * that can ever exist has the shape `shiftDay(D, -6)` for the UTC day `D` in
+ * effect when it was *written*. A KV entry's key is fixed at write time and
+ * stays live for READ_CACHE_TTL_SECONDS (600s) after that — so within ten
+ * minutes after a UTC midnight, an entry written just before it still carries
+ * yesterday's `D`. Two keys can therefore be live, not one:
+ * `shiftDay(today, -6)` (written today) and `shiftDay(today, -7)` (written
+ * yesterday, i.e. `shiftDay(shiftDay(today, -1), -6)`). A `today + 1`
+ * candidate — needed only for a viewer-zone consumer ahead of UTC — is
+ * genuinely unreachable now that the OG card resolves in UTC (Task 7): no
+ * write can have a UTC day later than "now".
  */
 export async function invalidateProfileCache(
     kv: KVNamespace,
