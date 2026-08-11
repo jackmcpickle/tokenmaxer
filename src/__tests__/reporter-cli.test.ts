@@ -903,7 +903,7 @@ describe('tokenmaxer CLI', () => {
         const totals = payload.body.sessions.reduce(
             (
                 acc: { input: number; output: number },
-                row: Record<string, number>,
+                row: { input_tokens: number; output_tokens: number },
             ) => ({
                 input: acc.input + row.input_tokens,
                 output: acc.output + row.output_tokens,
