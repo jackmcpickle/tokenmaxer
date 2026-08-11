@@ -38,9 +38,10 @@ instead of booking its lifetime total to the day it opened.
 
 Reporting fires on Claude Code / Codex **SessionStart** / **SessionEnd** hooks (no cron,
 no daemon). opencode and pi have no shell hooks, so a small **shell wrapper function**
-runs the reporter each time they exit. Every session is keyed by its id and the server
-**upserts** rather than adds, so re-reporting the same session never double-counts —
-which is what makes combining start + end (and the start-only catch-ups) safe.
+runs the reporter each time they exit. Each row is scoped to one user, tool, session,
+model, and day, and re-reporting a session **replaces** every row it owns rather than
+adding to them, so reporting the same session twice never double-counts — which is what
+makes combining start + end (and the start-only catch-ups) safe.
 
 Token counts are **self-reported** — this is an honor system with light guardrails
 (bearer auth, rate limits, sanity caps). See `/about`.
@@ -183,8 +184,9 @@ tokenmaxer set-profile-url --clear
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than
 `/api/ingest`. It's a separate route with its own rate-limit bucket and a larger
 per-request cap, so a big one-time upload doesn't eat into the live reporting budget.
-Uploads are the same idempotent upsert as `/api/ingest` — keyed by session id — so it's
-safe to run backfill while the hooks are active and safe to re-run.
+Uploads use the same idempotent upsert as `/api/ingest` — each row scoped to one user,
+tool, session, model, and day — so it's safe to run backfill while the hooks are active
+and safe to re-run.
 
 ## Pricing
 
