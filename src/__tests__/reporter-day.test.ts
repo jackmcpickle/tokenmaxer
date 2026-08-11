@@ -5,6 +5,7 @@ process.env.TZ = 'Australia/Adelaide';
 import { describe, expect, it } from 'vitest';
 import { parseClaudeTranscript } from '../../reporter/src/agents/claude';
 import { parseCodexRollout } from '../../reporter/src/agents/codex-engine';
+import { parsePiRollout } from '../../reporter/src/agents/pi';
 import { localDay } from '../../reporter/src/lib/day';
 
 function claudeLine(iso: string, output: number): string {
@@ -273,6 +274,74 @@ describe('parseCodexRollout day buckets', () => {
         const gpt = parsed.models.get('gpt-5.2-codex');
         expect(gpt?.get(20260807)?.input_tokens).toBe(30);
         expect(gpt?.get(20260807)?.output_tokens).toBe(15);
+    });
+});
+
+describe('parsePiRollout day buckets', () => {
+    it('splits records across their local days', () => {
+        const lines = [
+            JSON.stringify({
+                id: 'r1',
+                timestamp: new Date(2026, 7, 6, 23, 30).toISOString(),
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 10 },
+            }),
+            JSON.stringify({
+                id: 'r2',
+                timestamp: new Date(2026, 7, 7, 0, 30).toISOString(),
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 20 },
+            }),
+        ].join('\n');
+        const parsed = parsePiRollout(lines);
+        const byDay = parsed.models.get('gpt-5.2');
+        expect(byDay?.get(20260806)?.output_tokens).toBe(10);
+        expect(byDay?.get(20260807)?.output_tokens).toBe(20);
+    });
+
+    it("keeps deduping repeated ids, on the last occurrence's day", () => {
+        const lines = [
+            JSON.stringify({
+                id: 'r1',
+                timestamp: new Date(2026, 7, 6, 23, 30).toISOString(),
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 10 },
+            }),
+            JSON.stringify({
+                id: 'r1',
+                timestamp: new Date(2026, 7, 7, 0, 30).toISOString(),
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 10 },
+            }),
+        ].join('\n');
+        const parsed = parsePiRollout(lines);
+        const byDay = parsed.models.get('gpt-5.2');
+        expect(byDay?.get(20260806)).toBeUndefined();
+        expect(byDay?.get(20260807)?.output_tokens).toBe(10);
+    });
+
+    it('falls back to the session start day, never leaking the day-0 sentinel, when no record has a usable timestamp', () => {
+        // Neither line carries a timestamp, so both the unkeyed accumulation
+        // (during the pass) and the keyed fold (after it) must book to day 0
+        // internally, then fold into the same resolved fallback day — never
+        // surfacing a 0 key on the returned map.
+        const lines = [
+            JSON.stringify({
+                id: 'r1',
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 10 },
+            }),
+            JSON.stringify({
+                model: 'gpt-5.2',
+                usage: { input: 1, output: 5 },
+            }),
+        ].join('\n');
+        const parsed = parsePiRollout(lines, {
+            fallbackStartedAt: new Date(2026, 7, 7, 12, 0).getTime(),
+        });
+        const byDay = parsed.models.get('gpt-5.2');
+        expect([...(byDay?.keys() ?? [])]).not.toContain(0);
+        expect(byDay?.get(20260807)?.output_tokens).toBe(15);
     });
 });
 
