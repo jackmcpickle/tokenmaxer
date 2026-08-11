@@ -7,7 +7,6 @@ import {
 import {
     accumulateModelDayUsage,
     emptyTotals,
-    singleDayModels,
 } from '../../reporter/src/lib/totals';
 import type { ReporterTotals } from '../../reporter/src/lib/types';
 
@@ -113,11 +112,5 @@ describe('reporter shared rows helpers', () => {
         expect(models.get('opus')?.get(20260807)?.output_tokens).toBe(7);
         expect(models.get('opus')?.get(20260808)?.output_tokens).toBe(5);
         expect(models.get('sonnet')?.get(20260807)?.output_tokens).toBe(6);
-    });
-
-    it('singleDayModels puts every model total on one day', () => {
-        const flat = new Map([['opus', { ...emptyTotals(), input_tokens: 9 }]]);
-        const byDay = singleDayModels(flat, 20260807);
-        expect(byDay.get('opus')?.get(20260807)?.input_tokens).toBe(9);
     });
 });

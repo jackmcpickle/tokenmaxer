@@ -5,6 +5,7 @@ process.env.TZ = 'Australia/Adelaide';
 import { describe, expect, it } from 'vitest';
 import { parseClaudeTranscript } from '../../reporter/src/agents/claude';
 import { parseCodexRollout } from '../../reporter/src/agents/codex-engine';
+import { parseCursorEvents } from '../../reporter/src/agents/cursor';
 import { parseOpencodeMessages } from '../../reporter/src/agents/opencode';
 import { parsePiRollout } from '../../reporter/src/agents/pi';
 import { localDay } from '../../reporter/src/lib/day';
@@ -412,6 +413,57 @@ describe('parseOpencodeMessages day buckets', () => {
         const byDay = parsed.models.get('claude-sonnet-5');
         expect([...(byDay?.keys() ?? [])]).not.toContain(0);
         expect(byDay?.get(20260807)?.output_tokens).toBe(10);
+    });
+});
+
+const CURSOR_USAGE = {
+    inputTokens: 1,
+    outputTokens: 1,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+};
+
+describe('parseCursorEvents day buckets', () => {
+    it('keeps the UTC-day session id but a local day per event', () => {
+        // 02:00Z on the 7th is 11:30 on the 7th in Adelaide (UTC+9:30).
+        const rows = parseCursorEvents([
+            {
+                timestamp: Date.parse('2026-08-07T02:00:00Z'),
+                model: 'claude-sonnet-5',
+                tokenUsage: { ...CURSOR_USAGE, outputTokens: 2 },
+            },
+        ]);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.session_id).toBe('cursor-2026-08-07');
+        expect(rows[0]?.day).toBe(20260807);
+        expect(rows[0]?.output_tokens).toBe(2);
+    });
+
+    it('splits one UTC day into two rows when it straddles local midnight', () => {
+        // Both instants are inside UTC 2026-08-07, but 21:00Z is already
+        // 06:30 on the 8th in Adelaide — one session, two local days.
+        const rows = parseCursorEvents([
+            {
+                timestamp: Date.parse('2026-08-07T01:00:00Z'),
+                model: 'claude-sonnet-5',
+                tokenUsage: CURSOR_USAGE,
+            },
+            {
+                timestamp: Date.parse('2026-08-07T21:00:00Z'),
+                model: 'claude-sonnet-5',
+                tokenUsage: CURSOR_USAGE,
+            },
+        ]);
+        expect(rows).toHaveLength(2);
+        expect(rows.map((r) => r.session_id)).toEqual([
+            'cursor-2026-08-07',
+            'cursor-2026-08-07',
+        ]);
+        expect(rows.map((r) => r.day)).toEqual([20260807, 20260808]);
+        // started_at stays the UTC day start for both rows.
+        expect(new Set(rows.map((r) => r.started_at))).toEqual(
+            new Set([Date.parse('2026-08-07T00:00:00Z')]),
+        );
     });
 });
 

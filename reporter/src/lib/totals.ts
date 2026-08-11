@@ -73,16 +73,3 @@ export function accumulateModelDayUsage(
     byDay.set(day, t);
     models.set(model, byDay);
 }
-
-/**
- * Bridge for collectors that have not been converted to per-entry day
- * bucketing yet: puts each model's whole total on one day.
- */
-export function singleDayModels(
-    models: Map<string, ReporterTotals>,
-    day: number,
-): Map<string, DayTotals> {
-    const out = new Map<string, DayTotals>();
-    for (const [model, t] of models) out.set(model, new Map([[day, t]]));
-    return out;
-}
