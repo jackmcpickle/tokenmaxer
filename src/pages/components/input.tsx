@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from 'react';
+import type { ChangeEventHandler, FC, ReactNode } from 'react';
 
 export type InputVariant = 'text' | 'select';
 
@@ -14,6 +14,8 @@ type TextInputProps = {
     autoComplete?: string;
     required?: boolean;
     value?: string;
+    defaultValue?: string;
+    onChange?: ChangeEventHandler<HTMLInputElement>;
     /** HTML input type (default `text`). */
     type?: 'text' | 'datetime-local';
 };
@@ -24,6 +26,9 @@ type SelectInputProps = {
     name?: string;
     className?: string;
     required?: boolean;
+    defaultValue?: string;
+    value?: string;
+    onChange?: ChangeEventHandler<HTMLSelectElement>;
     /** Inline HTML `onchange` for progressive-enhancement form submit. */
     htmlOnChange?: string;
     children?: ReactNode;
@@ -33,6 +38,18 @@ export type InputProps = TextInputProps | SelectInputProps;
 
 function cx(...parts: Array<string | undefined>): string {
     return parts.filter(Boolean).join(' ');
+}
+
+function valueProps(
+    value: string | undefined,
+    defaultValue: string | undefined,
+): {
+    value?: string;
+    defaultValue?: string;
+} {
+    if (value !== undefined) return { value };
+    if (defaultValue !== undefined) return { defaultValue };
+    return {};
 }
 
 export const Input: FC<InputProps> = (props) => {
@@ -45,6 +62,8 @@ export const Input: FC<InputProps> = (props) => {
                 id={props.id}
                 name={props.name}
                 required={props.required}
+                onChange={props.onChange}
+                {...valueProps(props.value, props.defaultValue)}
                 {...(props.htmlOnChange
                     ? ({ onchange: props.htmlOnChange } as object)
                     : {})}
@@ -62,7 +81,8 @@ export const Input: FC<InputProps> = (props) => {
                 name={props.name}
                 type="datetime-local"
                 required={props.required}
-                value={props.value}
+                onChange={props.onChange}
+                {...valueProps(props.value, props.defaultValue)}
             />
         );
     }
@@ -76,7 +96,8 @@ export const Input: FC<InputProps> = (props) => {
             placeholder={props.placeholder}
             autoComplete={props.autoComplete}
             required={props.required}
-            value={props.value}
+            onChange={props.onChange}
+            {...valueProps(props.value, props.defaultValue)}
         />
     );
 };
