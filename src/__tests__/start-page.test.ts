@@ -51,8 +51,6 @@ describe('/start claim form', () => {
         // Inline DOM listeners are wiped by TanStack hydration — do not bring them back.
         expect(html).not.toContain("addEventListener('submit'");
         expect(html).not.toContain("document.getElementById('reg')");
-        // `selected` on <option> hydrates as a mismatch vs defaultValue on <select>.
-        expect(html).not.toMatch(/<option\b[^>]*\bselected\b/u);
         expect(html).toContain('YOUR_USERNAME');
         expect(html).toContain('Claim username');
     });

@@ -14,9 +14,9 @@ const TABS: Array<{ id: string; label: string }> = [
 
 export const StartSetup: FC<{
     snippets: ClaimSnippets;
-    aside?: ReactNode;
     splitLayout: boolean;
-}> = ({ snippets, aside, splitLayout }) => {
+    children?: ReactNode;
+}> = ({ snippets, splitLayout, children }) => {
     const [tab, setTab] = useState('agent');
     return (
         <div
@@ -186,7 +186,7 @@ export const StartSetup: FC<{
                     <CopyButton text="tokenmaxer backfill" />
                 </div>
             </div>
-            {aside}
+            {children}
         </div>
     );
 };

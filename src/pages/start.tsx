@@ -25,6 +25,11 @@ type TurnstileApi = {
     remove: (id: string) => void;
 };
 
+function eventValue(e: { currentTarget: unknown }): string {
+    const t = e.currentTarget as { value?: unknown };
+    return typeof t.value === 'string' ? t.value : '';
+}
+
 function turnstileApi(): TurnstileApi | undefined {
     const g = globalThis as typeof globalThis & { turnstile?: TurnstileApi };
     return g.turnstile;
@@ -52,6 +57,9 @@ export const Start: FC<{
     const [claiming, setClaiming] = useState(false);
     const [claimed, setClaimed] = useState<Claimed | null>(null);
     const [turnstileToken, setTurnstileToken] = useState('');
+    const [username, setUsername] = useState('');
+    const [country, setCountry] = useState('');
+    const [profileUrl, setProfileUrl] = useState('');
     const turnstileHost = useRef<HTMLDivElement>(null);
     const turnstileWidgetId = useRef<string | null>(null);
     const resultRef = useRef<HTMLDivElement>(null);
@@ -108,7 +116,10 @@ export const Start: FC<{
 
     useEffect(() => {
         if (claimed === null) return;
-        resultRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const el = resultRef.current as unknown as {
+            scrollIntoView?: (opts: { behavior: string }) => void;
+        } | null;
+        el?.scrollIntoView?.({ behavior: 'smooth' });
     }, [claimed]);
 
     const displayUser = claimed?.username ?? 'YOUR_USERNAME';
@@ -124,17 +135,13 @@ export const Start: FC<{
     async function handleClaim(e: FormEvent<HTMLFormElement>): Promise<void> {
         e.preventDefault();
         setError('');
-        const fd = new FormData(e.currentTarget);
-        const username = String(fd.get('username') ?? '').trim();
-        const profileUrl = String(fd.get('profile-url') ?? '').trim();
-        const country = String(fd.get('country') ?? '');
+        const name = username.trim();
+        const url = profileUrl.trim();
         if (country.length === 0) {
             setError('Please pick your country.');
             return;
         }
-        const token =
-            turnstileToken || String(fd.get('cf-turnstile-response') ?? '');
-        if (token.length === 0) {
+        if (turnstileToken.length === 0) {
             setError('Please complete the verification.');
             return;
         }
@@ -143,16 +150,15 @@ export const Start: FC<{
             const res = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
                 body: JSON.stringify(
-                    profileUrl.length > 0
+                    url.length > 0
                         ? {
-                              username,
-                              turnstileToken: token,
+                              username: name,
+                              turnstileToken,
                               country,
-                              url: profileUrl,
+                              url,
                           }
-                        : { username, turnstileToken: token, country },
+                        : { username: name, turnstileToken, country },
                 ),
             });
             const data = (await res.json()) as {
@@ -278,6 +284,10 @@ export const Start: FC<{
                                     placeholder="e.g. tokenlord"
                                     autoComplete="off"
                                     required
+                                    value={username}
+                                    onChange={(e) => {
+                                        setUsername(eventValue(e));
+                                    }}
                                 />
                             </label>
                             <label
@@ -290,7 +300,10 @@ export const Start: FC<{
                                     id="country"
                                     name="country"
                                     required
-                                    defaultValue=""
+                                    value={country}
+                                    onChange={(e) => {
+                                        setCountry(eventValue(e));
+                                    }}
                                 >
                                     <option
                                         value=""
@@ -321,6 +334,10 @@ export const Start: FC<{
                                     name="profile-url"
                                     placeholder="https://github.com/you"
                                     autoComplete="off"
+                                    value={profileUrl}
+                                    onChange={(e) => {
+                                        setProfileUrl(eventValue(e));
+                                    }}
                                 />
                             </label>
                             <div
@@ -398,14 +415,13 @@ export const Start: FC<{
             <StartSetup
                 snippets={snippets}
                 splitLayout={invited === false}
-                aside={
-                    invited === false ? (
-                        <aside className="spotlight spotlight-orange h-fit">
-                            {SETUP_TIP}
-                        </aside>
-                    ) : undefined
-                }
-            />
+            >
+                {invited === false ? (
+                    <aside className="spotlight spotlight-orange h-fit">
+                        {SETUP_TIP}
+                    </aside>
+                ) : null}
+            </StartSetup>
 
             {showForm && (
                 <script
