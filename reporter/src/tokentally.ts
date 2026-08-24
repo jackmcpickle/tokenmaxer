@@ -21,7 +21,7 @@ import { invokedDirectlyAs, main } from './cli';
 export { parseClaudeTranscript } from './agents/claude';
 export { codexForkResolverFor, parseCodexRollout } from './agents/codex';
 export { cursorFetchEvents, parseCursorEvents } from './agents/cursor';
-export { parseOpencodeMessages } from './agents/opencode';
+export { collectOpencodeRows, parseOpencodeMessages } from './agents/opencode';
 export { parsePiRollout } from './agents/pi';
 export { loadConfig } from './config';
 export { sessionIdFromPath, toRows } from './lib/rows';
