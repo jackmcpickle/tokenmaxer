@@ -175,8 +175,14 @@ describe('opencode SQLite storage', () => {
             }),
         ) as unknown;
         const parsed = parseOpencodeMessages([msg], { sessionId: 'ses_x' });
-        const totals = parsed.models.get('kimi-k3');
-        if (!totals) throw new Error('expected kimi-k3 totals');
+        // Usage is bucketed per local day; this fixture is a single message, so
+        // exactly one bucket. Taking it by value rather than by a literal day
+        // keeps the assertion independent of the host timezone.
+        const byDay = parsed.models.get('kimi-k3');
+        if (!byDay) throw new Error('expected kimi-k3 totals');
+        expect(byDay.size).toBe(1);
+        const totals = [...byDay.values()][0];
+        if (!totals) throw new Error('expected a day bucket');
         expect(totals.input_tokens).toBe(11);
         expect(totals.cache_read_tokens).toBe(4);
         expect(totals.cache_creation_tokens).toBe(3);

@@ -339,3 +339,212 @@ describe('validateCountry', () => {
         expect(validateCountry(42).ok).toBe(false);
     });
 });
+
+describe('parseIngestBody day handling', () => {
+    const base = { session_id: 's0', model: 'claude-opus-5', input_tokens: 1 };
+
+    it('does not throw on out-of-range started_at, and yields a valid day', () => {
+        // Regression test: started_at outside ECMAScript time range must not
+        // reach dayFromMs (which would throw RangeError on Invalid Date),
+        // and must not crash the entire batch.
+        expect(() => {
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [{ ...base, started_at: 1e20 }],
+            });
+        }).not.toThrow();
+
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, started_at: 1e20 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.started_at).not.toBe(1e20);
+        expect(parsed.value.sessions[0]?.started_at).toBeGreaterThan(0);
+        expect(parsed.value.sessions[0]?.day).toBeGreaterThan(0);
+        expect(parsed.value.sessions[0]?.day).not.toBe(0);
+    });
+
+    it('keeps a reporter-supplied day verbatim', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, started_at: 1, day: 20260807 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('derives the day from started_at (UTC) for pre-day reporters', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, started_at: Date.parse('2026-08-07T23:47:00Z') },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('rejects an out-of-range day by falling back to started_at', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    ...base,
+                    started_at: Date.parse('2026-08-07T00:00:00Z'),
+                    day: 42,
+                },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions[0]?.day).toBe(20260807);
+    });
+
+    it('falls back for a day that is in range but not a real date', () => {
+        // In range numerically, impossible as a calendar date. Stored verbatim
+        // these would sit in a bucket no window ever matches.
+        for (const day of [20261399, 20260231, 20260000]) {
+            const parsed = parseIngestBody({
+                source: 'claude_code',
+                sessions: [
+                    {
+                        ...base,
+                        started_at: Date.parse('2026-08-07T00:00:00Z'),
+                        day,
+                    },
+                ],
+            });
+            expect(parsed.ok).toBe(true);
+            if (!parsed.ok) return;
+            expect(parsed.value.sessions[0]?.day).toBe(20260807);
+        }
+    });
+
+    it('keeps a real calendar day verbatim', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    ...base,
+                    started_at: Date.parse('2026-01-01T00:00:00Z'),
+                    day: 20260229,
+                },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        // 2026 is not a leap year, so Feb 29 must NOT survive.
+        expect(parsed.value.sessions[0]?.day).toBe(20260101);
+    });
+
+    it('defaults replace_sessions to empty', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [base],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.replaceSessions).toEqual([]);
+    });
+
+    it('passes replace_sessions through', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [base],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.replaceSessions).toEqual(['s0']);
+    });
+
+    it('rejects a malformed replace_sessions list', () => {
+        expect(
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [base],
+                replace_sessions: 's0',
+            }).ok,
+        ).toBe(false);
+        expect(
+            parseIngestBody({
+                source: 'claude_code',
+                sessions: [base],
+                replace_sessions: [''],
+            }).ok,
+        ).toBe(false);
+    });
+
+    it('rejects the whole request when a replaced session has an invalid row', () => {
+        // Honouring replace_sessions would delete s0's stored rows before
+        // reinserting only the rows that passed validation, permanently
+        // losing the rejected row's usage. Refuse instead.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, session_id: 's0', input_tokens: 2 ** 53 }],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(false);
+        if (parsed.ok) return;
+        expect(parsed.error).toContain('replace_sessions');
+    });
+
+    it('still accepts per-row when the invalid row belongs to a different session', () => {
+        // The invalid row's session ('other') is not in replace_sessions, so
+        // only that row is rejected by index; s0's valid rows still land.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, session_id: 's0' },
+                {
+                    ...base,
+                    session_id: 'other',
+                    input_tokens: 2 ** 53,
+                },
+            ],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions).toHaveLength(1);
+        expect(parsed.value.sessions[0]?.session_id).toBe('s0');
+        expect(parsed.value.rejected).toEqual([
+            { index: 1, error: 'token count exceeds safe integer range' },
+        ]);
+    });
+
+    it('rejects the whole request when an invalid row has no usable session_id', () => {
+        // An unattributable rejected row can't be proven safe against
+        // replace_sessions, so it is treated as a collision.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                { ...base, session_id: 's0' },
+                { model: 'm', input_tokens: 1 }, // missing session_id
+            ],
+            replace_sessions: ['s0'],
+        });
+        expect(parsed.ok).toBe(false);
+        if (parsed.ok) return;
+        expect(parsed.error).toContain('replace_sessions');
+    });
+
+    it('keeps today’s per-row rejection behaviour when replace_sessions is empty', () => {
+        // Backward compatibility: no replace_sessions means the collision
+        // guard never engages, even with an invalid row present.
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [{ ...base, session_id: 's0', input_tokens: 2 ** 53 }],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.value.sessions).toEqual([]);
+        expect(parsed.value.rejected).toEqual([
+            { index: 0, error: 'token count exceeds safe integer range' },
+        ]);
+    });
+});

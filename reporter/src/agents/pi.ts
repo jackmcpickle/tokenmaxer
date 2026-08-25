@@ -1,8 +1,10 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { localDay } from '../lib/day';
 import { asObject, jsonlObjects, toMs } from '../lib/parse-utils';
-import { accumulateModelUsage, usageFromFields } from '../lib/totals';
+import { accumulateModelDayUsage, usageFromFields } from '../lib/totals';
 import type {
+    DayTotals,
     JsonObject,
     ParseOpts,
     ParsedTranscript,
@@ -19,6 +21,7 @@ interface PiParseState {
 interface PiKeyedUsage {
     model: string;
     usage: ReporterTotals;
+    day: number;
 }
 
 function piUsage(obj: JsonObject): JsonObject | null {
@@ -67,10 +70,20 @@ function piEntryId(obj: JsonObject): string | null {
     return id || null;
 }
 
+// A record with no usable timestamp books to day 0 (the "unknown day"
+// sentinel) rather than a fallback computed mid-parse: the session's real
+// start instant (state.startedAt) isn't settled until the file has been
+// scanned, so resolving a fallback early can misattribute to the wrong day.
+// parsePiRollout folds every day-0 bucket into the resolved fallback day
+// once, after both the unkeyed and keyed accumulation below have run.
+function dayOf(obj: JsonObject): number {
+    return localDay(toMs(obj.timestamp ?? obj.time));
+}
+
 function processPiLine(
     obj: JsonObject,
     state: PiParseState,
-    models: Map<string, ReporterTotals>,
+    models: Map<string, DayTotals>,
     keyed: Map<string, PiKeyedUsage>,
 ): void {
     if (state.startedAt === null)
@@ -84,27 +97,29 @@ function processPiLine(
     if (!usage) return;
 
     const totals = usageFromFields(usage, PI_USAGE_FIELDS);
+    const day = dayOf(obj);
     // Records with an id can repeat on another branch of the tree: keep the
-    // last occurrence per id and sum once at the end. Unkeyed records are
-    // always summed.
+    // last occurrence per id (day included) and sum once at the end. Unkeyed
+    // records are always summed immediately.
     const id = piEntryId(obj);
     if (id) {
-        keyed.set(id, { model: state.currentModel, usage: totals });
+        keyed.set(id, { model: state.currentModel, usage: totals, day });
         return;
     }
-    accumulateModelUsage(models, state.currentModel, totals);
+    accumulateModelDayUsage(models, state.currentModel, day, totals);
 }
 
 /**
  * Parse a pi session file (JSONL). pi stores a *tree* of records keyed by
  * `id`/`parentId` in one file, so the same record can appear more than once —
- * we dedupe by `id` before summing each record's `usage` per active model.
+ * we dedupe by `id` before summing each record's `usage` per active model,
+ * bucketed by each record's own local day.
  */
 export function parsePiRollout(
     text: string,
     opts: ParseOpts = {},
 ): ParsedTranscript {
-    const models = new Map<string, ReporterTotals>();
+    const models = new Map<string, DayTotals>();
     const keyed = new Map<string, PiKeyedUsage>();
     const state: PiParseState = {
         sessionId: opts.sessionId ?? null,
@@ -115,8 +130,25 @@ export function parsePiRollout(
     for (const obj of jsonlObjects(text)) {
         processPiLine(obj, state, models, keyed);
     }
-    for (const { model, usage } of keyed.values()) {
-        accumulateModelUsage(models, model, usage);
+    for (const { model, usage, day } of keyed.values()) {
+        accumulateModelDayUsage(models, model, day, usage);
+    }
+
+    // Fold every day-0 bucket into the session's resolved fallback day now
+    // that both the unkeyed (during the pass) and keyed (just above)
+    // accumulation have finished — state.startedAt isn't settled until the
+    // whole file has been seen. Merge rather than overwrite: a real bucket
+    // for the same day can already hold usage. Date.now() is the last
+    // resort, for the rare file with no usable timestamp anywhere and no
+    // caller-supplied fallbackStartedAt.
+    const fallbackDay = localDay(
+        state.startedAt ?? opts.fallbackStartedAt ?? Date.now(),
+    );
+    for (const [model, byDay] of models) {
+        const unknown = byDay.get(0);
+        if (unknown === undefined) continue;
+        byDay.delete(0);
+        accumulateModelDayUsage(models, model, fallbackDay, unknown);
     }
 
     return {

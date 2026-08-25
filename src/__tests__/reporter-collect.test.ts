@@ -31,6 +31,7 @@ describe('collectRowsFromJsonlDirs', () => {
                     {
                         session_id: path,
                         model: 'm',
+                        day: 20260807,
                         started_at: 1,
                         input_tokens: 1,
                         output_tokens: 0,
@@ -63,6 +64,7 @@ describe('collectRowsFromJsonlDirs', () => {
                     {
                         session_id: 'ok',
                         model: 'm',
+                        day: 20260807,
                         started_at: 1,
                         input_tokens: 1,
                         output_tokens: 0,

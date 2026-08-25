@@ -1,4 +1,4 @@
-import type { JsonObject, ReporterTotals, TotalsKey } from './types';
+import type { DayTotals, JsonObject, ReporterTotals, TotalsKey } from './types';
 
 export function emptyTotals(): ReporterTotals {
     return {
@@ -59,4 +59,17 @@ export function accumulateModelUsage(
     const t = models.get(model) ?? emptyTotals();
     addUsage(t, usage);
     models.set(model, t);
+}
+
+export function accumulateModelDayUsage(
+    models: Map<string, DayTotals>,
+    model: string,
+    day: number,
+    usage: ReporterTotals,
+): void {
+    const byDay = models.get(model) ?? new Map<number, ReporterTotals>();
+    const t = byDay.get(day) ?? emptyTotals();
+    addUsage(t, usage);
+    byDay.set(day, t);
+    models.set(model, byDay);
 }

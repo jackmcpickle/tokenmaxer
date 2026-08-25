@@ -57,8 +57,8 @@ describe('getHackathonLeaderboard', () => {
         const db = dbReturning([], query);
         const res = await getHackathonLeaderboard(db, {
             metric: 'cost',
-            startAt: 0,
-            endAt: 100,
+            startDay: 0,
+            endDay: 100,
             memberIds: [],
         });
         expect(res).toEqual([]);
@@ -72,8 +72,8 @@ describe('getHackathonLeaderboard', () => {
         });
         await getHackathonLeaderboard(db, {
             metric: 'total',
-            startAt: 5,
-            endAt: 9,
+            startDay: 5,
+            endDay: 9,
             memberIds: ['a', 'b'],
         });
         expect(seen).toEqual([5, 9, 'a', 'b']);
@@ -87,8 +87,8 @@ describe('getHackathonLeaderboard', () => {
         ]);
         const res = await getHackathonLeaderboard(db, {
             metric: 'output',
-            startAt: 0,
-            endAt: 100,
+            startDay: 0,
+            endDay: 100,
             memberIds: ['a', 'b', 'c'],
             model: 'sonnet',
         });
@@ -112,8 +112,8 @@ describe('hackathon cache', () => {
         } as unknown as D1Database;
         const q = {
             metric: 'cost' as const,
-            startAt: 0,
-            endAt: 100,
+            startDay: 0,
+            endDay: 100,
             memberIds: ['a'],
         };
         await cachedHackathonLeaderboard(db, kv, 'sprint', q);

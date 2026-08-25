@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { localDay } from '../lib/day';
 import { asObject } from '../lib/parse-utils';
 import { accumulateModelUsage, usageFromFields } from '../lib/totals';
 import type {
@@ -23,13 +24,16 @@ function cursorUsage(raw: JsonObject): ReporterTotals {
 }
 
 /**
- * Bucket Cursor dashboard usage events by UTC day + model into session rows.
- * One synthetic session per day ("cursor-YYYY-MM-DD"); re-summing a whole day
- * on every run keeps ingestion idempotent (server upserts by session+model).
+ * Bucket Cursor dashboard usage events by UTC day (the session id) and local
+ * day (the usage day) per model. One synthetic session per UTC day
+ * ("cursor-YYYY-MM-DD"); re-summing whole days on every run keeps ingestion
+ * idempotent. The session id stays UTC-keyed because it is the unit the ingest
+ * replace contract clears — re-keying it would orphan stored rows — while
+ * `day` is local, like every other source.
  */
 export function parseCursorEvents(events: unknown[]): ReporterRow[] {
-    // 'YYYY-MM-DD' -> Map(model -> totals)
-    const days = new Map<string, Map<string, ReporterTotals>>();
+    // 'YYYY-MM-DD' (UTC) -> local day -> model -> totals
+    const days = new Map<string, Map<number, Map<string, ReporterTotals>>>();
     for (const raw of Array.isArray(events) ? events : []) {
         if (!raw || typeof raw !== 'object') continue;
         const e = raw as JsonObject;
@@ -37,26 +41,33 @@ export function parseCursorEvents(events: unknown[]): ReporterRow[] {
         if (!Number.isFinite(ms) || ms <= 0) continue;
         if (!e.tokenUsage || typeof e.tokenUsage !== 'object') continue;
         // Zero-usage events (aborted/refunded requests) still produce a
-        // zero-total (day, model) row when a day has nothing else: the
-        // replace-upsert needs it to overwrite a stale non-zero day.
+        // zero-total row when a day has nothing else: the replace-upsert needs
+        // it to overwrite a stale non-zero day.
         const usage = cursorUsage(asObject(e.tokenUsage));
-        const day = new Date(ms).toISOString().slice(0, 10);
+        const utcDay = new Date(ms).toISOString().slice(0, 10);
         const model =
             typeof e.model === 'string' && e.model ? e.model : 'unknown';
-        const byModel = days.get(day) ?? new Map<string, ReporterTotals>();
+        const byLocalDay =
+            days.get(utcDay) ?? new Map<number, Map<string, ReporterTotals>>();
+        const byModel =
+            byLocalDay.get(localDay(ms)) ?? new Map<string, ReporterTotals>();
         accumulateModelUsage(byModel, model, usage);
-        days.set(day, byModel);
+        byLocalDay.set(localDay(ms), byModel);
+        days.set(utcDay, byLocalDay);
     }
     const rows: ReporterRow[] = [];
-    for (const [day, byModel] of days) {
-        const startedAt = Date.parse(`${day}T00:00:00Z`);
-        for (const [model, t] of byModel) {
-            rows.push({
-                session_id: `cursor-${day}`,
-                model,
-                started_at: startedAt,
-                ...t,
-            });
+    for (const [utcDay, byLocalDay] of days) {
+        const startedAt = Date.parse(`${utcDay}T00:00:00Z`);
+        for (const [day, byModel] of byLocalDay) {
+            for (const [model, t] of byModel) {
+                rows.push({
+                    session_id: `cursor-${utcDay}`,
+                    model,
+                    day,
+                    started_at: startedAt,
+                    ...t,
+                });
+            }
         }
     }
     return rows;
