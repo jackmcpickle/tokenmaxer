@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.14](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.13...v0.2.14) (2026-08-24)
+
+### Bug Fixes
+
+* **ci:** publish npm package only when reporter CLI changes ([#35](https://github.com/jackmcpickle/tokenmaxer/issues/35)) ([e6d0e16](https://github.com/jackmcpickle/tokenmaxer/commit/e6d0e164ccc2d28b986154c16412ab7e7f4aa4d2))
+* **reporter:** read opencode sessions from opencode.db ([#37](https://github.com/jackmcpickle/tokenmaxer/issues/37)) ([6b79876](https://github.com/jackmcpickle/tokenmaxer/commit/6b79876e06fe78366418766867bb204dfe3de686))
+* username claim no longer refreshes to an empty form ([#36](https://github.com/jackmcpickle/tokenmaxer/issues/36)) ([680fc5f](https://github.com/jackmcpickle/tokenmaxer/commit/680fc5f6a88520cbafff086681a68dcaa9a86f9a))
 ## [0.2.13](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.12...v0.2.13) (2026-08-07)
 
 ### Features

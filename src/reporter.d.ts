@@ -55,6 +55,7 @@ declare module '*/tokentally.mjs' {
         messages: unknown[],
         opts?: { sessionId?: string; fallbackStartedAt?: number },
     ): ParsedTranscript;
+    export function collectOpencodeRows(sinceMs: number): ReporterRow[];
     export function parsePiRollout(
         text: string,
         opts?: { sessionId?: string; fallbackStartedAt?: number },
