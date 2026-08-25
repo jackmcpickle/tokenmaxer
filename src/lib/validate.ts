@@ -1,5 +1,5 @@
 import { isValidCountry } from '@/lib/countries';
-import { dayFromMs, MAX_TIME_VALUE } from '@/lib/day';
+import { dayFromMs, MAX_TIME_VALUE, shiftDay } from '@/lib/day';
 import { isSyntheticModel } from '@/lib/model-family';
 import { isSource, type SessionUsageInput, type Source } from '@/types';
 
@@ -224,6 +224,36 @@ function exceedsTokenCap(row: SessionUsageInput): boolean {
     return counts.some((n) => n > MAX_TOKENS_PER_CATEGORY);
 }
 
+/**
+ * The calendar day a row belongs to.
+ *
+ * Reporters from before day bucketing send no `day`; the UTC day of
+ * `started_at` reproduces the old attribution exactly, so old installs keep
+ * reporting with no coordinated release.
+ *
+ * A numeric range check alone would accept impossible dates like 20261399
+ * (month 13) or 20260231 (Feb 31), which would sit in a bucket no calendar
+ * window ever matches. `shiftDay` recomposes through `Date.UTC`, which
+ * normalises such a value to a different day, so round-tripping it is the
+ * validity test. An impossible date falls back exactly like an out-of-range
+ * one — no new rejection path, and the shipped reporter cannot produce one.
+ */
+function resolveDay(raw: unknown, started_at: number): number {
+    const claimed =
+        typeof raw === 'number' && Number.isFinite(raw)
+            ? Math.floor(raw)
+            : null;
+    if (
+        claimed !== null &&
+        claimed >= MIN_DAY &&
+        claimed <= MAX_DAY &&
+        shiftDay(claimed, 0) === claimed
+    ) {
+        return claimed;
+    }
+    return dayFromMs(started_at, 'UTC');
+}
+
 function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
     if (typeof raw !== 'object' || raw === null) {
         return fail('each session must be an object');
@@ -240,16 +270,7 @@ function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
 
     const started_at = sessionStartedAt(s.started_at);
 
-    // Reporters from before day bucketing send no `day`; the UTC day of
-    // started_at reproduces the old attribution exactly, so old installs keep
-    // reporting with no coordinated release.
-    const day =
-        typeof s.day === 'number' &&
-        Number.isFinite(s.day) &&
-        s.day >= MIN_DAY &&
-        s.day <= MAX_DAY
-            ? Math.floor(s.day)
-            : dayFromMs(started_at, 'UTC');
+    const day = resolveDay(s.day, started_at);
 
     const row: SessionUsageInput = {
         session_id: sessionId.value,

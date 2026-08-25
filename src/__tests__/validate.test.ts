@@ -404,6 +404,43 @@ describe('parseIngestBody day handling', () => {
         expect(parsed.value.sessions[0]?.day).toBe(20260807);
     });
 
+    it('falls back for a day that is in range but not a real date', () => {
+        // In range numerically, impossible as a calendar date. Stored verbatim
+        // these would sit in a bucket no window ever matches.
+        for (const day of [20261399, 20260231, 20260000]) {
+            const parsed = parseIngestBody({
+                source: 'claude_code',
+                sessions: [
+                    {
+                        ...base,
+                        started_at: Date.parse('2026-08-07T00:00:00Z'),
+                        day,
+                    },
+                ],
+            });
+            expect(parsed.ok).toBe(true);
+            if (!parsed.ok) return;
+            expect(parsed.value.sessions[0]?.day).toBe(20260807);
+        }
+    });
+
+    it('keeps a real calendar day verbatim', () => {
+        const parsed = parseIngestBody({
+            source: 'claude_code',
+            sessions: [
+                {
+                    ...base,
+                    started_at: Date.parse('2026-01-01T00:00:00Z'),
+                    day: 20260229,
+                },
+            ],
+        });
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        // 2026 is not a leap year, so Feb 29 must NOT survive.
+        expect(parsed.value.sessions[0]?.day).toBe(20260101);
+    });
+
     it('defaults replace_sessions to empty', () => {
         const parsed = parseIngestBody({
             source: 'claude_code',
