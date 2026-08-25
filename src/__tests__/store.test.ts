@@ -107,6 +107,45 @@ describe('upsertSessions', () => {
         expect(log.flat().some((s) => s.sql.startsWith('DELETE'))).toBe(false);
     });
 
+    it('sends a replacement that fits in one batch as ONE batch', async () => {
+        const log: Recorded[][] = [];
+        await upsertSessions(
+            recordingDb(log),
+            'u1',
+            'claude_code',
+            [row(20260806), row(20260807)],
+            42,
+            ['sess-1'],
+        );
+        // One batch is one D1 transaction: an interrupted request must not be
+        // able to leave the session emptied, so delete and inserts ride
+        // together.
+        expect(log).toHaveLength(1);
+        const only = log[0] ?? [];
+        expect(only[0]?.sql.startsWith('DELETE')).toBe(true);
+        expect(only.slice(1).every((s) => s.sql.includes('INSERT'))).toBe(true);
+        expect(only).toHaveLength(3);
+    });
+
+    it('still deletes before any insert when the payload spans batches', async () => {
+        const log: Recorded[][] = [];
+        // 600 rows > DB_BATCH_CHUNK (500), so the single-batch path cannot be
+        // taken and the chunked fallback runs.
+        const many = Array.from({ length: 600 }, (_, i) =>
+            row(20260807, `model-${i}`),
+        );
+        await upsertSessions(recordingDb(log), 'u1', 'claude_code', many, 42, [
+            'sess-1',
+        ]);
+        expect(log.length).toBeGreaterThan(1);
+        const flat = log.flat();
+        const deleteIndex = flat.findIndex((s) => s.sql.startsWith('DELETE'));
+        const firstInsert = flat.findIndex((s) => s.sql.includes('INSERT'));
+        expect(deleteIndex).toBeGreaterThanOrEqual(0);
+        expect(deleteIndex).toBeLessThan(firstInsert);
+        expect(flat.filter((s) => s.sql.includes('INSERT'))).toHaveLength(600);
+    });
+
     it('deletes each replaced session once, even when repeated', async () => {
         const log: Recorded[][] = [];
         await upsertSessions(

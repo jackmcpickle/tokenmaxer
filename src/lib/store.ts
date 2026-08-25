@@ -33,6 +33,12 @@ const UPSERT_SQL = `INSERT INTO session_usage
  * Requests from reporters that predate this contract send no `replaceSessions`
  * and behave exactly as before: a pure upsert keyed by (session, model, day).
  *
+ * A replacement that fits in one batch is sent as one batch, so it is atomic —
+ * an interrupted request cannot leave a replaced session emptied. Only a
+ * payload too large for a single batch (a bulk history backfill) is split, and
+ * there the session is briefly observable with rows missing; a re-run restores
+ * it, and the caller is told the upload failed.
+ *
  * Returns the number of rows written.
  */
 export async function upsertSessions(
@@ -44,40 +50,52 @@ export async function upsertSessions(
     replaceSessions: string[] = [],
 ): Promise<number> {
     const unique = [...new Set(replaceSessions)];
-    if (unique.length > 0) {
-        const del = db.prepare(DELETE_SESSION_SQL);
-        for (let i = 0; i < unique.length; i += DB_BATCH_CHUNK) {
-            const chunk = unique.slice(i, i + DB_BATCH_CHUNK);
-            // Deletes complete before any insert lands, so a replaced session
-            // is never observed as "old rows plus new rows".
-            // eslint-disable-next-line no-await-in-loop
-            await db.batch(chunk.map((id) => del.bind(userId, source, id)));
-        }
-    }
+    const del = db.prepare(DELETE_SESSION_SQL);
+    const deletes = unique.map((id) => del.bind(userId, source, id));
 
     const stmt = db.prepare(UPSERT_SQL);
-    for (let i = 0; i < sessions.length; i += DB_BATCH_CHUNK) {
-        const chunk = sessions.slice(i, i + DB_BATCH_CHUNK);
-        const batch = chunk.map((s) =>
-            stmt.bind(
-                userId,
-                source,
-                s.session_id,
-                s.model,
-                s.day,
-                s.input_tokens,
-                s.output_tokens,
-                s.cache_read_tokens,
-                s.cache_creation_tokens,
-                s.reasoning_tokens,
-                s.started_at,
-                now,
-            ),
-        );
+    const inserts = sessions.map((s) =>
+        stmt.bind(
+            userId,
+            source,
+            s.session_id,
+            s.model,
+            s.day,
+            s.input_tokens,
+            s.output_tokens,
+            s.cache_read_tokens,
+            s.cache_creation_tokens,
+            s.reasoning_tokens,
+            s.started_at,
+            now,
+        ),
+    );
+
+    // One batch is one D1 transaction, but a transaction does NOT span batches.
+    // So whenever the whole replacement fits in a single batch, send it as one:
+    // an interrupted request can then never leave a replaced session emptied,
+    // which covers essentially all live hook reporting.
+    if (deletes.length + inserts.length <= DB_BATCH_CHUNK) {
+        if (deletes.length + inserts.length > 0) {
+            await db.batch([...deletes, ...inserts]);
+        }
+        return sessions.length;
+    }
+
+    // Oversized payload (a bulk history backfill): fall back to chunking. The
+    // deletes still all land before any insert, so a replaced session is never
+    // observed as "old rows plus new rows" — but between the delete and the
+    // last insert it can be observed with rows missing. A failed upload is
+    // surfaced to the caller and a re-run restores the full set.
+    for (let i = 0; i < deletes.length; i += DB_BATCH_CHUNK) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.batch(deletes.slice(i, i + DB_BATCH_CHUNK));
+    }
+    for (let i = 0; i < inserts.length; i += DB_BATCH_CHUNK) {
         // Chunks are written sequentially on purpose, to avoid flooding D1 with
         // concurrent batches.
         // eslint-disable-next-line no-await-in-loop
-        await db.batch(batch);
+        await db.batch(inserts.slice(i, i + DB_BATCH_CHUNK));
     }
     return sessions.length;
 }
