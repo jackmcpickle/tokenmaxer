@@ -334,6 +334,31 @@ describe('cursorFetchEvents pagination', () => {
         expect(bodies).toHaveLength(1);
     });
 
+    it('tolerates a count that leads the rows by one in a small window', async () => {
+        // The count and the rows are separate reads, so the total can lead by
+        // one. A proportional threshold would reject this (9 of 10 is a 10%
+        // miss) and fail every sync for a light user.
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 10, usageEventsDisplay: batch(9) },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toHaveLength(9);
+        expect(bodies).toHaveLength(1);
+    });
+
+    it('still aborts once the shortfall passes the slack', async () => {
+        // 33 short: past what a count/row skew explains, so the window is
+        // treated as truncated rather than published over fuller day rows.
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 100, usageEventsDisplay: batch(67) },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toBeNull();
+        expect(bodies).toHaveLength(1);
+    });
+
     it('completes on a short page that satisfies the total', async () => {
         const { bodies } = stubFetchPages([
             { totalUsageEventsCount: 3, usageEventsDisplay: batch(3) },
