@@ -249,16 +249,19 @@ function cursorRowsAt(batch: unknown[], ts: number): Map<string, number> {
 //
 // For a keyset walk the short page IS the proof: `endDate` re-asks for the
 // whole remaining range, so fewer than a full page means the range is empty.
-// The total is kept only to catch gross truncation (a page lost outright),
-// which is orders of magnitude larger than the count/row skew.
-const CURSOR_COMPLETENESS_RATIO = 0.95;
+// The total is kept only to catch gross truncation (a page lost outright).
+// The allowance is absolute, not proportional: the skew comes from one pair of
+// reads, so it does not grow with the window, while a proportional slice would
+// both reject a small window over a single-event skew (9 of 10 is a 10% miss)
+// and wave through a lost page in a large one.
+const CURSOR_COUNT_SLACK = 32;
 
 // A partial window must not publish -- day rows replace the stored ones.
 function cursorComplete(
     events: unknown[],
     total: number | null,
 ): unknown[] | null {
-    if (total !== null && events.length < total * CURSOR_COMPLETENESS_RATIO) {
+    if (total !== null && events.length < total - CURSOR_COUNT_SLACK) {
         process.stderr.write(
             `tokenmaxer: cursor pagination incomplete (${events.length}/${total} event(s))\n`,
         );
