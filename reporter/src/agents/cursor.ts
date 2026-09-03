@@ -202,6 +202,64 @@ async function cursorFetchPage(
     const data: unknown = await res.json().catch(() => null);
     return data === null ? null : asObject(data);
 }
+// Cursor serves usage events newest-first and treats `endDate` as inclusive,
+// so pagination anchors on time, not on an offset. Offset paging walks a list
+// that grows at the front: an event written mid-walk shifts every later page
+// down by one, which is what moved the reported total between pages and
+// aborted the whole window. Re-anchoring `endDate` to the oldest row seen so
+// far makes new arrivals irrelevant -- they land newer than the anchor, in the
+// region already passed, and are picked up by the next run (day rows re-sum).
+const CURSOR_PAGE_SIZE = 1000;
+// One request per page, plus the rare extra when a full page shares a single
+// millisecond and the anchor cannot advance by time.
+const CURSOR_MAX_REQUESTS = 400;
+
+// The endpoint exposes no stable event id, so value identity is the key. It is
+// only ever compared against rows re-served at the same millisecond by the
+// inclusive `endDate`, where a byte-identical row is that same row again.
+function cursorEventKey(event: unknown): string {
+    return JSON.stringify(event);
+}
+
+// Counted rows at exactly `ts`. Counted rather than a plain Set so two
+// genuinely identical rows in one millisecond both survive the next request.
+function cursorRowsAt(batch: unknown[], ts: number): Map<string, number> {
+    const rows = new Map<string, number>();
+    for (const event of batch) {
+        if (Number(asObject(event).timestamp) !== ts) continue;
+        const key = cursorEventKey(event);
+        rows.set(key, (rows.get(key) ?? 0) + 1);
+    }
+    return rows;
+}
+
+// Cursor computes the count and the rows in separate reads, so
+// `totalUsageEventsCount` can exceed the rows it serves in that same response
+// -- a single-page window was observed reporting 374 with 373 rows. An exact
+// floor is therefore not a sound completeness test.
+//
+// For a keyset walk the short page IS the proof: `endDate` re-asks for the
+// whole remaining range, so fewer than a full page means the range is empty.
+// The total is kept only to catch gross truncation (a page lost outright).
+// The allowance is absolute, not proportional: the skew comes from one pair of
+// reads, so it does not grow with the window, while a proportional slice would
+// both reject a small window over a single-event skew (9 of 10 is a 10% miss)
+// and wave through a lost page in a large one.
+const CURSOR_COUNT_SLACK = 32;
+
+// A partial window must not publish -- day rows replace the stored ones.
+function cursorComplete(
+    events: unknown[],
+    total: number | null,
+): unknown[] | null {
+    if (total !== null && events.length < total - CURSOR_COUNT_SLACK) {
+        process.stderr.write(
+            `tokenmaxer: cursor pagination incomplete (${events.length}/${total} event(s))\n`,
+        );
+        return null;
+    }
+    return events;
+}
 
 // Unofficial dashboard endpoint — the only individual route to Cursor usage.
 export async function cursorFetchEvents(
@@ -209,119 +267,78 @@ export async function cursorFetchEvents(
     sinceMs: number,
 ): Promise<unknown[] | null> {
     const events: unknown[] = [];
-    const pages: unknown[][] = [];
-    let expectedTotal: number | null = null;
-    let completed = false;
-    // Freeze the window for the whole fetch: a per-page Date.now() end bound
-    // would shift rows across pages as new events arrive mid-pagination.
-    const endDate = String(Date.now());
-    for (let page = 1; page <= 200; page += 1) {
+    // Rows already taken at exactly `anchor`, which the next request re-serves
+    // because `endDate` is inclusive.
+    let takenAtAnchor = new Map<string, number>();
+    let anchor = Date.now();
+    // Offset within the current anchor. Only leaves 1 for the degenerate case
+    // of a full page inside one millisecond, where time cannot advance.
+    let offset = 1;
+    // Only the first response counts the whole window; later ones count the
+    // narrowed one.
+    let windowTotal: number | null = null;
+
+    for (let request = 1; request <= CURSOR_MAX_REQUESTS; request += 1) {
         // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential
         const payload = await cursorFetchPage(
             sessionToken,
             JSON.stringify({
                 teamId: 0,
                 startDate: String(sinceMs),
-                endDate,
-                page,
-                pageSize: 1000,
+                endDate: String(anchor),
+                page: offset,
+                pageSize: CURSOR_PAGE_SIZE,
             }),
         );
         if (payload === null) return null;
-        const pageTotal = cursorTotalCount(payload);
-        if (
-            pageTotal !== null &&
-            expectedTotal !== null &&
-            pageTotal !== expectedTotal
-        ) {
-            // The authoritative count changed mid-pagination: rows shifted
-            // across pages and the surplus-based reconciliation can no
-            // longer prove which rows are duplicates. Abort the window.
+        if (request === 1) windowTotal = cursorTotalCount(payload);
+        const batch = payload.usageEvents ?? payload.usageEventsDisplay ?? [];
+        if (!Array.isArray(batch) || batch.length === 0) {
+            return cursorComplete(events, windowTotal);
+        }
+
+        // A re-anchored request repeats the anchor millisecond; an offset page
+        // at an unchanged anchor is a genuine continuation and repeats nothing.
+        const remaining =
+            offset === 1 ? new Map(takenAtAnchor) : new Map<string, number>();
+        let oldest = Number.POSITIVE_INFINITY;
+        for (const event of batch) {
+            const ts = Number(asObject(event).timestamp);
+            if (Number.isFinite(ts) && ts < oldest) oldest = ts;
+            if (ts === anchor) {
+                const key = cursorEventKey(event);
+                const left = remaining.get(key) ?? 0;
+                if (left > 0) {
+                    remaining.set(key, left - 1);
+                    continue;
+                }
+            }
+            events.push(event);
+        }
+
+        if (batch.length < CURSOR_PAGE_SIZE) {
+            return cursorComplete(events, windowTotal);
+        }
+        if (!Number.isFinite(oldest)) {
             process.stderr.write(
-                `tokenmaxer: cursor pagination inconsistent (total ${expectedTotal} became ${pageTotal})\n`,
+                'tokenmaxer: cursor page carried no usable timestamp\n',
             );
             return null;
         }
-        expectedTotal = pageTotal ?? expectedTotal;
-        const batch = payload.usageEvents ?? payload.usageEventsDisplay ?? [];
-        if (!Array.isArray(batch) || batch.length === 0) {
-            completed = true;
-            break;
-        }
-        pages.push(batch);
-        // No spread: the batch size is server-controlled and a huge page
-        // must take the abort path, not blow the call stack.
-        for (const e of batch) events.push(e);
-        if (batch.length < 1000) {
-            completed = true;
-            break;
+        if (oldest < anchor) {
+            anchor = oldest;
+            offset = 1;
+            takenAtAnchor = cursorRowsAt(batch, oldest);
+        } else {
+            // The whole page sits inside one millisecond: time cannot advance,
+            // so walk the offset within this anchor instead. `takenAtAnchor`
+            // needs no update -- suppression only runs at offset 1, and the
+            // only way back to offset 1 is a re-anchor, which replaces it.
+            offset += 1;
         }
     }
-    // Reaching the reported total is NOT proof of completion — Cursor can
-    // repeat rows at page boundaries, so the raw count can hit the total
-    // while genuine tail events sit on an unfetched page. Only an empty or
-    // short page proves the window is complete; a partial window must not be
-    // published (day rows would replace fuller stored ones).
-    if (
-        !completed ||
-        (expectedTotal !== null && events.length < expectedTotal)
-    ) {
-        process.stderr.write(
-            `tokenmaxer: cursor pagination incomplete (${events.length}${
-                expectedTotal === null ? '' : `/${expectedTotal}`
-            } event(s))\n`,
-        );
-        return null;
-    }
-    if (expectedTotal === null || events.length <= expectedTotal) {
-        return events;
-    }
-    return reconcileCursorPages(pages, events.length - expectedTotal);
-}
-
-// The endpoint exposes no stable event id. When the raw count exceeds the
-// authoritative total, drop exactly the surplus as duplicates at adjacent
-// page boundaries (rows equal by value); equal rows stay distinct when the
-// reported count vouches for both. Ported from CodexBar's boundaryOverlap
-// reconciliation.
-function reconcileCursorPages(
-    pages: unknown[][],
-    surplus: number,
-): unknown[] | null {
-    let removals = surplus;
-    const out = [...(pages[0] ?? [])];
-    for (let i = 1; i < pages.length; i += 1) {
-        const prev = pages[i - 1] ?? [];
-        const page = pages[i] ?? [];
-        const drop = Math.min(cursorBoundaryOverlap(prev, page), removals);
-        for (const e of page.slice(drop)) out.push(e);
-        removals -= drop;
-    }
-    if (removals !== 0) {
-        process.stderr.write(
-            'tokenmaxer: cursor pagination inconsistent (unreconciled duplicates)\n',
-        );
-        return null;
-    }
-    return out;
-}
-
-// Longest k where the previous page's last k rows equal the next page's
-// first k rows, compared by value (each row serialized once).
-function cursorBoundaryOverlap(prev: unknown[], page: unknown[]): number {
-    const limit = Math.min(prev.length, page.length);
-    if (limit === 0) return 0;
-    const prevKeys = prev.slice(-limit).map((e) => JSON.stringify(e));
-    const pageKeys = page.slice(0, limit).map((e) => JSON.stringify(e));
-    for (let count = limit; count >= 1; count -= 1) {
-        let equal = true;
-        for (let i = 0; i < count; i += 1) {
-            if (prevKeys[prevKeys.length - count + i] !== pageKeys[i]) {
-                equal = false;
-                break;
-            }
-        }
-        if (equal) return count;
-    }
-    return 0;
+    process.stderr.write(
+        'tokenmaxer: cursor pagination exceeded the request budget\n',
+    );
+    return null;
 }
