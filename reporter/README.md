@@ -45,6 +45,7 @@ tokenmaxer cursor-sync
 tokenmaxer backfill [claude|codex|opencode|pi|cursor] [--dry-run]
 tokenmaxer set-profile-url <https-url> [--dry-run]
 tokenmaxer set-profile-url --clear [--dry-run]
+tokenmaxer rotate [--dry-run]
 ```
 
 Reporting is idempotent (upsert keyed by session id) — re-running never

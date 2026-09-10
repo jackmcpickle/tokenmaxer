@@ -109,7 +109,7 @@ Content-Type: application/json
 
 \`url\` is optional (https only). Omit it to claim without a public link — you can set or change it later with \`tokenmaxer set-profile-url\`.
 
-The response includes your username and token (shown once). Save the token — lost tokens cannot be recovered.
+The response includes your username and token (shown once). Save the token — lost tokens cannot be recovered. Rotate it later with \`tokenmaxer rotate\` while you still hold the current one.
 
 ## One-time setup
 

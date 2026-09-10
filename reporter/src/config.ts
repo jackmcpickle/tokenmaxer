@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { DRY_RUN } from './lib/flags';
 import type { JsonObject, ReporterConfig } from './lib/types';
 
@@ -58,4 +58,50 @@ export function loadConfig(): ReporterConfig {
                 ? file.cursorCookie
                 : undefined,
     };
+}
+
+/** Env var that overrides the token in the config file, if set. */
+export function tokenEnvOverride():
+    | 'TOKENMAXER_TOKEN'
+    | 'TOKENTALLY_TOKEN'
+    | null {
+    if (process.env.TOKENMAXER_TOKEN) return 'TOKENMAXER_TOKEN';
+    if (process.env.TOKENTALLY_TOKEN) return 'TOKENTALLY_TOKEN';
+    return null;
+}
+
+function existingConfigPath(): string | null {
+    const preferred = join(homedir(), '.tokenmaxer', 'config.json');
+    if (existsSync(preferred)) return preferred;
+    const legacy = join(homedir(), '.tokentally', 'config.json');
+    if (existsSync(legacy)) return legacy;
+    return null;
+}
+
+/** Write a new token into the config file we loaded (or ~/.tokenmaxer). */
+export function persistToken(token: string, apiBase: string): string {
+    const path =
+        existingConfigPath() ?? join(homedir(), '.tokenmaxer', 'config.json');
+    let existing: JsonObject = {};
+    try {
+        const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+        if (parsed !== null && typeof parsed === 'object') {
+            existing = parsed as JsonObject;
+        }
+    } catch {
+        // Missing or invalid file: start a fresh object.
+    }
+    const next: JsonObject = { ...existing, token };
+    if (typeof next.apiBase !== 'string' || next.apiBase.length === 0) {
+        next.apiBase = apiBase;
+    }
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
+    return path;
+}
+
+/** Home-relative display path for messages (`~/.tokenmaxer/config.json`). */
+export function displayConfigPath(path: string): string {
+    const home = homedir();
+    return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }

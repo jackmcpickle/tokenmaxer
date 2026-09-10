@@ -14,6 +14,7 @@ import {
 import { loadConfig } from './config';
 import { runLogin } from './login';
 import { runSetProfileUrl } from './profile';
+import { runRotate } from './rotate';
 
 // Commands you run yourself.
 const USER_COMMANDS: Array<[string, string]> = [
@@ -25,6 +26,7 @@ const USER_COMMANDS: Array<[string, string]> = [
     ['cursor-sync', 'sync recent Cursor dashboard usage'],
     ['set-profile-url <https-url>', 'set your public profile link'],
     ['set-profile-url --clear', 'clear your public profile link'],
+    ['rotate', 'replace your token (requires the current one)'],
     ['help', 'show this help'],
 ];
 
@@ -86,12 +88,13 @@ export async function main(): Promise<void> {
         printHelp();
         return;
     }
-    if (cmd === 'set-profile-url') {
-        await runSetProfileUrl(process.argv.slice(3));
-        return;
-    }
-    if (cmd === 'login') {
-        await runLogin();
+    const userCmd = {
+        'set-profile-url': () => runSetProfileUrl(process.argv.slice(3)),
+        rotate: () => runRotate(process.argv.slice(3)),
+        login: () => runLogin(),
+    }[cmd ?? ''];
+    if (userCmd) {
+        await userCmd();
         return;
     }
     const cfg = loadConfig();
@@ -146,7 +149,7 @@ export async function main(): Promise<void> {
         }
         default:
             process.stderr.write(
-                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url (<https-url>|--clear)> [--dry-run]\n',
+                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url (<https-url>|--clear)|rotate> [--dry-run]\n',
             );
     }
 }

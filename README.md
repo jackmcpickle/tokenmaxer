@@ -172,6 +172,7 @@ tokenmaxer backfill              # all tools
 tokenmaxer backfill claude      # Claude Code only (same for codex|opencode|pi|cursor)
 tokenmaxer set-profile-url https://github.com/YOU   # optional public link on /u/YOU
 tokenmaxer set-profile-url --clear
+tokenmaxer rotate                 # replace your token (needs the current one)
 ```
 
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than

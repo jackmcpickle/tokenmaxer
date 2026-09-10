@@ -53,6 +53,7 @@ describe('startMarkdown', () => {
         expect(md).toContain('POST /api/register');
         expect(md).toContain('"url"');
         expect(md).toContain('set-profile-url');
+        expect(md).toContain('tokenmaxer rotate');
     });
 });
 

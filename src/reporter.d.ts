@@ -83,6 +83,13 @@ declare module '*/tokentally.mjs' {
         };
         body: { url: string | null };
     };
+    export function parseRotateArgs(argv: string[]): void;
+    export function buildRotateDryRun(endpoint: string): {
+        method: 'POST';
+        url: string;
+        headers: { Authorization: 'Bearer <redacted>' };
+    };
+    export function parseRotatedToken(data: unknown, status: number): string;
     export function sessionIdFromPath(path: string): string;
     export function toRows(
         parsed: ParsedTranscript,

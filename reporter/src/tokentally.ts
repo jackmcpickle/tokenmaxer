@@ -30,6 +30,11 @@ export {
     buildProfileUrlDryRun,
     parseSetProfileUrlArgs,
 } from './profile';
+export {
+    buildRotateDryRun,
+    parseRotateArgs,
+    parseRotatedToken,
+} from './rotate';
 
 if (invokedDirectlyAs(process.argv[1])) {
     main().catch((err: unknown) => {
