@@ -89,6 +89,10 @@ const PI = [
 ].join('\n');
 
 /** Dry-run payloads are pretty-printed JSON objects separated by newlines. */
+function unixPerm(mode: number): number {
+    return Number.parseInt(mode.toString(8).slice(-3), 8);
+}
+
 function parseDryRunPayloads(stdout: string): Array<{
     dryRun: boolean;
     url: string;
@@ -1792,9 +1796,9 @@ describe('tokenmaxer CLI', () => {
                 token: 'tt_from_env_rotate',
             });
             expect(
-                statSync(join(home, '.tokenmaxer/config.json')).mode & 0o777,
+                unixPerm(statSync(join(home, '.tokenmaxer/config.json')).mode),
             ).toBe(0o600);
-            expect(statSync(join(home, '.tokenmaxer')).mode & 0o777).toBe(
+            expect(unixPerm(statSync(join(home, '.tokenmaxer')).mode)).toBe(
                 0o700,
             );
         } finally {

@@ -84,22 +84,26 @@ const HELP_FLAGS = new Set<string | undefined>([
     undefined,
 ]);
 
-export async function main(): Promise<void> {
-    const cmd = process.argv[2];
-    if (HELP_FLAGS.has(cmd)) {
-        printHelp();
-        return;
-    }
+function userCommand(
+    cmd: string | undefined,
+): (() => Promise<void>) | undefined {
     const userCmds: Record<string, () => Promise<void>> = {
         'set-profile-url': () => runSetProfileUrl(process.argv.slice(3)),
         rotate: () => runRotate(process.argv.slice(3)),
         whoami: () => runWhoami(process.argv.slice(3)),
         login: () => runLogin(),
     };
-    const userCmd =
-        cmd !== undefined && Object.hasOwn(userCmds, cmd)
-            ? userCmds[cmd]
-            : undefined;
+    if (cmd === undefined || !Object.hasOwn(userCmds, cmd)) return undefined;
+    return userCmds[cmd];
+}
+
+export async function main(): Promise<void> {
+    const cmd = process.argv[2];
+    if (HELP_FLAGS.has(cmd)) {
+        printHelp();
+        return;
+    }
+    const userCmd = userCommand(cmd);
     if (userCmd) {
         await userCmd();
         return;
