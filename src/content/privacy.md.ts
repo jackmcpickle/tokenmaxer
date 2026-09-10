@@ -21,7 +21,7 @@ We keep the bare minimum to run a token leaderboard, and nothing that could reve
 
 ## The token is your only key
 
-There's no email and no password, so there's no recovery. The server keeps only a hash and can't recreate the secret. If you lose the token, that username is stranded — rotate it while you still hold it, or email us and we'll help sort it out.
+There's no email and no password, so there's no recovery. The server keeps only a hash and can't recreate the secret. If you lose the token, that username is stranded — rotate it while you still hold it with \`tokenmaxer rotate\`, or email us and we'll help sort it out.
 
 ## Honor system
 

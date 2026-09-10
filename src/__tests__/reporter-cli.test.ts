@@ -1,13 +1,21 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
     chmodSync,
+    existsSync,
     mkdtempSync,
     mkdirSync,
+    readFileSync,
     rmSync,
+    statSync,
     symlinkSync,
     utimesSync,
     writeFileSync,
 } from 'node:fs';
+import {
+    createServer,
+    type IncomingMessage,
+    type ServerResponse,
+} from 'node:http';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,6 +89,10 @@ const PI = [
 ].join('\n');
 
 /** Dry-run payloads are pretty-printed JSON objects separated by newlines. */
+function unixPerm(mode: number): number {
+    return Number.parseInt(mode.toString(8).slice(-3), 8);
+}
+
 function parseDryRunPayloads(stdout: string): Array<{
     dryRun: boolean;
     url: string;
@@ -92,20 +104,17 @@ function parseDryRunPayloads(stdout: string): Array<{
     return chunks.map((chunk) => JSON.parse(chunk));
 }
 
-function runCli(
-    args: string[],
-    opts: {
-        home: string;
-        stdin?: string;
-        env?: Record<string, string | undefined>;
-    },
-) {
-    const env: NodeJS.ProcessEnv = { ...process.env, HOME: opts.home };
+function cliEnv(
+    home: string,
+    extra?: Record<string, string | undefined>,
+): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, HOME: home };
     // Drop config env so the temp HOME config (or its absence) is authoritative.
     for (const key of [
         'TOKENMAXER_API_BASE',
         'TOKENMAXER_TOKEN',
         'TOKENMAXER_DAYS',
+        'TOKENMAXER_ROTATE_TIMEOUT_MS',
         'TOKENTALLY_API_BASE',
         'TOKENTALLY_TOKEN',
         'TOKENTALLY_DAYS',
@@ -116,17 +125,63 @@ function runCli(
     ]) {
         Reflect.deleteProperty(env, key);
     }
-    if (opts.env) {
-        for (const [key, value] of Object.entries(opts.env)) {
+    if (extra) {
+        for (const [key, value] of Object.entries(extra)) {
             if (value === undefined) Reflect.deleteProperty(env, key);
             else env[key] = value;
         }
     }
+    return env;
+}
+
+function runCli(
+    args: string[],
+    opts: {
+        home: string;
+        stdin?: string;
+        env?: Record<string, string | undefined>;
+    },
+) {
     return spawnSync(process.execPath, [REPORTER, ...args], {
         encoding: 'utf8',
-        env,
+        env: cliEnv(opts.home, opts.env),
         input: opts.stdin,
         timeout: 15_000,
+    });
+}
+
+/** Async spawn so an in-process HTTP server can still accept connections. */
+function runCliAsync(
+    args: string[],
+    opts: {
+        home: string;
+        env?: Record<string, string | undefined>;
+    },
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+    return new Promise((finish, fail) => {
+        const child = spawn(process.execPath, [REPORTER, ...args], {
+            env: cliEnv(opts.home, opts.env),
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (chunk: Buffer) => {
+            stdout += chunk.toString();
+        });
+        child.stderr.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString();
+        });
+        const timer = setTimeout(() => {
+            child.kill();
+            fail(new Error(`cli timed out: ${args.join(' ')}`));
+        }, 15_000);
+        child.on('error', (err) => {
+            clearTimeout(timer);
+            fail(err);
+        });
+        child.on('close', (status) => {
+            clearTimeout(timer);
+            finish({ status, stdout, stderr });
+        });
     });
 }
 
@@ -146,8 +201,9 @@ describe('tokenmaxer CLI', () => {
             apiBase: 'https://tokenmaxer.quest',
             token: 'tt_test',
         },
+        dirName = '.tokenmaxer',
     ) {
-        const dir = join(home, '.tokenmaxer');
+        const dir = join(home, dirName);
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, 'config.json'), JSON.stringify(data));
     }
@@ -165,6 +221,24 @@ describe('tokenmaxer CLI', () => {
         expect(res.status).toBe(0);
         expect(res.stderr).toContain('usage: tokenmaxer');
         expect(res.stderr).toContain('backfill');
+        expect(res.stderr).toContain('rotate');
+        expect(res.stderr).toContain('whoami');
+    });
+
+    it('lists rotate and whoami in help', () => {
+        const res = runCli(['help'], { home });
+        expect(res.status).toBe(0);
+        expect(res.stdout).toMatch(/rotate\s+replace your token/u);
+        expect(res.stdout).toMatch(/whoami\s+print the username/u);
+    });
+
+    it('treats inherited object names as unknown commands', () => {
+        writeConfig();
+        for (const cmd of ['toString', 'constructor']) {
+            const res = runCli([cmd], { home });
+            expect(res.status).toBe(0);
+            expect(res.stderr).toContain('usage: tokenmaxer');
+        }
     });
 
     it('exits cleanly with a tokenmaxer config error when unconfigured', () => {
@@ -1486,4 +1560,383 @@ describe('tokenmaxer CLI', () => {
         expect(payload.dryRun).toBe(true);
         expect(payload.body.source).toBe('claude_code');
     });
+
+    it('rotate --dry-run prints a redacted rotate request and leaves config alone', () => {
+        writeConfig({
+            apiBase: 'https://tokenmaxer.quest',
+            token: 'tt_old',
+            cursorCookie: 'keep-me',
+        });
+        const res = runCli(['rotate', '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        expect(JSON.parse(res.stdout.trim())).toEqual({
+            method: 'POST',
+            url: 'https://tokenmaxer.quest/api/token/rotate',
+            headers: { Authorization: 'Bearer <redacted>' },
+        });
+        expect(
+            JSON.parse(
+                readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+            ),
+        ).toMatchObject({ token: 'tt_old', cursorCookie: 'keep-me' });
+    });
+
+    it('rotate rejects extra arguments without calling the API', () => {
+        writeConfig();
+        const res = runCli(['rotate', 'someone-else'], { home });
+        expect(res.status).toBe(1);
+        expect(res.stderr).toMatch(/usage: tokenmaxer rotate/u);
+    });
+
+    it('rotate writes the new token into config and keeps other keys', async () => {
+        const seen: string[] = [];
+        const { port, close } = await listenRotate((req, res) => {
+            seen.push(String(req.headers.authorization));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'tt_new_from_server' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+                cursorCookie: 'keep-me',
+            });
+            const res = await runCliAsync(['rotate'], { home });
+            expect(res.status).toBe(0);
+            expect(seen).toEqual(['Bearer tt_old']);
+            expect(res.stdout).toContain('tt_new_from_server');
+            expect(res.stdout).toContain('~/.tokenmaxer/config.json');
+            expect(res.stdout).toContain('tokenmaxer whoami');
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toEqual({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_new_from_server',
+                cursorCookie: 'keep-me',
+            });
+        } finally {
+            await close();
+        }
+    });
+
+    it.skipIf(userInfo().uid === 0)(
+        'rotate still prints the new token when saving config fails',
+        async () => {
+            const { port, close } = await listenRotate((_req, res) => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ token: 'tt_must_not_hide' }));
+            });
+            try {
+                writeConfig({
+                    apiBase: `http://127.0.0.1:${port}`,
+                    token: 'tt_old',
+                });
+                const dir = join(home, '.tokenmaxer');
+                const cfgPath = join(dir, 'config.json');
+                chmodSync(cfgPath, 0o444);
+                chmodSync(dir, 0o555);
+                try {
+                    const res = await runCliAsync(['rotate'], { home });
+                    expect(res.status).toBe(1);
+                    expect(res.stdout).toContain('tt_must_not_hide');
+                    expect(
+                        JSON.parse(readFileSync(cfgPath, 'utf8')),
+                    ).toMatchObject({ token: 'tt_old' });
+                } finally {
+                    chmodSync(dir, 0o755);
+                    chmodSync(cfgPath, 0o644);
+                }
+            } finally {
+                await close();
+            }
+        },
+    );
+
+    it('rotate leaves the config file alone when unauthorized', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'unauthorized' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['rotate'], { home });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toContain('unauthorized');
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({ token: 'tt_old' });
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate exits 1 when unconfigured', () => {
+        const res = runCli(['rotate'], { home });
+        expect(res.status).toBe(1);
+        expect(res.stderr).toMatch(
+            /tokenmaxer not configured.*~\/\.tokenmaxer/u,
+        );
+    });
+
+    it('rotate --dry-run works when the flag comes first', () => {
+        writeConfig();
+        const res = runCli(['--dry-run', 'rotate'], { home });
+        expect(res.status).toBe(0);
+        expect(JSON.parse(res.stdout.trim()).url).toBe(
+            'https://tokenmaxer.quest/api/token/rotate',
+        );
+    });
+
+    it('rotate does not rewrite config when the server returns a non-tt_ token', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'not-a-secret' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['rotate'], { home });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toMatch(/token rotate failed/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({ token: 'tt_old' });
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate does not rewrite config on a 500 with no error field', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end('{}');
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['rotate'], { home });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toMatch(/token rotate failed \(500\)/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({ token: 'tt_old' });
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate updates ~/.tokentally when that is the only config file', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'tt_legacy_new' }));
+        });
+        try {
+            writeConfig(
+                {
+                    apiBase: `http://127.0.0.1:${port}`,
+                    token: 'tt_legacy_old',
+                },
+                '.tokentally',
+            );
+            const res = await runCliAsync(['rotate'], { home });
+            expect(res.status).toBe(0);
+            expect(res.stdout).toContain('~/.tokentally/config.json');
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokentally/config.json'), 'utf8'),
+                ).token,
+            ).toBe('tt_legacy_new');
+            expect(existsSync(join(home, '.tokenmaxer/config.json'))).toBe(
+                false,
+            );
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate writes ~/.tokenmaxer when config comes only from env', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'tt_from_env_rotate' }));
+        });
+        try {
+            const res = await runCliAsync(['rotate'], {
+                home,
+                env: {
+                    TOKENMAXER_API_BASE: `http://127.0.0.1:${port}`,
+                    TOKENMAXER_TOKEN: 'tt_env_only',
+                },
+            });
+            expect(res.status).toBe(0);
+            expect(res.stdout).toContain('tt_from_env_rotate');
+            expect(res.stdout).toContain('~/.tokenmaxer/config.json');
+            expect(res.stdout).toContain('tokenmaxer whoami');
+            expect(res.stderr).toMatch(/TOKENMAXER_TOKEN/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_from_env_rotate',
+            });
+            expect(
+                unixPerm(statSync(join(home, '.tokenmaxer/config.json')).mode),
+            ).toBe(0o600);
+            expect(unixPerm(statSync(join(home, '.tokenmaxer')).mode)).toBe(
+                0o700,
+            );
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate auths with TOKENMAXER_TOKEN and warns that env still overrides', async () => {
+        const seen: string[] = [];
+        const { port, close } = await listenRotate((req, res) => {
+            seen.push(String(req.headers.authorization));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ token: 'tt_rotated' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_file',
+            });
+            const res = await runCliAsync(['rotate'], {
+                home,
+                env: { TOKENMAXER_TOKEN: 'tt_env' },
+            });
+            expect(res.status).toBe(0);
+            expect(seen).toEqual(['Bearer tt_env']);
+            expect(res.stdout).toContain('tt_rotated');
+            expect(res.stderr).toMatch(/TOKENMAXER_TOKEN/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ).token,
+            ).toBe('tt_rotated');
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate times out when the server never responds', async () => {
+        const { port, close } = await listenRotate(() => {
+            // Leave the request hanging until the CLI abort fires.
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['rotate'], {
+                home,
+                env: { TOKENMAXER_ROTATE_TIMEOUT_MS: '80' },
+            });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toMatch(/token rotate timed out/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({ token: 'tt_old' });
+        } finally {
+            await close();
+        }
+    });
+
+    it('whoami --dry-run prints a redacted whoami request', () => {
+        writeConfig();
+        const res = runCli(['whoami', '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        expect(JSON.parse(res.stdout.trim())).toEqual({
+            method: 'GET',
+            url: 'https://tokenmaxer.quest/api/whoami',
+            headers: { Authorization: 'Bearer <redacted>' },
+        });
+    });
+
+    it('whoami rejects extra arguments without calling the API', () => {
+        writeConfig();
+        const res = runCli(['whoami', 'someone-else'], { home });
+        expect(res.status).toBe(1);
+        expect(res.stderr).toMatch(/usage: tokenmaxer whoami/u);
+    });
+
+    it('whoami prints the username for the configured token', async () => {
+        const seen: string[] = [];
+        const { port, close } = await listenRotate((req, res) => {
+            seen.push(`${req.method} ${req.url} ${req.headers.authorization}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ username: 'jacobcolangelo' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['whoami'], { home });
+            expect(res.status).toBe(0);
+            expect(seen).toEqual(['GET /api/whoami Bearer tt_old']);
+            expect(res.stdout.trim()).toBe('jacobcolangelo');
+        } finally {
+            await close();
+        }
+    });
+
+    it('whoami exits 1 when unauthorized', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'unauthorized' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['whoami'], { home });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toContain('unauthorized');
+        } finally {
+            await close();
+        }
+    });
 });
+
+function listenRotate(
+    onRequest: (req: IncomingMessage, res: ServerResponse) => void,
+): Promise<{ port: number; close: () => Promise<void> }> {
+    const server = createServer(onRequest);
+    return new Promise((finish, fail) => {
+        server.listen(0, '127.0.0.1', () => {
+            const addr = server.address();
+            if (!addr || typeof addr === 'string') {
+                fail(new Error('rotate test server has no port'));
+                return;
+            }
+            finish({
+                port: addr.port,
+                close: () =>
+                    new Promise((done, failClose) => {
+                        server.close((err) => (err ? failClose(err) : done()));
+                    }),
+            });
+        });
+    });
+}

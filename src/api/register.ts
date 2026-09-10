@@ -137,4 +137,11 @@ app.post('/token/rotate', async (c) => {
     return c.json({ token });
 });
 
+// GET /api/whoami  (Bearer) -> { username }
+app.get('/whoami', async (c) => {
+    const user = await authenticate(c.env.DB, c.req.header('Authorization'));
+    if (!user) return c.json({ error: 'unauthorized' }, 401);
+    return c.json({ username: user.username });
+});
+
 export { app as registerRoutes };

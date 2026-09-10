@@ -30,6 +30,16 @@ export {
     buildProfileUrlDryRun,
     parseSetProfileUrlArgs,
 } from './profile';
+export {
+    buildRotateDryRun,
+    parseRotateArgs,
+    parseRotatedToken,
+} from './rotate';
+export {
+    buildWhoamiDryRun,
+    parseWhoamiArgs,
+    parseWhoamiUsername,
+} from './whoami';
 
 if (invokedDirectlyAs(process.argv[1])) {
     main().catch((err: unknown) => {

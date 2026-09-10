@@ -14,6 +14,12 @@ import {
     parseSetProfileUrlArgs,
     buildProfileUrlBody,
     buildProfileUrlDryRun,
+    buildRotateDryRun,
+    parseRotateArgs,
+    parseRotatedToken,
+    buildWhoamiDryRun,
+    parseWhoamiArgs,
+    parseWhoamiUsername,
     sessionIdFromPath,
     toRows,
 } from '../../reporter/tokentally.mjs';
@@ -1084,6 +1090,82 @@ describe('set-profile-url helpers', () => {
             headers,
             body: { url: null },
         });
+    });
+});
+
+describe('rotate helpers', () => {
+    it('rejects extra arguments', () => {
+        expect(() => parseRotateArgs(['nope'])).toThrow(
+            /usage: tokenmaxer rotate/u,
+        );
+        expect(() => parseRotateArgs([])).not.toThrow();
+    });
+
+    it('builds a redacted dry-run payload', () => {
+        expect(
+            buildRotateDryRun('https://tokenmaxer.quest/api/token/rotate'),
+        ).toEqual({
+            method: 'POST',
+            url: 'https://tokenmaxer.quest/api/token/rotate',
+            headers: { Authorization: 'Bearer <redacted>' },
+        });
+    });
+
+    it('reads a new token and rejects error payloads', () => {
+        expect(parseRotatedToken({ token: 'tt_new' }, 200)).toBe('tt_new');
+        expect(() => parseRotatedToken({ error: 'unauthorized' }, 401)).toThrow(
+            'unauthorized',
+        );
+        expect(() => parseRotatedToken({}, 500)).toThrow(
+            /token rotate failed \(500\)/u,
+        );
+    });
+
+    it('rejects payloads that are not a tt_ token', () => {
+        expect(() => parseRotatedToken({ token: '' }, 200)).toThrow(
+            /token rotate failed \(200\)/u,
+        );
+        expect(() => parseRotatedToken({ token: 'secret' }, 200)).toThrow(
+            /token rotate failed \(200\)/u,
+        );
+        expect(() =>
+            parseRotatedToken({ token: 'TT_looks_close' }, 200),
+        ).toThrow(/token rotate failed \(200\)/u);
+        expect(() => parseRotatedToken({ token: 1 }, 200)).toThrow(
+            /token rotate failed \(200\)/u,
+        );
+    });
+});
+
+describe('whoami helpers', () => {
+    it('rejects extra arguments', () => {
+        expect(() => parseWhoamiArgs(['nope'])).toThrow(
+            /usage: tokenmaxer whoami/u,
+        );
+        expect(() => parseWhoamiArgs([])).not.toThrow();
+    });
+
+    it('builds a redacted dry-run payload', () => {
+        expect(
+            buildWhoamiDryRun('https://tokenmaxer.quest/api/whoami'),
+        ).toEqual({
+            method: 'GET',
+            url: 'https://tokenmaxer.quest/api/whoami',
+            headers: { Authorization: 'Bearer <redacted>' },
+        });
+    });
+
+    it('reads a username and rejects error payloads', () => {
+        expect(parseWhoamiUsername({ username: 'alice' }, 200)).toBe('alice');
+        expect(() =>
+            parseWhoamiUsername({ error: 'unauthorized' }, 401),
+        ).toThrow('unauthorized');
+        expect(() => parseWhoamiUsername({}, 500)).toThrow(
+            /whoami failed \(500\)/u,
+        );
+        expect(() => parseWhoamiUsername({ username: '' }, 200)).toThrow(
+            /whoami failed \(200\)/u,
+        );
     });
 });
 
