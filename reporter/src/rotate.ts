@@ -61,8 +61,10 @@ async function rotate(cfg: ReporterConfig, argv: string[]): Promise<void> {
         );
     }
     const token = parseRotatedToken(data, res.status);
-    const path = persistToken(token, cfg.apiBase);
+    // Print first: the server has already replaced the hash, and a later
+    // persist failure must not hide the only remaining credential.
     process.stdout.write(`token: ${token}\n`);
+    const path = persistToken(token, cfg.apiBase);
     process.stdout.write(`saved ${displayConfigPath(path)}\n`);
     const envName = tokenEnvOverride();
     if (envName) {

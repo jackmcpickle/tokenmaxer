@@ -1603,6 +1603,39 @@ describe('tokenmaxer CLI', () => {
         }
     });
 
+    it.skipIf(userInfo().uid === 0)(
+        'rotate still prints the new token when saving config fails',
+        async () => {
+            const { port, close } = await listenRotate((_req, res) => {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ token: 'tt_must_not_hide' }));
+            });
+            try {
+                writeConfig({
+                    apiBase: `http://127.0.0.1:${port}`,
+                    token: 'tt_old',
+                });
+                const dir = join(home, '.tokenmaxer');
+                const cfgPath = join(dir, 'config.json');
+                chmodSync(cfgPath, 0o444);
+                chmodSync(dir, 0o555);
+                try {
+                    const res = await runCliAsync(['rotate'], { home });
+                    expect(res.status).toBe(1);
+                    expect(res.stdout).toContain('tt_must_not_hide');
+                    expect(
+                        JSON.parse(readFileSync(cfgPath, 'utf8')),
+                    ).toMatchObject({ token: 'tt_old' });
+                } finally {
+                    chmodSync(dir, 0o755);
+                    chmodSync(cfgPath, 0o644);
+                }
+            } finally {
+                await close();
+            }
+        },
+    );
+
     it('rotate leaves the config file alone when unauthorized', async () => {
         const { port, close } = await listenRotate((_req, res) => {
             res.writeHead(401, { 'Content-Type': 'application/json' });

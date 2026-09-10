@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    renameSync,
+    unlinkSync,
+    writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DRY_RUN } from './lib/flags';
@@ -96,7 +103,19 @@ export function persistToken(token: string, apiBase: string): string {
         next.apiBase = apiBase;
     }
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
+    // Write aside and rename so a failed write cannot truncate the live file.
+    const tmp = `${path}.${process.pid}.tmp`;
+    try {
+        writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`);
+        renameSync(tmp, path);
+    } catch (err) {
+        try {
+            unlinkSync(tmp);
+        } catch {
+            // Best-effort cleanup; the original config is still intact.
+        }
+        throw err;
+    }
     return path;
 }
 
