@@ -90,6 +90,13 @@ declare module '*/tokentally.mjs' {
         headers: { Authorization: 'Bearer <redacted>' };
     };
     export function parseRotatedToken(data: unknown, status: number): string;
+    export function parseWhoamiArgs(argv: string[]): void;
+    export function buildWhoamiDryRun(endpoint: string): {
+        method: 'GET';
+        url: string;
+        headers: { Authorization: 'Bearer <redacted>' };
+    };
+    export function parseWhoamiUsername(data: unknown, status: number): string;
     export function sessionIdFromPath(path: string): string;
     export function toRows(
         parsed: ParsedTranscript,

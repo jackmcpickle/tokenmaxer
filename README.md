@@ -61,6 +61,7 @@ reporter/src/        # reporter modules (strict TS; esbuild → tokentally.mjs f
 | ------ | ------------------- | ------ | --------------------------------------------------- |
 | POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`              |
 | POST   | `/api/token/rotate` | Bearer | rotate your token                                   |
+| GET    | `/api/whoami`       | Bearer | `{username}` for the token                          |
 | POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[]}` (live reporting)      |
 | POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[]}` (past history) |
 | POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)       |
@@ -173,6 +174,7 @@ tokenmaxer backfill claude      # Claude Code only (same for codex|opencode|pi|c
 tokenmaxer set-profile-url https://github.com/YOU   # optional public link on /u/YOU
 tokenmaxer set-profile-url --clear
 tokenmaxer rotate                 # replace your token (needs the current one)
+tokenmaxer whoami                 # print the username for that token
 ```
 
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than

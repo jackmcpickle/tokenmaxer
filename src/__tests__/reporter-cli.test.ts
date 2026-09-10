@@ -218,12 +218,14 @@ describe('tokenmaxer CLI', () => {
         expect(res.stderr).toContain('usage: tokenmaxer');
         expect(res.stderr).toContain('backfill');
         expect(res.stderr).toContain('rotate');
+        expect(res.stderr).toContain('whoami');
     });
 
-    it('lists rotate in help', () => {
+    it('lists rotate and whoami in help', () => {
         const res = runCli(['help'], { home });
         expect(res.status).toBe(0);
         expect(res.stdout).toMatch(/rotate\s+replace your token/u);
+        expect(res.stdout).toMatch(/whoami\s+print the username/u);
     });
 
     it('treats inherited object names as unknown commands', () => {
@@ -1600,6 +1602,7 @@ describe('tokenmaxer CLI', () => {
             expect(seen).toEqual(['Bearer tt_old']);
             expect(res.stdout).toContain('tt_new_from_server');
             expect(res.stdout).toContain('~/.tokenmaxer/config.json');
+            expect(res.stdout).toContain('tokenmaxer whoami');
             expect(
                 JSON.parse(
                     readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
@@ -1778,6 +1781,7 @@ describe('tokenmaxer CLI', () => {
             expect(res.status).toBe(0);
             expect(res.stdout).toContain('tt_from_env_rotate');
             expect(res.stdout).toContain('~/.tokenmaxer/config.json');
+            expect(res.stdout).toContain('tokenmaxer whoami');
             expect(res.stderr).toMatch(/TOKENMAXER_TOKEN/u);
             expect(
                 JSON.parse(
@@ -1848,6 +1852,63 @@ describe('tokenmaxer CLI', () => {
                     readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
                 ),
             ).toMatchObject({ token: 'tt_old' });
+        } finally {
+            await close();
+        }
+    });
+
+    it('whoami --dry-run prints a redacted whoami request', () => {
+        writeConfig();
+        const res = runCli(['whoami', '--dry-run'], { home });
+        expect(res.status).toBe(0);
+        expect(JSON.parse(res.stdout.trim())).toEqual({
+            method: 'GET',
+            url: 'https://tokenmaxer.quest/api/whoami',
+            headers: { Authorization: 'Bearer <redacted>' },
+        });
+    });
+
+    it('whoami rejects extra arguments without calling the API', () => {
+        writeConfig();
+        const res = runCli(['whoami', 'someone-else'], { home });
+        expect(res.status).toBe(1);
+        expect(res.stderr).toMatch(/usage: tokenmaxer whoami/u);
+    });
+
+    it('whoami prints the username for the configured token', async () => {
+        const seen: string[] = [];
+        const { port, close } = await listenRotate((req, res) => {
+            seen.push(`${req.method} ${req.url} ${req.headers.authorization}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ username: 'jacobcolangelo' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['whoami'], { home });
+            expect(res.status).toBe(0);
+            expect(seen).toEqual(['GET /api/whoami Bearer tt_old']);
+            expect(res.stdout.trim()).toBe('jacobcolangelo');
+        } finally {
+            await close();
+        }
+    });
+
+    it('whoami exits 1 when unauthorized', async () => {
+        const { port, close } = await listenRotate((_req, res) => {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'unauthorized' }));
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['whoami'], { home });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toContain('unauthorized');
         } finally {
             await close();
         }

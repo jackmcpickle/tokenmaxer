@@ -75,6 +75,7 @@ describe('llmsTxt', () => {
         expect(md).toContain('https://tokenmaxer.quest/api/leaderboard');
         expect(md).toContain('https://tokenmaxer.quest/api/u/:username');
         expect(md).toContain('https://tokenmaxer.quest/api/profile');
+        expect(md).toContain('https://tokenmaxer.quest/api/whoami');
         expect(md).toContain('## Optional');
     });
 });
@@ -87,6 +88,7 @@ describe('llmsFullTxt', () => {
         expect(md).toContain('# Get started');
         expect(md).toContain('/index.md');
         expect(md).toContain('https://tokenmaxer.quest/api/profile');
+        expect(md).toContain('https://tokenmaxer.quest/api/whoami');
         expect(md.length).toBeLessThan(50_000);
     });
 });

@@ -82,6 +82,7 @@ async function rotate(cfg: ReporterConfig, argv: string[]): Promise<void> {
     process.stdout.write(`token: ${token}\n`);
     const path = persistToken(token, cfg.apiBase);
     process.stdout.write(`saved ${displayConfigPath(path)}\n`);
+    process.stdout.write('run tokenmaxer whoami to confirm your username\n');
     const envName = tokenEnvOverride();
     if (envName) {
         process.stderr.write(

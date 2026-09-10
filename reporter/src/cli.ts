@@ -15,6 +15,7 @@ import { loadConfig } from './config';
 import { runLogin } from './login';
 import { runSetProfileUrl } from './profile';
 import { runRotate } from './rotate';
+import { runWhoami } from './whoami';
 
 // Commands you run yourself.
 const USER_COMMANDS: Array<[string, string]> = [
@@ -27,6 +28,7 @@ const USER_COMMANDS: Array<[string, string]> = [
     ['set-profile-url <https-url>', 'set your public profile link'],
     ['set-profile-url --clear', 'clear your public profile link'],
     ['rotate', 'replace your token (requires the current one)'],
+    ['whoami', 'print the username for the configured token'],
     ['help', 'show this help'],
 ];
 
@@ -91,6 +93,7 @@ export async function main(): Promise<void> {
     const userCmds: Record<string, () => Promise<void>> = {
         'set-profile-url': () => runSetProfileUrl(process.argv.slice(3)),
         rotate: () => runRotate(process.argv.slice(3)),
+        whoami: () => runWhoami(process.argv.slice(3)),
         login: () => runLogin(),
     };
     const userCmd =
@@ -153,7 +156,7 @@ export async function main(): Promise<void> {
         }
         default:
             process.stderr.write(
-                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url (<https-url>|--clear)|rotate> [--dry-run]\n',
+                'usage: tokenmaxer <claude-sessionend|claude-sessionstart|codex-sessionstart|opencode-sessionstart|pi-sessionstart|claude-report <path>|codex-report <path>|opencode-report <sessionID>|pi-report <path>|cursor-sync|backfill [claude|codex|opencode|pi|cursor]|set-profile-url (<https-url>|--clear)|rotate|whoami> [--dry-run]\n',
             );
     }
 }
