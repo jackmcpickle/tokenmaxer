@@ -6,6 +6,7 @@ import {
     mkdirSync,
     readFileSync,
     rmSync,
+    statSync,
     symlinkSync,
     utimesSync,
     writeFileSync,
@@ -109,6 +110,7 @@ function cliEnv(
         'TOKENMAXER_API_BASE',
         'TOKENMAXER_TOKEN',
         'TOKENMAXER_DAYS',
+        'TOKENMAXER_ROTATE_TIMEOUT_MS',
         'TOKENTALLY_API_BASE',
         'TOKENTALLY_TOKEN',
         'TOKENTALLY_DAYS',
@@ -222,6 +224,15 @@ describe('tokenmaxer CLI', () => {
         const res = runCli(['help'], { home });
         expect(res.status).toBe(0);
         expect(res.stdout).toMatch(/rotate\s+replace your token/u);
+    });
+
+    it('treats inherited object names as unknown commands', () => {
+        writeConfig();
+        for (const cmd of ['toString', 'constructor']) {
+            const res = runCli([cmd], { home });
+            expect(res.status).toBe(0);
+            expect(res.stderr).toContain('usage: tokenmaxer');
+        }
     });
 
     it('exits cleanly with a tokenmaxer config error when unconfigured', () => {
@@ -1776,6 +1787,12 @@ describe('tokenmaxer CLI', () => {
                 apiBase: `http://127.0.0.1:${port}`,
                 token: 'tt_from_env_rotate',
             });
+            expect(
+                statSync(join(home, '.tokenmaxer/config.json')).mode & 0o777,
+            ).toBe(0o600);
+            expect(statSync(join(home, '.tokenmaxer')).mode & 0o777).toBe(
+                0o700,
+            );
         } finally {
             await close();
         }
@@ -1806,6 +1823,31 @@ describe('tokenmaxer CLI', () => {
                     readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
                 ).token,
             ).toBe('tt_rotated');
+        } finally {
+            await close();
+        }
+    });
+
+    it('rotate times out when the server never responds', async () => {
+        const { port, close } = await listenRotate(() => {
+            // Leave the request hanging until the CLI abort fires.
+        });
+        try {
+            writeConfig({
+                apiBase: `http://127.0.0.1:${port}`,
+                token: 'tt_old',
+            });
+            const res = await runCliAsync(['rotate'], {
+                home,
+                env: { TOKENMAXER_ROTATE_TIMEOUT_MS: '80' },
+            });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toMatch(/token rotate timed out/u);
+            expect(
+                JSON.parse(
+                    readFileSync(join(home, '.tokenmaxer/config.json'), 'utf8'),
+                ),
+            ).toMatchObject({ token: 'tt_old' });
         } finally {
             await close();
         }

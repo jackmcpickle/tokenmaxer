@@ -1,4 +1,5 @@
 import {
+    chmodSync,
     existsSync,
     mkdirSync,
     readFileSync,
@@ -102,12 +103,17 @@ export function persistToken(token: string, apiBase: string): string {
     if (typeof next.apiBase !== 'string' || next.apiBase.length === 0) {
         next.apiBase = apiBase;
     }
-    mkdirSync(dirname(path), { recursive: true });
+    const dir = dirname(path);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
     // Write aside and rename so a failed write cannot truncate the live file.
     const tmp = `${path}.${process.pid}.tmp`;
     try {
-        writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`);
+        writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, {
+            mode: 0o600,
+        });
         renameSync(tmp, path);
+        chmodSync(dir, 0o700);
+        chmodSync(path, 0o600);
     } catch (err) {
         try {
             unlinkSync(tmp);

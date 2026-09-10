@@ -88,11 +88,15 @@ export async function main(): Promise<void> {
         printHelp();
         return;
     }
-    const userCmd = {
+    const userCmds: Record<string, () => Promise<void>> = {
         'set-profile-url': () => runSetProfileUrl(process.argv.slice(3)),
         rotate: () => runRotate(process.argv.slice(3)),
         login: () => runLogin(),
-    }[cmd ?? ''];
+    };
+    const userCmd =
+        cmd !== undefined && Object.hasOwn(userCmds, cmd)
+            ? userCmds[cmd]
+            : undefined;
     if (userCmd) {
         await userCmd();
         return;

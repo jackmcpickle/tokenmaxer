@@ -47,10 +47,26 @@ async function rotate(cfg: ReporterConfig, argv: string[]): Promise<void> {
         );
         return;
     }
-    const res = await fetch(`${cfg.apiBase}/api/token/rotate`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${cfg.token}` },
-    });
+    const timeoutMs =
+        Number.parseInt(process.env.TOKENMAXER_ROTATE_TIMEOUT_MS ?? '', 10) ||
+        10_000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+        res = await fetch(`${cfg.apiBase}/api/token/rotate`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${cfg.token}` },
+            signal: controller.signal,
+        });
+    } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+            throw new Error('token rotate timed out', { cause: err });
+        }
+        throw err;
+    } finally {
+        clearTimeout(timer);
+    }
     const data: unknown = await res.json().catch(() => ({}));
     if (!res.ok) {
         const payload = asObject(data);
