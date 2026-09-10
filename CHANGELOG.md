@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.15](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.14...v0.2.15) (2026-09-10)
+
+### Features
+
+* add tokenmaxer rotate CLI command ([#44](https://github.com/jackmcpickle/tokenmaxer/issues/44)) ([d9277c3](https://github.com/jackmcpickle/tokenmaxer/commit/d9277c380109f6756d0dbc4c2bec1f4b9b48d898))
 ## [0.2.14](https://github.com/jackmcpickle/tokenmaxer/compare/v0.2.13...v0.2.14) (2026-08-24)
 
 ### Bug Fixes
