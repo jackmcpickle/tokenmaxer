@@ -21,8 +21,8 @@ importers:
         specifier: 1.168.38
         version: 1.168.38(esbuild@0.28.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.3)(rollup@4.62.4)(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0))
       hono:
-        specifier: ^4.13.0
-        version: 4.13.0
+        specifier: ^4.13.5
+        version: 4.13.5
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -2080,8 +2080,8 @@ packages:
       crossws:
         optional: true
 
-  hono@4.13.0:
-    resolution: {integrity: sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ==}
+  hono@4.13.5:
+    resolution: {integrity: sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==}
     engines: {node: '>=16.9.0'}
 
   is-extglob@2.1.1:
@@ -4367,7 +4367,7 @@ snapshots:
       rou3: 0.8.1
       srvx: 0.11.22
 
-  hono@4.13.0: {}
+  hono@4.13.5: {}
 
   is-extglob@2.1.1: {}
 
