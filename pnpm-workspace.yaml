@@ -3,7 +3,6 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
-
 minimumReleaseAgeExclude:
   - "@tanstack/history@1.162.1"
   - "@tanstack/react-router@1.170.21"
@@ -19,6 +18,10 @@ minimumReleaseAgeExclude:
   - "@tanstack/start-server-core@1.169.21"
   - "@tanstack/start-storage-context@1.167.20"
   - vite@8.2.1
-
 packages:
-  - "reporter"
+  - reporter
+auditLevel: high
+trustPolicyIgnoreAfter: 129600
+trustPolicy: no-downgrade
+verifyDepsBeforeRun: error
+registry: https://registry.npmjs.org
