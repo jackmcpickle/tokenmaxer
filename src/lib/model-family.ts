@@ -12,10 +12,30 @@ const FAMILY_LABELS: Record<string, string> = {
     gpt: 'GPT',
 };
 
+const KNOWN_FAMILY_CHECKS: ReadonlyArray<{
+    id: string;
+    match: (m: string) => boolean;
+}> = [
+    { id: 'sonnet', match: (m) => m.includes('sonnet') },
+    { id: 'opus', match: (m) => m.includes('opus') },
+    { id: 'haiku', match: (m) => m.includes('haiku') },
+    { id: 'fable', match: (m) => m.includes('fable') },
+    // Codex before GPT so gpt-*-codex lands in Codex.
+    { id: 'codex', match: (m) => m.includes('codex') },
+    { id: 'gpt', match: (m) => m.includes('gpt') || /^o[0-9]/u.test(m) },
+];
+
 /** Claude Code `<synthetic>` internal turns — never show or score. */
 export function isSyntheticModel(model: string): boolean {
     const m = model.toLowerCase().trim().replace(/^<|>$/gu, '');
     return m === 'synthetic';
+}
+
+function unknownFamilyId(m: string): string {
+    const stripped = m
+        .replace(/-\d{8}$/u, '')
+        .replace(/-\d+(?:\.\d+)*(?:-\d+)*$/u, '');
+    return stripped || m;
 }
 
 /** Family id for a raw model string, or null to hide from the filter list. */
@@ -23,19 +43,11 @@ export function familyOf(model: string): string | null {
     const m = model.toLowerCase().trim();
     if (!m || isSyntheticModel(m)) return null;
 
-    if (m.includes('sonnet')) return 'sonnet';
-    if (m.includes('opus')) return 'opus';
-    if (m.includes('haiku')) return 'haiku';
-    if (m.includes('fable')) return 'fable';
-    // Codex before GPT so gpt-*-codex lands in Codex.
-    if (m.includes('codex')) return 'codex';
-    if (m.includes('gpt') || /^o[0-9]/u.test(m)) return 'gpt';
+    for (const { id, match } of KNOWN_FAMILY_CHECKS) {
+        if (match(m)) return id;
+    }
 
-    // Unknown: strip date suffixes and trailing version segments.
-    const stripped = m
-        .replace(/-\d{8}$/u, '')
-        .replace(/-\d+(?:\.\d+)*(?:-\d+)*$/u, '');
-    return stripped || m;
+    return unknownFamilyId(m);
 }
 
 export function familyLabel(family: string): string {

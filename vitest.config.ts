@@ -49,6 +49,17 @@ export default bytes.buffer;`;
     test: {
         include: ['src/**/*.test.ts'],
         environment: 'node',
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'lcov'],
+            include: ['src/**/*.{ts,tsx}', 'reporter/src/**/*.ts'],
+            exclude: [
+                'src/**/*.test.ts',
+                'src/**/*.d.ts',
+                'src/__tests__/**',
+                'src/routeTree.gen.ts',
+            ],
+        },
     },
     resolve: {
         alias: {

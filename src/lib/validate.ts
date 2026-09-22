@@ -98,29 +98,39 @@ export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const MAX_PROFILE_URL_LEN = 2048;
 
-export function validateProfileUrl(raw: unknown): Result<string | null> {
-    if (raw === null) return { ok: true, value: null };
-    if (typeof raw !== 'string') {
-        return { ok: false, error: 'url must be a string or null' };
-    }
-    const trimmed = raw.trim();
-    if (trimmed.length === 0) return { ok: true, value: null };
-    if (trimmed.length > MAX_PROFILE_URL_LEN) {
-        return { ok: false, error: 'url too long' };
-    }
+function fail<T>(error: string): Result<T> {
+    return { ok: false, error };
+}
+
+function parseHttpsUrl(trimmed: string): Result<URL> {
     let parsed: URL;
     try {
         parsed = new URL(trimmed);
     } catch {
-        return { ok: false, error: 'url must be a valid https URL' };
+        return fail('url must be a valid https URL');
     }
     if (parsed.protocol !== 'https:') {
-        return { ok: false, error: 'url must use https' };
+        return fail('url must use https');
     }
     if (parsed.username || parsed.password) {
-        return { ok: false, error: 'url must not include credentials' };
+        return fail('url must not include credentials');
     }
-    return { ok: true, value: parsed.href };
+    return { ok: true, value: parsed };
+}
+
+export function validateProfileUrl(raw: unknown): Result<string | null> {
+    if (raw === null) return { ok: true, value: null };
+    if (typeof raw !== 'string') {
+        return fail('url must be a string or null');
+    }
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return { ok: true, value: null };
+    if (trimmed.length > MAX_PROFILE_URL_LEN) {
+        return fail('url too long');
+    }
+    const parsed = parseHttpsUrl(trimmed);
+    if (!parsed.ok) return parsed;
+    return { ok: true, value: parsed.value.href };
 }
 
 export function validateUsername(raw: unknown): Result<string> {
@@ -168,55 +178,62 @@ export interface IngestPayload {
     rejected: RejectedSession[];
 }
 
+function requiredText(
+    value: unknown,
+    label: string,
+    max: number,
+): Result<string> {
+    if (typeof value !== 'string' || value.length === 0) {
+        return fail(`${label} is required`);
+    }
+    if (value.length > max) return fail(`${label} too long`);
+    return { ok: true, value };
+}
+
+function sessionStartedAt(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        return Math.floor(value);
+    }
+    return Date.now();
+}
+
+function exceedsTokenCap(row: SessionUsageInput): boolean {
+    const counts = [
+        row.input_tokens,
+        row.output_tokens,
+        row.cache_read_tokens,
+        row.cache_creation_tokens,
+        row.reasoning_tokens,
+    ];
+    return counts.some((n) => n > MAX_TOKENS_PER_CATEGORY);
+}
+
 function parseSessionEntry(raw: unknown): Result<SessionUsageInput> {
     if (typeof raw !== 'object' || raw === null) {
-        return { ok: false, error: 'each session must be an object' };
+        return fail('each session must be an object');
     }
     const s = raw as Record<string, unknown>;
-    if (typeof s.session_id !== 'string' || s.session_id.length === 0) {
-        return { ok: false, error: 'session_id is required' };
-    }
-    if (s.session_id.length > MAX_SESSION_ID_LEN) {
-        return { ok: false, error: 'session_id too long' };
-    }
-    if (typeof s.model !== 'string' || s.model.length === 0) {
-        return { ok: false, error: 'model is required' };
-    }
-    if (s.model.length > MAX_MODEL_LEN) {
-        return { ok: false, error: 'model too long' };
-    }
-
-    const started_at =
-        typeof s.started_at === 'number' &&
-        Number.isFinite(s.started_at) &&
-        s.started_at > 0
-            ? Math.floor(s.started_at)
-            : Date.now();
+    const sessionId = requiredText(
+        s.session_id,
+        'session_id',
+        MAX_SESSION_ID_LEN,
+    );
+    if (!sessionId.ok) return sessionId;
+    const model = requiredText(s.model, 'model', MAX_MODEL_LEN);
+    if (!model.ok) return model;
 
     const row: SessionUsageInput = {
-        session_id: s.session_id,
-        model: s.model,
-        started_at,
+        session_id: sessionId.value,
+        model: model.value,
+        started_at: sessionStartedAt(s.started_at),
         input_tokens: coerceCount(s.input_tokens),
         output_tokens: coerceCount(s.output_tokens),
         cache_read_tokens: coerceCount(s.cache_read_tokens),
         cache_creation_tokens: coerceCount(s.cache_creation_tokens),
         reasoning_tokens: coerceCount(s.reasoning_tokens),
     };
-
-    for (const n of [
-        row.input_tokens,
-        row.output_tokens,
-        row.cache_read_tokens,
-        row.cache_creation_tokens,
-        row.reasoning_tokens,
-    ]) {
-        if (n > MAX_TOKENS_PER_CATEGORY) {
-            return {
-                ok: false,
-                error: 'token count exceeds safe integer range',
-            };
-        }
+    if (exceedsTokenCap(row)) {
+        return fail('token count exceeds safe integer range');
     }
     return { ok: true, value: row };
 }
@@ -237,25 +254,42 @@ export function parseIngestBody(
             error: "source must be 'claude_code', 'codex', 'opencode', 'pi' or 'cursor'",
         };
     }
-    if (!Array.isArray(b.sessions)) {
-        return { ok: false, error: 'sessions must be an array' };
-    }
-    if (b.sessions.length === 0) {
-        return { ok: false, error: 'sessions must not be empty' };
-    }
-    if (b.sessions.length > maxSessions) {
-        return {
-            ok: false,
-            error: `too many sessions (max ${maxSessions})`,
-        };
-    }
+    const listed = ingestSessionList(b.sessions, maxSessions);
+    if (!listed.ok) return listed;
 
     // Structurally invalid rows are rejected individually (by their index in
     // the submitted array) instead of failing the whole batch, so one bad row
     // never blocks the rest of a report.
+    const split = splitIngestSessions(listed.value);
+    return {
+        ok: true,
+        value: {
+            source: b.source,
+            sessions: split.sessions,
+            rejected: split.rejected,
+        },
+    };
+}
+
+function ingestSessionList(
+    sessions: unknown,
+    maxSessions: number,
+): Result<unknown[]> {
+    if (!Array.isArray(sessions)) return fail('sessions must be an array');
+    if (sessions.length === 0) return fail('sessions must not be empty');
+    if (sessions.length > maxSessions) {
+        return fail(`too many sessions (max ${maxSessions})`);
+    }
+    return { ok: true, value: sessions };
+}
+
+function splitIngestSessions(rawSessions: readonly unknown[]): {
+    sessions: SessionUsageInput[];
+    rejected: RejectedSession[];
+} {
     const sessions: SessionUsageInput[] = [];
     const rejected: RejectedSession[] = [];
-    for (const [index, raw] of b.sessions.entries()) {
+    for (const [index, raw] of rawSessions.entries()) {
         const parsed = parseSessionEntry(raw);
         if (!parsed.ok) {
             rejected.push({ index, error: parsed.error });
@@ -265,8 +299,7 @@ export function parseIngestBody(
         if (isSyntheticModel(parsed.value.model)) continue;
         sessions.push(parsed.value);
     }
-
-    return { ok: true, value: { source: b.source, sessions, rejected } };
+    return { sessions, rejected };
 }
 
 /** Same shape as ingest, but with the larger bulk-backfill session cap. */

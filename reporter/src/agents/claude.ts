@@ -28,6 +28,16 @@ export interface ClaudeUsageRow {
     sidechain: boolean;
 }
 
+function claudeAssistantModel(msg: JsonObject): string {
+    return typeof msg.model === 'string' && msg.model ? msg.model : 'unknown';
+}
+
+function claudeUsageKey(msg: JsonObject, obj: JsonObject): string | null {
+    const messageId = typeof msg.id === 'string' ? msg.id : '';
+    const requestId = typeof obj.requestId === 'string' ? obj.requestId : '';
+    return messageId || requestId ? `${messageId}:${requestId}` : null;
+}
+
 // One assistant transcript line's usage, or null when it carries none.
 // `key` is `${message.id}:${requestId}` when either id is present; streamed
 // chunks of one API message share it, so keyed rows dedupe last-wins.
@@ -36,12 +46,9 @@ function claudeUsageRow(obj: JsonObject): ClaudeUsageRow | null {
     const msg = asObject(obj.message);
     if (!msg.usage || typeof msg.usage !== 'object') return null;
     const usage = asObject(msg.usage);
-    const messageId = typeof msg.id === 'string' ? msg.id : '';
-    const requestId = typeof obj.requestId === 'string' ? obj.requestId : '';
     return {
-        key: messageId || requestId ? `${messageId}:${requestId}` : null,
-        model:
-            typeof msg.model === 'string' && msg.model ? msg.model : 'unknown',
+        key: claudeUsageKey(msg, obj),
+        model: claudeAssistantModel(msg),
         usage: usageFromFields(usage, CLAUDE_USAGE_FIELDS),
         sidechain: obj.isSidechain === true,
     };

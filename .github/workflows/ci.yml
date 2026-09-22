@@ -16,6 +16,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: coverage
+        run: pnpm coverage
       - name: oxlint
         run: pnpm exec oxlint
       - name: oxfmt
@@ -24,5 +26,3 @@ jobs:
         run: pnpm typecheck
       - name: build
         run: pnpm build
-      - name: test
-        run: pnpm test

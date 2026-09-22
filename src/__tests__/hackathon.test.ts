@@ -6,6 +6,7 @@ import {
     hackathonLeaderboardCacheKey,
     invalidateHackathonCache,
 } from '@/lib/cached-aggregate';
+import { createHackathon } from '@/lib/hackathon';
 import { slugify } from '@/lib/slug';
 import {
     validateHackathonName,
@@ -183,5 +184,60 @@ describe('hackathon validation', () => {
             ok: true,
             value: 'sonnet',
         });
+    });
+});
+
+function hackathonDb(failInsert = false): D1Database {
+    return {
+        prepare(sql: string) {
+            return {
+                bind() {
+                    return {
+                        run: async () => {
+                            if (
+                                failInsert &&
+                                sql.includes('INSERT INTO hackathons')
+                            ) {
+                                throw new Error('slug clash');
+                            }
+                        },
+                    };
+                },
+            };
+        },
+    } as unknown as D1Database;
+}
+
+describe('createHackathon', () => {
+    it('inserts a row and joins the host', async () => {
+        const created = await createHackathon(
+            hackathonDb(),
+            {
+                name: '!!!',
+                hostUserId: 'host',
+                modelFamily: null,
+                startAt: 1,
+                endAt: 2,
+            },
+            3,
+        );
+        expect(created?.name).toBe('!!!');
+        expect(created?.slug.startsWith('hackathon-')).toBe(true);
+        expect(created?.host_user_id).toBe('host');
+    });
+
+    it('returns null when the insert fails', async () => {
+        const created = await createHackathon(
+            hackathonDb(true),
+            {
+                name: 'Sprint',
+                hostUserId: 'host',
+                modelFamily: 'sonnet',
+                startAt: 1,
+                endAt: 2,
+            },
+            3,
+        );
+        expect(created).toBeNull();
     });
 });

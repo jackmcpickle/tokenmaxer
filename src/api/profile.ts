@@ -5,6 +5,16 @@ import { rateLimit } from '@/lib/ratelimit';
 import { validateProfileUrl } from '@/lib/validate';
 import type { Env } from '@/types';
 
+function profileUrlField(
+    body: unknown,
+): { ok: true; url: unknown } | { ok: false; error: string } {
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+        return { ok: false, error: 'body must be an object' };
+    }
+    if (!('url' in body)) return { ok: false, error: 'url is required' };
+    return { ok: true, url: (body as { url?: unknown }).url };
+}
+
 const app = new Hono<{ Bindings: Env }>();
 
 // POST /api/profile  (Bearer)  { url: string | null } -> { username, url }
@@ -23,15 +33,10 @@ app.post('/profile', async (c) => {
     }
 
     const body = await c.req.json<unknown>().catch(() => null);
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-        return c.json({ error: 'body must be an object' }, 400);
-    }
-    const rawUrl = (body as { url?: unknown }).url;
-    if (!('url' in body)) {
-        return c.json({ error: 'url is required' }, 400);
-    }
+    const rawUrl = profileUrlField(body);
+    if (!rawUrl.ok) return c.json({ error: rawUrl.error }, 400);
 
-    const parsed = validateProfileUrl(rawUrl);
+    const parsed = validateProfileUrl(rawUrl.url);
     if (!parsed.ok) return c.json({ error: parsed.error }, 400);
 
     await c.env.DB.prepare('UPDATE users SET profile_url = ? WHERE id = ?')

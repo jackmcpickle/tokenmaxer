@@ -1,17 +1,15 @@
 import { forwardRef } from 'react';
 import { BoardNav } from '@/pages/components/board-nav';
-import { boardHref } from '@/pages/leaderboard-href';
-import type { Metric, TimeWindow } from '@/types';
+import {
+    filterDialogOptionHref,
+    type FilterDialogBase,
+    type FilterDimension,
+} from '@/pages/components/filter-dialog-href';
 
-export type FilterDialogBase = {
-    window: TimeWindow;
-    metric: Metric;
-    source?: string;
-    model?: string;
-    country?: string;
-};
-
-export type FilterDimension = 'source' | 'model' | 'country';
+export type {
+    FilterDialogBase,
+    FilterDimension,
+} from '@/pages/components/filter-dialog-href';
 
 export type DialogHandle = {
     showModal: () => void;
@@ -67,40 +65,11 @@ export const FilterDialog = forwardRef<
                         opt.value === undefined
                             ? active === undefined
                             : opt.value === active;
-                    const href =
-                        opt.value === undefined
-                            ? boardHref({
-                                  window: base.window,
-                                  metric: base.metric,
-                                  source:
-                                      dimension === 'source'
-                                          ? undefined
-                                          : base.source,
-                                  model:
-                                      dimension === 'model'
-                                          ? undefined
-                                          : base.model,
-                                  country:
-                                      dimension === 'country'
-                                          ? undefined
-                                          : base.country,
-                              })
-                            : boardHref({
-                                  window: base.window,
-                                  metric: base.metric,
-                                  source:
-                                      dimension === 'source'
-                                          ? opt.value
-                                          : base.source,
-                                  model:
-                                      dimension === 'model'
-                                          ? opt.value
-                                          : base.model,
-                                  country:
-                                      dimension === 'country'
-                                          ? opt.value
-                                          : base.country,
-                              });
+                    const href = filterDialogOptionHref(
+                        dimension,
+                        base,
+                        opt.value,
+                    );
                     return (
                         <BoardNav
                             key={opt.value ?? '__all__'}

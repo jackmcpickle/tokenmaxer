@@ -1,6 +1,7 @@
-import { useRef, type FC, type RefObject } from 'react';
+import { useRef, type FC } from 'react';
 import { countryName, flagEmoji } from '@/lib/countries';
 import { familyLabel } from '@/lib/model-family';
+import { openFilterDialogFromMenu } from '@/pages/components/board-filter-handlers';
 import {
     FilterDialog,
     type DialogHandle,
@@ -11,14 +12,6 @@ import { SOURCES, type Metric, type Source, type TimeWindow } from '@/types';
 
 function sourceLabel(source: string): string {
     return SOURCE_LABELS[source as Source] ?? source;
-}
-
-function openDialog(ref: RefObject<DialogHandle | null>): void {
-    ref.current?.showModal();
-}
-
-function closeMenu(menuRef: RefObject<{ open: boolean } | null>): void {
-    if (menuRef.current) menuRef.current.open = false;
 }
 
 export const BoardFilters: FC<{
@@ -54,10 +47,11 @@ export const BoardFilters: FC<{
                         data-filter-dialog="source"
                         onClick={
                             spa
-                                ? () => {
-                                      closeMenu(menuRef);
-                                      openDialog(sourceDlg);
-                                  }
+                                ? () =>
+                                      openFilterDialogFromMenu(
+                                          menuRef,
+                                          sourceDlg,
+                                      )
                                 : undefined
                         }
                     >
@@ -69,10 +63,11 @@ export const BoardFilters: FC<{
                         data-filter-dialog="model"
                         onClick={
                             spa
-                                ? () => {
-                                      closeMenu(menuRef);
-                                      openDialog(modelDlg);
-                                  }
+                                ? () =>
+                                      openFilterDialogFromMenu(
+                                          menuRef,
+                                          modelDlg,
+                                      )
                                 : undefined
                         }
                     >
@@ -85,10 +80,11 @@ export const BoardFilters: FC<{
                             data-filter-dialog="country"
                             onClick={
                                 spa
-                                    ? () => {
-                                          closeMenu(menuRef);
-                                          openDialog(countryDlg);
-                                      }
+                                    ? () =>
+                                          openFilterDialogFromMenu(
+                                              menuRef,
+                                              countryDlg,
+                                          )
                                     : undefined
                             }
                         >
