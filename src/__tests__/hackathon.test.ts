@@ -210,7 +210,7 @@ function hackathonDb(failInsert = false): D1Database {
 
 describe('createHackathon', () => {
     it('inserts a row and joins the host', async () => {
-        const row = await createHackathon(
+        const created = await createHackathon(
             hackathonDb(),
             {
                 name: '!!!',
@@ -221,13 +221,13 @@ describe('createHackathon', () => {
             },
             3,
         );
-        expect(row?.name).toBe('!!!');
-        expect(row?.slug.startsWith('hackathon-')).toBe(true);
-        expect(row?.host_user_id).toBe('host');
+        expect(created?.name).toBe('!!!');
+        expect(created?.slug.startsWith('hackathon-')).toBe(true);
+        expect(created?.host_user_id).toBe('host');
     });
 
     it('returns null when the insert fails', async () => {
-        const row = await createHackathon(
+        const created = await createHackathon(
             hackathonDb(true),
             {
                 name: 'Sprint',
@@ -238,6 +238,6 @@ describe('createHackathon', () => {
             },
             3,
         );
-        expect(row).toBeNull();
+        expect(created).toBeNull();
     });
 });
