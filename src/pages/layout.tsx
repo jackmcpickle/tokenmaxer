@@ -300,16 +300,31 @@ function LayoutShell(props: {
     );
 }
 
-export const Layout: FC<LayoutProps> = (props) => {
-    const embedded = useEmbeddedLayout();
-    const origin = props.base.replace(/\/$/u, '');
-    const description = props.description ?? SITE_DESCRIPTION;
-    const ogImage = props.ogImage ?? `${origin}/og.png`;
-    const ogUrl = props.ogUrl ?? origin;
-    const ogImageAlt = props.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT;
-    const chromeClass = props.revealChrome
+function layoutChromeClass(revealChrome?: boolean): string {
+    return revealChrome
         ? 'site-chrome site-chrome--reveal z-50 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/60 px-5 py-3.5 backdrop-blur-xl backdrop-saturate-150 sm:px-8'
         : 'site-chrome sticky top-0 z-50 mb-2 flex items-center justify-between gap-x-6 border-b border-border bg-canvas/95 px-5 py-3.5 backdrop-blur-sm sm:px-8';
+}
+
+function layoutMeta(props: LayoutProps): {
+    description: string;
+    ogImage: string;
+    ogUrl: string;
+    ogImageAlt: string;
+} {
+    const origin = props.base.replace(/\/$/u, '');
+    return {
+        description: props.description ?? SITE_DESCRIPTION,
+        ogImage: props.ogImage ?? `${origin}/og.png`,
+        ogUrl: props.ogUrl ?? origin,
+        ogImageAlt: props.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT,
+    };
+}
+
+export const Layout: FC<LayoutProps> = (props) => {
+    const embedded = useEmbeddedLayout();
+    const { description, ogImage, ogUrl, ogImageAlt } = layoutMeta(props);
+    const chromeClass = layoutChromeClass(props.revealChrome);
 
     if (embedded) {
         return (

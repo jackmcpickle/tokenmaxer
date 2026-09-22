@@ -68,6 +68,22 @@ function ingestOpencodeMessage(msg: JsonObject, ctx: OpencodeParseCtx): void {
  * column of the `message` table in opencode.db. Sums the `tokens.*` block per
  * model.
  */
+function asMessage(raw: unknown): JsonObject | null {
+    if (!raw || typeof raw !== 'object') return null;
+    return raw as JsonObject;
+}
+
+function finishOpencodeParse(
+    ctx: OpencodeParseCtx,
+    opts: ParseOpts,
+): ParsedTranscript {
+    return {
+        session_id: ctx.sessionId ?? opts.sessionId ?? null,
+        started_at: ctx.startedAt ?? opts.fallbackStartedAt ?? null,
+        models: ctx.models,
+    };
+}
+
 export function parseOpencodeMessages(
     messages: unknown[],
     opts: ParseOpts = {},
@@ -79,15 +95,12 @@ export function parseOpencodeMessages(
     };
 
     for (const raw of messages) {
-        if (!raw || typeof raw !== 'object') continue;
-        ingestOpencodeMessage(raw as JsonObject, ctx);
+        const msg = asMessage(raw);
+        if (!msg) continue;
+        ingestOpencodeMessage(msg, ctx);
     }
 
-    return {
-        session_id: ctx.sessionId ?? opts.sessionId ?? null,
-        started_at: ctx.startedAt ?? opts.fallbackStartedAt ?? null,
-        models: ctx.models,
-    };
+    return finishOpencodeParse(ctx, opts);
 }
 
 // Base data dirs, most specific first. opencode >= 1.x keeps opencode.db here;
