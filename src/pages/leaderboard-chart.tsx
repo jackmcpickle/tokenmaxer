@@ -16,6 +16,11 @@ import { BoardFilters } from '@/pages/components/board-filters';
 import { BOARD_ID, BoardScript } from '@/pages/components/board-script';
 import { Button } from '@/pages/components/button';
 import { boardHref } from '@/pages/leaderboard-href';
+import {
+    initialBoardView,
+    showMoreBoard,
+    stepBoardView,
+} from '@/pages/leaderboard-view';
 import { empty } from '@/pages/ui';
 import { METRICS, type Metric, type TimeWindow } from '@/types';
 
@@ -123,14 +128,17 @@ export const LeaderboardChart: FC<{
     const key = filterKey({ window, metric, source, model, country });
     const listRef = useRef<BoxEl | null>(null);
     const [minListHeight, setMinListHeight] = useState<number | undefined>();
-    const [displayEntries, setDisplayEntries] = useState(entries);
-    if (!pending && displayEntries !== entries) setDisplayEntries(entries);
-    const [visibleCount, setVisibleCount] = useState(BOARD_PAGE_SIZE);
-    const [visibleKey, setVisibleKey] = useState(key);
-    if (key !== visibleKey) {
-        setVisibleKey(key);
-        setVisibleCount(BOARD_PAGE_SIZE);
-    }
+    const [view, setView] = useState(() =>
+        initialBoardView(entries, key, BOARD_PAGE_SIZE),
+    );
+    const nextView = stepBoardView(view, {
+        entries,
+        pending,
+        key,
+        pageSize: BOARD_PAGE_SIZE,
+    });
+    if (nextView !== view) setView(nextView);
+    const { displayEntries, visibleCount } = nextView;
 
     useLayoutEffect(() => {
         if (!spa) return;
@@ -318,8 +326,11 @@ export const LeaderboardChart: FC<{
                                         type="button"
                                         className="w-full sm:w-auto"
                                         onClick={() =>
-                                            setVisibleCount(
-                                                (n) => n + BOARD_PAGE_SIZE,
+                                            setView((current) =>
+                                                showMoreBoard(
+                                                    current,
+                                                    BOARD_PAGE_SIZE,
+                                                ),
                                             )
                                         }
                                     >
