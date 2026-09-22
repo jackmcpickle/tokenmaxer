@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { memoryKv } from '@/__tests__/helpers/kv';
 import { hashToken } from '@/lib/auth';
+import { sessionIdFromRequest } from '@/lib/request-auth';
 import {
     consumePendingSession,
     createPendingSession,
@@ -106,5 +107,24 @@ describe('web sessions', () => {
         expect(await kv.get(`sess:pending:${await hashToken(pending)}`)).toBe(
             'u1',
         );
+    });
+});
+
+describe('sessionIdFromRequest', () => {
+    it('reads a non-empty session cookie', () => {
+        const req = new Request('https://tokenmaxer.quest/', {
+            headers: { Cookie: 'other=1; tt_session=abc; bare' },
+        });
+        expect(sessionIdFromRequest(req)).toBe('abc');
+    });
+
+    it('returns null when the cookie is missing or empty', () => {
+        expect(
+            sessionIdFromRequest(new Request('https://tokenmaxer.quest/')),
+        ).toBeNull();
+        const empty = new Request('https://tokenmaxer.quest/', {
+            headers: { Cookie: 'tt_session=' },
+        });
+        expect(sessionIdFromRequest(empty)).toBeNull();
     });
 });

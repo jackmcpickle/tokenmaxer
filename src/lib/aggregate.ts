@@ -151,6 +151,59 @@ export interface LeaderboardQuery {
     limit?: number;
 }
 
+interface FoldedUser {
+    username: string;
+    totals: Totals;
+    sessions: number;
+}
+
+function foldGroupedRows(
+    rows: readonly GroupedRow[],
+    model: string | undefined,
+): Map<string, FoldedUser> {
+    const byUser = new Map<string, FoldedUser>();
+    for (const r of rows) {
+        if (isSyntheticModel(r.model)) continue;
+        if (model && familyOf(r.model) !== model) continue;
+        let entry = byUser.get(r.user_id);
+        if (!entry) {
+            entry = {
+                username: r.username,
+                totals: emptyTotals(),
+                sessions: 0,
+            };
+            byUser.set(r.user_id, entry);
+        }
+        addRow(entry.totals, r);
+        // Approximate: a session spanning multiple models is counted per model.
+        entry.sessions += r.sessions;
+    }
+    return byUser;
+}
+
+function rankFolded(
+    byUser: ReadonlyMap<string, FoldedUser>,
+    metric: Metric,
+    limit: number | undefined,
+): LeaderboardEntry[] {
+    const entries: LeaderboardEntry[] = [];
+    for (const v of byUser.values()) {
+        entries.push({
+            rank: 0,
+            username: v.username,
+            sessions: v.sessions,
+            grand_total: grandTotal(v.totals),
+            ...v.totals,
+        });
+    }
+    entries.sort((a, b) => metricValue(b, metric) - metricValue(a, metric));
+    const limited = entries.slice(0, limit ?? 100);
+    for (const [i, entry] of limited.entries()) {
+        entry.rank = i + 1;
+    }
+    return limited;
+}
+
 export async function getLeaderboard(
     db: D1Database,
     q: LeaderboardQuery,
@@ -173,44 +226,7 @@ export async function getLeaderboard(
         .prepare(sql)
         .bind(...binds)
         .all<GroupedRow>();
-
-    const byUser = new Map<
-        string,
-        { username: string; totals: Totals; sessions: number }
-    >();
-    for (const r of res.results) {
-        if (isSyntheticModel(r.model)) continue;
-        if (q.model && familyOf(r.model) !== q.model) continue;
-        let entry = byUser.get(r.user_id);
-        if (!entry) {
-            entry = {
-                username: r.username,
-                totals: emptyTotals(),
-                sessions: 0,
-            };
-            byUser.set(r.user_id, entry);
-        }
-        addRow(entry.totals, r);
-        // Approximate: a session spanning multiple models is counted per model.
-        entry.sessions += r.sessions;
-    }
-
-    const entries: LeaderboardEntry[] = [];
-    for (const [, v] of byUser) {
-        entries.push({
-            rank: 0,
-            username: v.username,
-            sessions: v.sessions,
-            grand_total: grandTotal(v.totals),
-            ...v.totals,
-        });
-    }
-    entries.sort((a, b) => metricValue(b, q.metric) - metricValue(a, q.metric));
-    const limited = entries.slice(0, q.limit ?? 100);
-    limited.forEach((e, i) => {
-        e.rank = i + 1;
-    });
-    return limited;
+    return rankFolded(foldGroupedRows(res.results, q.model), q.metric, q.limit);
 }
 
 export interface HackathonLeaderboardQuery {
@@ -238,43 +254,7 @@ export async function getHackathonLeaderboard(
         .prepare(sql)
         .bind(q.startAt, q.endAt, ...q.memberIds)
         .all<GroupedRow>();
-
-    const byUser = new Map<
-        string,
-        { username: string; totals: Totals; sessions: number }
-    >();
-    for (const r of res.results) {
-        if (isSyntheticModel(r.model)) continue;
-        if (q.model && familyOf(r.model) !== q.model) continue;
-        let entry = byUser.get(r.user_id);
-        if (!entry) {
-            entry = {
-                username: r.username,
-                totals: emptyTotals(),
-                sessions: 0,
-            };
-            byUser.set(r.user_id, entry);
-        }
-        addRow(entry.totals, r);
-        entry.sessions += r.sessions;
-    }
-
-    const entries: LeaderboardEntry[] = [];
-    for (const [, v] of byUser) {
-        entries.push({
-            rank: 0,
-            username: v.username,
-            sessions: v.sessions,
-            grand_total: grandTotal(v.totals),
-            ...v.totals,
-        });
-    }
-    entries.sort((a, b) => metricValue(b, q.metric) - metricValue(a, q.metric));
-    const limited = entries.slice(0, q.limit ?? 100);
-    limited.forEach((e, i) => {
-        e.rank = i + 1;
-    });
-    return limited;
+    return rankFolded(foldGroupedRows(res.results, q.model), q.metric, q.limit);
 }
 
 export async function getDistinctModels(db: D1Database): Promise<string[]> {

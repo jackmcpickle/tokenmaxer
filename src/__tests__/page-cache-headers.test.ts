@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { stubKv } from '@/__tests__/helpers/kv';
 import app from '@/index';
+import { pageCacheKey } from '@/lib/page-cache';
 import type { Env } from '@/types';
 
 function emptyDb(): D1Database {
@@ -79,5 +80,28 @@ describe('public read Cache-Control', () => {
         );
         expect(res.status).toBe(404);
         expect(res.headers.get('Cache-Control')).toBeNull();
+    });
+});
+
+describe('pageCacheKey', () => {
+    it('buckets preview bots separately from browsers', () => {
+        const browser = {
+            req: {
+                url: 'https://tokenmaxer.quest/',
+                header: () => 'Mozilla/5.0',
+            },
+        };
+        const bot = {
+            req: {
+                url: 'https://tokenmaxer.quest/',
+                header: () => 'Slackbot-LinkExpanding 1.0',
+            },
+        };
+        expect(pageCacheKey(browser as never)).toBe(
+            'https://tokenmaxer.quest/::preview=0',
+        );
+        expect(pageCacheKey(bot as never)).toBe(
+            'https://tokenmaxer.quest/::preview=1',
+        );
     });
 });
