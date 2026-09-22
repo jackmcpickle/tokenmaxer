@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// The reporter is a plain .mjs module; import its exported pure functions.
-import type { ReporterRow } from '../../reporter/tokentally.mjs';
+// Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
+import type { ReporterRow } from '../../reporter/src/lib/types';
 import {
     collectOpencodeRows,
     parseOpencodeMessages,
-} from '../../reporter/tokentally.mjs';
+} from '../../reporter/src/tokentally';
 
 // opencode >= 1.x stores messages in opencode.db; older versions wrote one JSON
 // file per message under storage/message/<sessionID>/.

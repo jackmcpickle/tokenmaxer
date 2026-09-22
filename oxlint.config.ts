@@ -122,6 +122,7 @@ export default defineConfig({
         'jsx-a11y/control-has-associated-label': 'error',
         'jsx-a11y/prefer-tag-over-role': 'error',
         'typescript/prefer-readonly-parameter-types': 'off',
+        'crap/crap': ['warn', { maxCrap: 8, lcovPath: 'coverage/lcov.info' }],
     },
     categories: {
         perf: 'error',
@@ -138,8 +139,15 @@ export default defineConfig({
         'jsx-a11y',
         'react-perf',
     ],
+    jsPlugins: ['eslint-plugin-crap'],
     ignorePatterns: ['node_modules/', 'build/', 'dist/', 'static/'],
     overrides: [
+        {
+            files: ['src/__tests__/**'],
+            rules: {
+                'crap/crap': 'off',
+            },
+        },
         {
             files: ['*.test.*', '*.spec.*'],
             rules: {
@@ -167,6 +175,7 @@ export default defineConfig({
                         allow: ['__routeComponent'],
                     },
                 ],
+                'crap/crap': 'off',
             },
         },
         {
@@ -178,18 +187,26 @@ export default defineConfig({
         },
         {
             // TanStack Start entry + file routes (framework conventions).
-            files: [
-                'src/server.ts',
-                'src/router.tsx',
-                'src/routeTree.gen.ts',
-                'src/routes/**',
-            ],
+            files: ['src/server.ts', 'src/router.tsx', 'src/routes/**'],
             rules: {
                 'import/no-default-export': 'off',
                 'import/no-unassigned-import': 'off',
                 'react/no-multi-comp': 'off',
                 'typescript/explicit-function-return-type': 'off',
                 'typescript/explicit-module-boundary-types': 'off',
+                // TanStack file routes + worker entry — exercised via E2E/SSR, not unit lcov.
+                'crap/crap': 'off',
+            },
+        },
+        {
+            files: ['src/routeTree.gen.ts'],
+            rules: {
+                'import/no-default-export': 'off',
+                'import/no-unassigned-import': 'off',
+                'react/no-multi-comp': 'off',
+                'typescript/explicit-function-return-type': 'off',
+                'typescript/explicit-module-boundary-types': 'off',
+                'crap/crap': 'off',
             },
         },
         {
@@ -208,6 +225,7 @@ export default defineConfig({
             files: ['scripts/**'],
             rules: {
                 'no-console': 'off',
+                'crap/crap': 'off',
             },
         },
         {
@@ -227,6 +245,7 @@ export default defineConfig({
                 'import/no-relative-parent-imports': 'off',
                 // ?raw default export is provided by vite, invisible to the linter.
                 'import/default': 'off',
+                'crap/crap': 'off',
             },
         },
         {
@@ -246,6 +265,7 @@ export default defineConfig({
             files: ['reporter/src/agents/codex-engine.ts'],
             rules: {
                 complexity: 'off',
+                'crap/crap': 'off',
             },
         },
         {
@@ -259,12 +279,14 @@ export default defineConfig({
             files: ['*.config.ts'],
             rules: {
                 'import/no-default-export': 'off',
+                'crap/crap': 'off',
             },
         },
         {
             files: ['*.d.ts'],
             rules: {
                 'import/unambiguous': 'off',
+                'crap/crap': 'off',
             },
         },
     ],

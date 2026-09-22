@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-// The reporter is a plain .mjs module; import its exported pure functions.
+// Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
 import {
     cursorFetchEvents,
     parseCursorEvents,
     parsePiRollout,
-} from '../../reporter/tokentally.mjs';
+} from '../../reporter/src/tokentally';
 
 describe('parsePiRollout model_change attribution', () => {
     it('attributes usage to the model from the latest model_change', () => {

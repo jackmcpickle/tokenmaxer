@@ -18,6 +18,44 @@ function isLocalDevRequest(c: Context): boolean {
     }
 }
 
+function honoCacheOptions(options: {
+    cacheName: string;
+    vary?: string[];
+    keyGenerator?: (c: Context) => string | Promise<string>;
+}): {
+    cacheName: string;
+    cacheControl: string;
+    vary?: string[];
+    keyGenerator?: (c: Context) => string | Promise<string>;
+    onCacheNotAvailable: false;
+} {
+    return {
+        cacheName: options.cacheName,
+        cacheControl: CACHE_CONTROL,
+        ...(options.vary ? { vary: options.vary } : {}),
+        ...(options.keyGenerator ? { keyGenerator: options.keyGenerator } : {}),
+        onCacheNotAvailable: false as const,
+    };
+}
+
+function applyFallbackCacheHeaders(
+    c: Context,
+    local: boolean,
+    varyHeader: string | undefined,
+): void {
+    if (c.res.status === 200 && !c.res.headers.has('Cache-Control')) {
+        // Avoid pinning browsers to a 10-minute HTML snapshot during local iteration.
+        c.header('Cache-Control', local ? 'no-store' : CACHE_CONTROL);
+    }
+    if (varyHeader && !c.res.headers.has('Vary')) {
+        c.header('Vary', varyHeader);
+    }
+}
+
+function workersCacheAvailable(local: boolean): boolean {
+    return 'caches' in globalThis && !local;
+}
+
 /**
  * Cache API when available (Cloudflare Workers). Always sets Cache-Control so
  * clients/CDNs can reuse the response even when `caches` is missing (tests).
@@ -29,28 +67,24 @@ function createCacheMiddleware(options: {
     keyGenerator?: (c: Context) => string | Promise<string>;
 }): MiddlewareHandler {
     const varyHeader = options.vary?.join(', ');
-    const honoCache = cache({
-        cacheName: options.cacheName,
-        cacheControl: CACHE_CONTROL,
-        ...(options.vary ? { vary: options.vary } : {}),
-        ...(options.keyGenerator ? { keyGenerator: options.keyGenerator } : {}),
-        onCacheNotAvailable: false,
-    });
+    const honoCache = cache(honoCacheOptions(options));
 
-    return async (c, next) => {
+    return async function pageCacheMiddleware(c, next) {
         const local = isLocalDevRequest(c);
-        if ('caches' in globalThis && !local) {
+        if (workersCacheAvailable(local)) {
             return honoCache(c, next);
         }
         await next();
-        if (c.res.status === 200 && !c.res.headers.has('Cache-Control')) {
-            // Avoid pinning browsers to a 10-minute HTML snapshot during local iteration.
-            c.header('Cache-Control', local ? 'no-store' : CACHE_CONTROL);
-        }
-        if (varyHeader && !c.res.headers.has('Vary')) {
-            c.header('Vary', varyHeader);
-        }
+        applyFallbackCacheHeaders(c, local, varyHeader);
     };
+}
+
+/** Workers cache key for negotiated page HTML (preview-bot bucket). */
+export function pageCacheKey(c: Context): string {
+    const preview = isLinkPreviewBot(c.req.header('user-agent') ?? '')
+        ? '1'
+        : '0';
+    return `${c.req.url}::preview=${preview}`;
 }
 
 /**
@@ -61,12 +95,7 @@ function createCacheMiddleware(options: {
 export const pageCache = createCacheMiddleware({
     cacheName: 'tokentally-pages',
     vary: [...AGENT_PAGE_VARY_HEADERS],
-    keyGenerator: (c) => {
-        const preview = isLinkPreviewBot(c.req.header('user-agent') ?? '')
-            ? '1'
-            : '0';
-        return `${c.req.url}::preview=${preview}`;
-    },
+    keyGenerator: pageCacheKey,
 });
 
 export const apiCache = createCacheMiddleware({

@@ -47,6 +47,21 @@ function accumulateOpencodeTokens(
     );
 }
 
+interface OpencodeParseCtx {
+    sessionId: string | null;
+    startedAt: number | null;
+    models: Map<string, ReporterTotals>;
+}
+
+function ingestOpencodeMessage(msg: JsonObject, ctx: OpencodeParseCtx): void {
+    if (!ctx.sessionId && typeof msg.sessionID === 'string')
+        ctx.sessionId = msg.sessionID;
+    const ts = opencodeTimestamp(msg);
+    if (ts !== null && (ctx.startedAt === null || ts < ctx.startedAt))
+        ctx.startedAt = ts;
+    if (msg.role === 'assistant') accumulateOpencodeTokens(ctx.models, msg);
+}
+
 /**
  * Parse a set of opencode assistant messages. The message object is the same
  * shape whether it came from a legacy `msg_*.json` file or from the `data`
@@ -57,25 +72,21 @@ export function parseOpencodeMessages(
     messages: unknown[],
     opts: ParseOpts = {},
 ): ParsedTranscript {
-    const models = new Map<string, ReporterTotals>();
-    let sessionId = opts.sessionId ?? null;
-    let startedAt: number | null = null;
+    const ctx: OpencodeParseCtx = {
+        sessionId: opts.sessionId ?? null,
+        startedAt: null,
+        models: new Map(),
+    };
 
     for (const raw of messages) {
         if (!raw || typeof raw !== 'object') continue;
-        const msg = raw as JsonObject;
-        if (!sessionId && typeof msg.sessionID === 'string')
-            sessionId = msg.sessionID;
-        const ts = opencodeTimestamp(msg);
-        if (ts !== null && (startedAt === null || ts < startedAt))
-            startedAt = ts;
-        if (msg.role === 'assistant') accumulateOpencodeTokens(models, msg);
+        ingestOpencodeMessage(raw as JsonObject, ctx);
     }
 
     return {
-        session_id: sessionId ?? opts.sessionId ?? null,
-        started_at: startedAt ?? opts.fallbackStartedAt ?? null,
-        models,
+        session_id: ctx.sessionId ?? opts.sessionId ?? null,
+        started_at: ctx.startedAt ?? opts.fallbackStartedAt ?? null,
+        models: ctx.models,
     };
 }
 

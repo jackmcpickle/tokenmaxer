@@ -98,29 +98,39 @@ export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const MAX_PROFILE_URL_LEN = 2048;
 
-export function validateProfileUrl(raw: unknown): Result<string | null> {
-    if (raw === null) return { ok: true, value: null };
-    if (typeof raw !== 'string') {
-        return { ok: false, error: 'url must be a string or null' };
-    }
-    const trimmed = raw.trim();
-    if (trimmed.length === 0) return { ok: true, value: null };
-    if (trimmed.length > MAX_PROFILE_URL_LEN) {
-        return { ok: false, error: 'url too long' };
-    }
+function fail<T>(error: string): Result<T> {
+    return { ok: false, error };
+}
+
+function parseHttpsUrl(trimmed: string): Result<URL> {
     let parsed: URL;
     try {
         parsed = new URL(trimmed);
     } catch {
-        return { ok: false, error: 'url must be a valid https URL' };
+        return fail('url must be a valid https URL');
     }
     if (parsed.protocol !== 'https:') {
-        return { ok: false, error: 'url must use https' };
+        return fail('url must use https');
     }
     if (parsed.username || parsed.password) {
-        return { ok: false, error: 'url must not include credentials' };
+        return fail('url must not include credentials');
     }
-    return { ok: true, value: parsed.href };
+    return { ok: true, value: parsed };
+}
+
+export function validateProfileUrl(raw: unknown): Result<string | null> {
+    if (raw === null) return { ok: true, value: null };
+    if (typeof raw !== 'string') {
+        return fail('url must be a string or null');
+    }
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return { ok: true, value: null };
+    if (trimmed.length > MAX_PROFILE_URL_LEN) {
+        return fail('url too long');
+    }
+    const parsed = parseHttpsUrl(trimmed);
+    if (!parsed.ok) return parsed;
+    return { ok: true, value: parsed.value.href };
 }
 
 export function validateUsername(raw: unknown): Result<string> {

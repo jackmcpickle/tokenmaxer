@@ -169,23 +169,20 @@ export const Start: FC<{
             if (res.ok === false) {
                 setError(data.error || 'Registration failed');
                 resetTurnstile();
-                return;
-            }
-            if (
+            } else if (
                 typeof data.username !== 'string' ||
                 typeof data.token !== 'string'
             ) {
                 setError('Registration failed');
                 resetTurnstile();
-                return;
+            } else {
+                setClaimed({ username: data.username, token: data.token });
             }
-            setClaimed({ username: data.username, token: data.token });
         } catch {
             setError('Network error, please retry.');
             resetTurnstile();
-        } finally {
-            setClaiming(false);
         }
+        setClaiming(false);
     }
 
     return (

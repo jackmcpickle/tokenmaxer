@@ -1,5 +1,4 @@
 import {
-    useEffect,
     useLayoutEffect,
     useRef,
     useState,
@@ -125,16 +124,13 @@ export const LeaderboardChart: FC<{
     const listRef = useRef<BoxEl | null>(null);
     const [minListHeight, setMinListHeight] = useState<number | undefined>();
     const [displayEntries, setDisplayEntries] = useState(entries);
+    if (!pending && displayEntries !== entries) setDisplayEntries(entries);
     const [visibleCount, setVisibleCount] = useState(BOARD_PAGE_SIZE);
-
-    // Keep prior rows visible while the next filter load is in flight.
-    useEffect(() => {
-        if (!pending) setDisplayEntries(entries);
-    }, [entries, pending]);
-
-    useEffect(() => {
+    const [visibleKey, setVisibleKey] = useState(key);
+    if (key !== visibleKey) {
+        setVisibleKey(key);
         setVisibleCount(BOARD_PAGE_SIZE);
-    }, [key]);
+    }
 
     useLayoutEffect(() => {
         if (!spa) return;

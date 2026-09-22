@@ -15,10 +15,19 @@ export interface HackathonRow {
 
 export type HackathonState = 'upcoming' | 'live' | 'ended';
 
+const HACKATHON_STATE_RULES: ReadonlyArray<{
+    state: HackathonState;
+    matches: (h: HackathonRow, now: number) => boolean;
+}> = [
+    { state: 'upcoming', matches: (h, now) => now < h.start_at },
+    { state: 'ended', matches: (h, now) => now >= h.end_at },
+];
+
 export function hackathonState(h: HackathonRow, now: number): HackathonState {
-    if (now < h.start_at) return 'upcoming';
-    if (now >= h.end_at) return 'ended';
-    return 'live';
+    return (
+        HACKATHON_STATE_RULES.find(({ matches }) => matches(h, now))?.state ??
+        'live'
+    );
 }
 
 export interface CreateHackathonInput {

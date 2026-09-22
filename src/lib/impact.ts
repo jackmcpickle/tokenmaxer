@@ -181,21 +181,16 @@ export function impactValue(est: ImpactEstimate, metric: ImpactMetric): number {
     }
 }
 
+const HOUSEHOLD_WINDOW_DAYS: Record<TimeWindow, number> = {
+    today: 1,
+    '7d': 7,
+    '30d': 30,
+    all: 30,
+};
+
 /** Days in the household comparison window (`all` → 30). */
 export function householdWindowDays(window: TimeWindow): number {
-    switch (window) {
-        case 'today':
-            return 1;
-        case '7d':
-            return 7;
-        case '30d':
-        case 'all':
-            return 30;
-        default: {
-            const exhaustive: never = window;
-            return exhaustive;
-        }
-    }
+    return HOUSEHOLD_WINDOW_DAYS[window];
 }
 
 /** Household baseline in the same units as the impact metric, for the window. */
@@ -239,21 +234,15 @@ function formatScaled(n: number, unit: string): string {
     return `${trimNum(n, n < 10 ? 2 : 1)} ${unit}`;
 }
 
+const FORMAT_IMPACT: Record<ImpactMetric, (n: number) => string> = {
+    energy: (n) =>
+        n < 1 ? `${trimNum(n * 1000, 1)} Wh` : formatScaled(n, 'kWh'),
+    water: (n) => (n < 1 ? `${trimNum(n * 1000, 0)} mL` : formatScaled(n, 'L')),
+    co2: (n) => (n < 1 ? `${trimNum(n * 1000, 0)} g` : formatScaled(n, 'kg')),
+};
+
 export function formatImpact(metric: ImpactMetric, n: number): string {
-    switch (metric) {
-        case 'energy':
-            return n < 1
-                ? `${trimNum(n * 1000, 1)} Wh`
-                : formatScaled(n, 'kWh');
-        case 'water':
-            return n < 1 ? `${trimNum(n * 1000, 0)} mL` : formatScaled(n, 'L');
-        case 'co2':
-            return n < 1 ? `${trimNum(n * 1000, 0)} g` : formatScaled(n, 'kg');
-        default: {
-            const exhaustive: never = metric;
-            return exhaustive;
-        }
-    }
+    return FORMAT_IMPACT[metric](n);
 }
 
 export function formatHouseholdPercent(
