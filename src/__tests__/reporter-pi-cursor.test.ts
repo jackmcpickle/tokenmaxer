@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReporterTotals } from '../../reporter/src/lib/types';
 // Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
 import {
     cursorFetchEvents,
     parseCursorEvents,
     parsePiRollout,
 } from '../../reporter/src/tokentally';
-import type { ReporterTotals } from '../../reporter/src/lib/types';
 
 // Task 3 puts a session's whole total on one day; assert that's still true
 // while unwrapping the per-day map down to the totals tests already expect.

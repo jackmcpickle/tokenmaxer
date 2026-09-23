@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { ReporterTotals } from '../../reporter/src/lib/types';
 // Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
 import {
     codexForkResolverFor,
@@ -23,7 +24,6 @@ import {
     sessionIdFromPath,
     toRows,
 } from '../../reporter/src/tokentally';
-import type { ReporterTotals } from '../../reporter/src/lib/types';
 
 // Task 3 puts a session's whole total on one day; assert that's still true
 // while unwrapping the per-day map down to the totals tests already expect.
