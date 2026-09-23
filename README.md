@@ -30,11 +30,18 @@ sending them.
   (deduped by `id`, since pi stores a branching tree)
 - **Cursor** — dashboard API fetch via local auth (reporter calls `cursor-sync`)
 
+Each row is your usage for one tool, session, model and day, where `day` is the
+calendar day **on the machine that reported it**. Leaderboard windows are whole
+calendar days (`today` is your local date; `7d` is that date plus the six
+before it), so a long-running session contributes to every day it touched
+instead of booking its lifetime total to the day it opened.
+
 Reporting fires on Claude Code / Codex **SessionStart** / **SessionEnd** hooks (no cron,
 no daemon). opencode and pi have no shell hooks, so a small **shell wrapper function**
-runs the reporter each time they exit. Every session is keyed by its id and the server
-**upserts** rather than adds, so re-reporting the same session never double-counts —
-which is what makes combining start + end (and the start-only catch-ups) safe.
+runs the reporter each time they exit. Each row is scoped to one user, tool, session,
+model, and day, and re-reporting a session **replaces** every row it owns rather than
+adding to them, so reporting the same session twice never double-counts — which is what
+makes combining start + end (and the start-only catch-ups) safe.
 
 Token counts are **self-reported** — this is an honor system with light guardrails
 (bearer auth, rate limits, sanity caps). See `/about`.
@@ -57,17 +64,17 @@ reporter/src/        # reporter modules (strict TS; esbuild → tokentally.mjs f
 
 ## API
 
-| Method | Path                | Auth   | Purpose                                             |
-| ------ | ------------------- | ------ | --------------------------------------------------- |
-| POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`              |
-| POST   | `/api/token/rotate` | Bearer | rotate your token                                   |
-| GET    | `/api/whoami`       | Bearer | `{username}` for the token                          |
-| POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[]}` (live reporting)      |
-| POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[]}` (past history) |
-| POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)       |
-| GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=`            |
-| GET    | `/api/u/:username`  | —      | profile totals + breakdown                          |
-| GET    | `/api/health`       | —      | `{name, version}`                                   |
+| Method | Path                | Auth   | Purpose                                                                |
+| ------ | ------------------- | ------ | ---------------------------------------------------------------------- |
+| POST   | `/api/register`     | —      | `{username}` → `{id, username, token}`                                 |
+| POST   | `/api/token/rotate` | Bearer | rotate your token                                                      |
+| GET    | `/api/whoami`       | Bearer | `{username}` for the token                                             |
+| POST   | `/api/ingest`       | Bearer | upsert `{source, sessions[], replace_sessions?}` (live reporting)      |
+| POST   | `/api/history`      | Bearer | bulk backfill `{source, sessions[], replace_sessions?}` (past history) |
+| POST   | `/api/profile`      | Bearer | set/clear `{url}` (https public profile link)                          |
+| GET    | `/api/leaderboard`  | —      | `?window=&metric=&source=&model=&limit=`                               |
+| GET    | `/api/u/:username`  | —      | profile totals + breakdown                                             |
+| GET    | `/api/health`       | —      | `{name, version}`                                                      |
 
 `window` ∈ `today|7d|30d|all`, `metric` ∈ `total|input|output|cached|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor`.
 
@@ -180,8 +187,14 @@ tokenmaxer whoami                 # print the username for that token
 Backfill posts to a dedicated **`POST /api/history`** endpoint (Bearer auth) rather than
 `/api/ingest`. It's a separate route with its own rate-limit bucket and a larger
 per-request cap, so a big one-time upload doesn't eat into the live reporting budget.
-Uploads are the same idempotent upsert as `/api/ingest` — keyed by session id — so it's
-safe to run backfill while the hooks are active and safe to re-run.
+Uploads use the same idempotent upsert as `/api/ingest` — each row scoped to one user,
+tool, session, model, and day — so it's safe to run backfill while the hooks are active
+and safe to re-run.
+
+If you were reporting before local-day attribution shipped, run `tokenmaxer backfill`
+once — existing data keeps its old day attribution until you do. Cursor backfill only
+reaches back 90 days (`reporter/src/commands.ts`), so Cursor days older than that can't
+be re-derived at all.
 
 ## Pricing
 

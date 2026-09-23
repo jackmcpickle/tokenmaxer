@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { ReporterTotals } from '../../reporter/src/lib/types';
 // Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
 import {
     codexForkResolverFor,
@@ -23,6 +24,18 @@ import {
     sessionIdFromPath,
     toRows,
 } from '../../reporter/src/tokentally';
+
+// Task 3 puts a session's whole total on one day; assert that's still true
+// while unwrapping the per-day map down to the totals tests already expect.
+function dayTotals(
+    parsed: { models: Map<string, Map<number, ReporterTotals>> },
+    model: string,
+): ReporterTotals | undefined {
+    const byDay = parsed.models.get(model);
+    if (!byDay) return undefined;
+    expect(byDay.size).toBe(1);
+    return [...byDay.values()][0];
+}
 
 const CLAUDE = [
     JSON.stringify({
@@ -106,7 +119,7 @@ describe('parseClaudeTranscript', () => {
         const parsed = parseClaudeTranscript(CLAUDE);
         expect(parsed.session_id).toBe('sess-abc');
         expect(parsed.started_at).toBe(Date.parse('2026-07-18T10:00:00Z'));
-        const t = parsed.models.get('claude-opus-4-8-20260101');
+        const t = dayTotals(parsed, 'claude-opus-4-8-20260101');
         expect(t).toBeDefined();
         if (!t) throw new Error('expected claude-opus model usage');
         expect(t.input_tokens).toBe(110);
@@ -145,7 +158,7 @@ describe('parseClaudeTranscript', () => {
                 }),
             ].join('\n'),
         );
-        const t = parsed.models.get('claude-sonnet-5');
+        const t = dayTotals(parsed, 'claude-sonnet-5');
         expect(t?.input_tokens).toBe(100);
         expect(t?.output_tokens).toBe(90);
         expect(t?.cache_read_tokens).toBe(400);
@@ -174,7 +187,7 @@ describe('parseClaudeTranscript', () => {
                 }),
             ].join('\n'),
         );
-        const t = parsed.models.get('claude-sonnet-5');
+        const t = dayTotals(parsed, 'claude-sonnet-5');
         expect(t?.input_tokens).toBe(10);
         expect(t?.output_tokens).toBe(5);
     });
@@ -209,7 +222,7 @@ describe('parseClaudeTranscript', () => {
                 unkeyedLine,
             ].join('\n'),
         );
-        const t = parsed.models.get('claude-sonnet-5');
+        const t = dayTotals(parsed, 'claude-sonnet-5');
         expect(t?.input_tokens).toBe(100 + 100 + 7 + 7);
         expect(t?.output_tokens).toBe(10 + 20 + 3 + 3);
     });
@@ -231,7 +244,7 @@ describe('parseClaudeTranscript', () => {
             [line('claude-sonnet-5'), line('claude-opus-4-8')].join('\n'),
         );
         expect(parsed.models.has('claude-sonnet-5')).toBe(false);
-        expect(parsed.models.get('claude-opus-4-8')?.input_tokens).toBe(5);
+        expect(dayTotals(parsed, 'claude-opus-4-8')?.input_tokens).toBe(5);
     });
 
     it('drops <synthetic> model rows from toRows', () => {
@@ -267,8 +280,8 @@ describe('parseCodexRollout', () => {
     it('attributes each turn to the active model', () => {
         const parsed = parseCodexRollout(CODEX);
         expect(parsed.session_id).toBe('codex-xyz');
-        const gpt = parsed.models.get('gpt-5-codex');
-        const o3 = parsed.models.get('o3');
+        const gpt = dayTotals(parsed, 'gpt-5-codex');
+        const o3 = dayTotals(parsed, 'o3');
         expect(gpt).toBeDefined();
         expect(o3).toBeDefined();
         if (!gpt || !o3)
@@ -340,7 +353,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
                 tc(codexUsage(100, 0, 10), codexUsage(100, 0, 10)),
             ].join('\n'),
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(100);
         expect(t?.output_tokens).toBe(10);
     });
@@ -354,7 +367,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
                 tc(codexUsage(110, 0, 11), codexUsage(100, 0, 10)),
             ].join('\n'),
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(110);
         expect(t?.output_tokens).toBe(11);
     });
@@ -370,7 +383,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
             ].join('\n'),
         );
         // Post-latch containment: growth only above max(watermark, counted).
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(200);
         expect(t?.output_tokens).toBe(20);
     });
@@ -385,7 +398,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
                 tc(codexUsage(20, 0, 2), codexUsage(20, 0, 2)),
             ].join('\n'),
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(100);
         expect(t?.output_tokens).toBe(10);
     });
@@ -398,7 +411,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
                 tc(null, codexUsage(200, 160, 20, 4)),
             ].join('\n'),
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(300);
         expect(t?.cache_read_tokens).toBe(240);
         expect(t?.reasoning_tokens).toBe(6);
@@ -418,7 +431,7 @@ describe('parseCodexRollout cumulative totals arbitration', () => {
         );
         expect(parsed.session_id).toBe('s1');
         expect(parsed.parent_id).toBeNull();
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(150);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(150);
     });
 });
 
@@ -435,11 +448,11 @@ describe('parseCodexRollout subagent rollouts', () => {
             ].join('\n'),
         );
         expect(parsed.parent_id).toBe('parent-1');
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(30);
         expect(t?.output_tokens).toBe(5);
         // The dropped replay still pins a zero row for overwrite repair.
-        const replayModel = parsed.models.get('unknown');
+        const replayModel = dayTotals(parsed, 'unknown');
         expect(replayModel?.input_tokens).toBe(0);
     });
 
@@ -457,7 +470,7 @@ describe('parseCodexRollout subagent rollouts', () => {
         );
         // Blank lines never consume a line index (CodexBar's scanner does
         // not emit them), so the copied prefix is still dropped.
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(30);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(30);
     });
 
     it('handles an owned suffix whose counter restarts from zero', () => {
@@ -472,7 +485,7 @@ describe('parseCodexRollout subagent rollouts', () => {
                 tc(codexUsage(30, 0, 5), codexUsage(30, 0, 5)),
             ].join('\n'),
         );
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(30);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(30);
     });
 
     it('emits only zero rows for a fully copied prefix without a boundary', () => {
@@ -524,11 +537,11 @@ describe('parseCodexRollout subagent rollouts', () => {
             { resolveParent: () => ({ unresolved: true }) },
         );
         expect(parsed.parent_id).toBe('parent-1');
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(11);
         expect(t?.output_tokens).toBe(5);
         // Dropped replay pins a zero row for overwrite repair.
-        expect(parsed.models.get('unknown')?.input_tokens).toBe(0);
+        expect(dayTotals(parsed, 'unknown')?.input_tokens).toBe(0);
     });
 
     it('keeps a totals-bearing independent child intact across a mid-session marker', () => {
@@ -554,7 +567,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             ].join('\n'),
             { resolveParent: () => ({ unresolved: true }) },
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(800);
         expect(t?.output_tokens).toBe(160);
     });
@@ -581,7 +594,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             ].join('\n'),
             { resolveParent: () => ({ unresolved: true }) },
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(11);
         expect(parsed.models.has('unknown')).toBe(false);
     });
@@ -612,7 +625,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             },
         );
         expect(parsed.parent_id).toBeNull();
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(111);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(111);
     });
 
     it('cuts at the marker when a last-only replay embeds the parent meta', () => {
@@ -641,7 +654,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             ].join('\n'),
             { resolveParent: () => ({ unresolved: true }) },
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(11);
         expect(t?.output_tokens).toBe(5);
     });
@@ -671,7 +684,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             ].join('\n'),
             { resolveParent: () => ({ resolved: usageTotals(5000, 0, 500) }) },
         );
-        const t = parsed.models.get('unknown');
+        const t = dayTotals(parsed, 'unknown');
         expect(t?.input_tokens).toBe(30);
         expect(t?.output_tokens).toBe(5);
     });
@@ -689,7 +702,7 @@ describe('parseCodexRollout subagent rollouts', () => {
             { resolveParent: () => ({ resolved: usageTotals(100, 0, 10) }) },
         );
         expect(parsed.parent_id).toBeNull();
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(100);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(100);
     });
 
     it('counts a genuinely independent subagent rollout in full', () => {
@@ -701,8 +714,8 @@ describe('parseCodexRollout subagent rollouts', () => {
                 tc(codexUsage(70, 0, 7), codexUsage(30, 0, 3)),
             ].join('\n'),
         );
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(70);
-        expect(parsed.models.get('gpt-5-codex')?.output_tokens).toBe(7);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(70);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.output_tokens).toBe(7);
     });
 });
 
@@ -724,7 +737,7 @@ describe('parseCodexRollout forks', () => {
             ].join('\n'),
             { resolveParent: () => ({ resolved: usageTotals(70, 0, 7) }) },
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(50);
         expect(t?.output_tokens).toBe(5);
     });
@@ -740,7 +753,7 @@ describe('parseCodexRollout forks', () => {
             ].join('\n'),
             { resolveParent: () => ({ unresolved: true }) },
         );
-        const t = parsed.models.get('gpt-5-codex');
+        const t = dayTotals(parsed, 'gpt-5-codex');
         expect(t?.input_tokens).toBe(30);
         expect(t?.output_tokens).toBe(3);
     });
@@ -754,7 +767,7 @@ describe('parseCodexRollout forks', () => {
                 tc(codexUsage(130, 0, 13), codexUsage(30, 0, 3)),
             ].join('\n'),
         );
-        expect(parsed.models.get('gpt-5-codex')?.input_tokens).toBe(130);
+        expect(dayTotals(parsed, 'gpt-5-codex')?.input_tokens).toBe(130);
     });
 });
 
@@ -893,7 +906,7 @@ describe('parseOpencodeMessages', () => {
         const parsed = parseOpencodeMessages(OPENCODE_MESSAGES);
         expect(parsed.session_id).toBe('ses_abc');
         expect(parsed.started_at).toBe(Date.parse('2026-07-18T08:00:00Z'));
-        const t = parsed.models.get('claude-sonnet-4-20250514');
+        const t = dayTotals(parsed, 'claude-sonnet-4-20250514');
         expect(t).toBeDefined();
         if (!t) throw new Error('expected opencode model usage');
         expect(t.input_tokens).toBe(110);
@@ -958,7 +971,7 @@ describe('parsePiRollout', () => {
         const parsed = parsePiRollout(lines);
         expect(parsed.session_id).toBe('pi-123');
         expect(parsed.started_at).toBe(Date.parse('2026-07-18T07:00:00Z'));
-        const t = parsed.models.get('kimi-k2');
+        const t = dayTotals(parsed, 'kimi-k2');
         expect(t).toBeDefined();
         if (!t) throw new Error('expected pi model usage');
         expect(t.input_tokens).toBe(150);

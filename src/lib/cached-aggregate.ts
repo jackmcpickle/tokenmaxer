@@ -11,6 +11,7 @@ import {
     type Profile,
     type ProfileWindowTotals,
 } from '@/lib/aggregate';
+import { dayFromMs, shiftDay } from '@/lib/day';
 import {
     getOrSet,
     HACKATHON_CACHE_TTL_SECONDS,
@@ -20,8 +21,10 @@ import type { Metric, TimeWindow } from '@/types';
 
 export function leaderboardCacheKey(query: LeaderboardQuery): string {
     return [
-        'agg:lb:v1',
+        'agg:lb:v2',
         query.window,
+        // The resolved day, so viewers in different zones never share a board.
+        String(query.startDay),
         query.metric,
         query.source ?? '',
         query.model ?? '',
@@ -31,24 +34,42 @@ export function leaderboardCacheKey(query: LeaderboardQuery): string {
 }
 
 export function profileCacheKey(username: string): string {
-    return `agg:profile:v1:${username.toLowerCase()}`;
+    return `agg:profile:v2:${username.toLowerCase()}`;
 }
 
 export function profileWindowCacheKey(
     username: string,
     window: TimeWindow,
+    startDay: number,
 ): string {
-    return `agg:profile${window}:v1:${username.toLowerCase()}`;
+    return `agg:profile${window}:v2:${username.toLowerCase()}:${startDay}`;
 }
 
-/** Drop a user's profile aggregates after ingest/history so the next read is fresh. */
+/**
+ * Drop a user's profile aggregates after ingest/history so the next read is
+ * fresh. The only windowed consumer is `og.ts`, and it always resolves its 7d
+ * window in UTC (`windowStartDay('7d', now, 'UTC')`), so every windowed key
+ * that can ever exist has the shape `shiftDay(D, -6)` for the UTC day `D` in
+ * effect when it was *written*. A KV entry's key is fixed at write time and
+ * stays live for READ_CACHE_TTL_SECONDS (600s) after that — so within ten
+ * minutes after a UTC midnight, an entry written just before it still carries
+ * yesterday's `D`. Two keys can therefore be live, not one:
+ * `shiftDay(today, -6)` (written today) and `shiftDay(today, -7)` (written
+ * yesterday, i.e. `shiftDay(shiftDay(today, -1), -6)`). A `today + 1`
+ * candidate — needed only for a viewer-zone consumer ahead of UTC — is
+ * genuinely unreachable now that the OG card resolves in UTC (Task 7): no
+ * write can have a UTC day later than "now".
+ */
 export async function invalidateProfileCache(
     kv: KVNamespace,
     username: string,
+    now: number = Date.now(),
 ): Promise<void> {
+    const today = dayFromMs(now, 'UTC');
     await Promise.all([
         kv.delete(profileCacheKey(username)),
-        kv.delete(profileWindowCacheKey(username, '7d')),
+        kv.delete(profileWindowCacheKey(username, '7d', shiftDay(today, -6))),
+        kv.delete(profileWindowCacheKey(username, '7d', shiftDay(today, -7))),
     ]);
 }
 
@@ -67,10 +88,9 @@ export async function cachedLeaderboard(
     db: D1Database,
     kv: KVNamespace,
     query: LeaderboardQuery,
-    now: number,
 ): Promise<LeaderboardEntry[]> {
     return withReadCache(kv, leaderboardCacheKey(query), () =>
-        getLeaderboard(db, query, now),
+        getLeaderboard(db, query),
     );
 }
 
@@ -89,10 +109,12 @@ export async function cachedProfileWindow(
     kv: KVNamespace,
     username: string,
     window: TimeWindow,
-    now: number,
+    startDay: number,
 ): Promise<ProfileWindowTotals | null> {
-    return withReadCache(kv, profileWindowCacheKey(username, window), () =>
-        getProfileWindowTotals(db, username, window, now),
+    return withReadCache(
+        kv,
+        profileWindowCacheKey(username, window, startDay),
+        () => getProfileWindowTotals(db, username, startDay),
     );
 }
 

@@ -1,10 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReporterTotals } from '../../reporter/src/lib/types';
 // Import source so v8 coverage (and CRAP) sees reporter/src, not the bundle.
 import {
     cursorFetchEvents,
     parseCursorEvents,
     parsePiRollout,
 } from '../../reporter/src/tokentally';
+
+// Task 3 puts a session's whole total on one day; assert that's still true
+// while unwrapping the per-day map down to the totals tests already expect.
+function dayTotals(
+    parsed: { models: Map<string, Map<number, ReporterTotals>> },
+    model: string,
+): ReporterTotals | undefined {
+    const byDay = parsed.models.get(model);
+    if (!byDay) return undefined;
+    expect(byDay.size).toBe(1);
+    return [...byDay.values()][0];
+}
 
 describe('parsePiRollout model_change attribution', () => {
     it('attributes usage to the model from the latest model_change', () => {
@@ -64,13 +77,13 @@ describe('parsePiRollout model_change attribution', () => {
         const parsed = parsePiRollout(lines);
         expect(parsed.session_id).toBe('pi-mc-1');
         expect(parsed.started_at).toBe(Date.parse('2026-07-19T07:00:00Z'));
-        expect(parsed.models.get('claude-sonnet-4-5')).toMatchObject({
+        expect(dayTotals(parsed, 'claude-sonnet-4-5')).toMatchObject({
             input_tokens: 100,
             output_tokens: 40,
             cache_read_tokens: 10,
             cache_creation_tokens: 2,
         });
-        expect(parsed.models.get('gpt-5-codex')).toMatchObject({
+        expect(dayTotals(parsed, 'gpt-5-codex')).toMatchObject({
             input_tokens: 7,
             output_tokens: 3,
         });
@@ -99,7 +112,7 @@ describe('parsePiRollout model_change attribution', () => {
 
         const parsed = parsePiRollout(lines);
         expect(parsed.models.has('claude-sonnet-4-5')).toBe(false);
-        expect(parsed.models.get('claude-opus-4-8')).toMatchObject({
+        expect(dayTotals(parsed, 'claude-opus-4-8')).toMatchObject({
             input_tokens: 5,
             output_tokens: 6,
         });
@@ -118,7 +131,7 @@ describe('parsePiRollout model_change attribution', () => {
                 },
             }),
         );
-        expect(parsed.models.get('gpt-real')).toMatchObject({
+        expect(dayTotals(parsed, 'gpt-real')).toMatchObject({
             input_tokens: 9,
             output_tokens: 4,
         });
@@ -150,7 +163,7 @@ describe('parsePiRollout id dedup', () => {
         ].join('\n');
 
         const parsed = parsePiRollout(lines);
-        expect(parsed.models.get('kimi-k2')).toMatchObject({
+        expect(dayTotals(parsed, 'kimi-k2')).toMatchObject({
             input_tokens: 12,
             output_tokens: 2,
         });
@@ -169,7 +182,7 @@ describe('parsePiRollout id dedup', () => {
         ].join('\n');
 
         const parsed = parsePiRollout(lines);
-        expect(parsed.models.get('kimi-k2')).toMatchObject({
+        expect(dayTotals(parsed, 'kimi-k2')).toMatchObject({
             input_tokens: 40,
             output_tokens: 20,
         });
@@ -186,7 +199,7 @@ describe('parsePiRollout id dedup', () => {
         ].join('\n');
 
         const parsed = parsePiRollout(lines);
-        expect(parsed.models.get('kimi-k2')).toMatchObject({
+        expect(dayTotals(parsed, 'kimi-k2')).toMatchObject({
             input_tokens: 100,
             output_tokens: 5,
         });

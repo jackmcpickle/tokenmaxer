@@ -18,6 +18,7 @@ import {
     statSync,
 } from 'node:fs';
 import { basename, dirname, join, sep } from 'node:path';
+import { localDay } from '../lib/day';
 import { jsonlObjects } from '../lib/parse-utils';
 import { sessionIdFromPath, toRows } from '../lib/rows';
 import type { ReporterRow } from '../lib/types';
@@ -608,10 +609,10 @@ function sessionRows(sessions: Map<string, SessionState>): ReporterRow[] {
             ...toRows({
                 session_id: s.sid,
                 started_at: s.startedAt,
-                models: sumClaudeRows([
-                    ...[...s.keyed.values()].map((k) => k.row),
-                    ...s.unkeyed,
-                ]),
+                models: sumClaudeRows(
+                    [...[...s.keyed.values()].map((k) => k.row), ...s.unkeyed],
+                    localDay(s.startedAt ?? Date.now()),
+                ),
             }),
         );
     }

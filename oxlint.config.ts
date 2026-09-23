@@ -240,6 +240,8 @@ export default defineConfig({
                 'src/__tests__/reporter-claude-sessions.test.ts',
                 'src/__tests__/reporter-pi-cursor.test.ts',
                 'src/__tests__/reporter-opencode-db.test.ts',
+                'src/__tests__/reporter-day.test.ts',
+                'src/__tests__/reporter-api-batching.test.ts',
             ],
             rules: {
                 'import/no-relative-parent-imports': 'off',
@@ -261,11 +263,15 @@ export default defineConfig({
             // Faithful port of CodexBar's rollout counting state machine
             // (which carries the equivalent swiftlint complexity disables);
             // decomposing it would break line-for-line reviewability against
-            // the reference implementation.
+            // the reference implementation. Local-day bucketing (per-turn
+            // day resolution alongside the existing cumulative-to-delta
+            // accounting) pushed parseCodexRollout past the line cap for
+            // the same reason.
             files: ['reporter/src/agents/codex-engine.ts'],
             rules: {
                 complexity: 'off',
                 'crap/crap': 'off',
+                'max-lines-per-function': 'off',
             },
         },
         {
