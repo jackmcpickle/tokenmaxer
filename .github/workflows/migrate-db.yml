@@ -27,7 +27,8 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      # Skip prepare (pnpm build) — this job only needs wrangler to apply SQL.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Needs a token with D1:Edit on the account in wrangler.jsonc.
       - name: Apply remote D1 migrations
