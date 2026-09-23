@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
     # Cloudflare Workers Builds deploys the worker but never applies D1
-    # migrations — run them here whenever a migration lands on main.
-    paths:
-      - "drizzle/**"
+    # migrations — run them on every push to main. No `paths` filter or
+    # `[skip ci]` guard: a skipped run would leave production unmigrated, and
+    # an up-to-date DB makes this a no-op.
   workflow_dispatch:
 
 concurrency:
@@ -15,14 +15,16 @@ concurrency:
 
 jobs:
   migrate:
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    # Manual runs from other branches must not reach production D1.
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # Pinned to commit SHAs: this job holds a production D1 credential.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           cache: pnpm
