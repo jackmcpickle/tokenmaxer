@@ -201,9 +201,13 @@ describe('cursorFetchEvents pagination', () => {
     }
 
     function stubFetchPages(pages: CursorPage[]): {
-        bodies: Array<{ page: number; pageSize: number }>;
+        bodies: Array<{ page: number; pageSize: number; endDate: string }>;
     } {
-        const bodies: Array<{ page: number; pageSize: number }> = [];
+        const bodies: Array<{
+            page: number;
+            pageSize: number;
+            endDate: string;
+        }> = [];
         vi.stubGlobal(
             'fetch',
             vi.fn((_url: unknown, init: { body: string }) => {
@@ -220,30 +224,101 @@ describe('cursorFetchEvents pagination', () => {
         return { bodies };
     }
 
-    function batch(count: number, offset = 0): unknown[] {
+    const BASE = Date.UTC(2026, 6, 19);
+
+    // Cursor serves newest-first, so a page descends in time and its last row
+    // is the oldest -- the row the next request's inclusive endDate repeats.
+    function batch(count: number, newestOffset = 0): unknown[] {
         return Array.from({ length: count }, (_, i) => ({
-            timestamp: String(Date.UTC(2026, 6, 19) + offset + i),
+            timestamp: String(BASE + newestOffset + (count - 1 - i)),
             model: 'gpt-5',
             tokenUsage: { inputTokens: 1, outputTokens: 1 },
         }));
+    }
+
+    function oldestOf(page: unknown[]): unknown {
+        return page[page.length - 1];
     }
 
     afterEach(() => {
         vi.unstubAllGlobals();
     });
 
-    it('does not stop at the reported total — only an empty page proves completion', async () => {
-        // Raw count can hit the total early when Cursor repeats rows at page
-        // boundaries, so reaching it must not end pagination.
+    it('re-anchors endDate on the oldest row instead of bumping the offset', async () => {
+        const first = batch(1000, 5000);
         const { bodies } = stubFetchPages([
-            { totalUsageEventsCount: 1000, usageEventsDisplay: batch(1000) },
-            { totalUsageEventsCount: '1000', usageEventsDisplay: [] },
+            { totalUsageEventsCount: 1000, usageEventsDisplay: first },
+            { totalUsageEventsCount: 1000, usageEventsDisplay: [] },
         ]);
 
         const events = await cursorFetchEvents('user::jwt', 0);
         expect(events).toHaveLength(1000);
         expect(bodies).toHaveLength(2);
-        expect(bodies[1]?.page).toBe(2);
+        // Time moved, not the offset: that is what makes a list growing at
+        // the front harmless.
+        expect(bodies[1]?.page).toBe(1);
+        expect(bodies[1]?.endDate).toBe(String(BASE + 5000));
+        expect(Number(bodies[1]?.endDate)).toBeLessThan(
+            Number(bodies[0]?.endDate),
+        );
+    });
+
+    it('drops the anchor row the inclusive endDate serves twice', async () => {
+        const first = batch(1000, 5000);
+        const repeated = oldestOf(first);
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 1002, usageEventsDisplay: first },
+            {
+                totalUsageEventsCount: 1002,
+                usageEventsDisplay: [repeated, ...batch(2, 4000)],
+            },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toHaveLength(1002);
+        expect(bodies).toHaveLength(2);
+    });
+
+    it('keeps a genuine duplicate row at the anchor millisecond', async () => {
+        // Two byte-identical rows in one millisecond are two real events. Only
+        // the one already taken is dropped; the second must survive.
+        const twin = {
+            timestamp: String(BASE),
+            model: 'gpt-5',
+            tokenUsage: { inputTokens: 1, outputTokens: 1 },
+        };
+        const first = [...batch(999, 5000), twin];
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 1001, usageEventsDisplay: first },
+            {
+                totalUsageEventsCount: 1001,
+                usageEventsDisplay: [twin, twin],
+            },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        // 1000 taken, one of the two repeats suppressed, the other kept.
+        expect(events).toHaveLength(1001);
+        expect(bodies).toHaveLength(2);
+    });
+
+    it('survives a total that grows while the walk is in progress', async () => {
+        // The regression: events written mid-fetch used to move the reported
+        // total and abort the window. Anchored on time, the walk is unaffected.
+        const { bodies } = stubFetchPages([
+            {
+                totalUsageEventsCount: 1500,
+                usageEventsDisplay: batch(1000, 5000),
+            },
+            {
+                totalUsageEventsCount: 1600,
+                usageEventsDisplay: batch(500, 4000),
+            },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toHaveLength(1500);
+        expect(bodies).toHaveLength(2);
     });
 
     it('aborts when completion arrives before the reported total', async () => {
@@ -259,20 +334,29 @@ describe('cursorFetchEvents pagination', () => {
         expect(bodies).toHaveLength(1);
     });
 
-    it('drops boundary duplicates when the raw count exceeds the total', async () => {
-        const first = batch(1000);
-        const dupe = first[first.length - 1];
+    it('tolerates a count that leads the rows by one in a small window', async () => {
+        // The count and the rows are separate reads, so the total can lead by
+        // one. A proportional threshold would reject this (9 of 10 is a 10%
+        // miss) and fail every sync for a light user.
         const { bodies } = stubFetchPages([
-            { totalUsageEventsCount: 1002, usageEventsDisplay: first },
-            {
-                totalUsageEventsCount: 1002,
-                usageEventsDisplay: [dupe, ...batch(2, 5000)],
-            },
+            { totalUsageEventsCount: 10, usageEventsDisplay: batch(9) },
         ]);
 
         const events = await cursorFetchEvents('user::jwt', 0);
-        expect(events).toHaveLength(1002);
-        expect(bodies).toHaveLength(2);
+        expect(events).toHaveLength(9);
+        expect(bodies).toHaveLength(1);
+    });
+
+    it('still aborts once the shortfall passes the slack', async () => {
+        // 33 short: past what a count/row skew explains, so the window is
+        // treated as truncated rather than published over fuller day rows.
+        const { bodies } = stubFetchPages([
+            { totalUsageEventsCount: 100, usageEventsDisplay: batch(67) },
+        ]);
+
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toBeNull();
+        expect(bodies).toHaveLength(1);
     });
 
     it('completes on a short page that satisfies the total', async () => {
@@ -306,37 +390,60 @@ describe('cursorFetchEvents pagination', () => {
         expect(bodies).toHaveLength(1);
     });
 
-    it('aborts when the reported total changes between pages', async () => {
-        // A moving total means rows shifted across pages mid-fetch; the
-        // surplus-based reconciliation can no longer prove duplicates.
+    it('walks the offset when a full page shares one millisecond', async () => {
+        // Time cannot advance inside a single millisecond, so the offset is
+        // the only way forward. Reaching that state takes two requests: the
+        // first re-anchors onto the millisecond, the second finds it stuck.
+        const stuck = Array.from({ length: 1000 }, (_, i) => ({
+            timestamp: String(BASE),
+            model: 'gpt-5',
+            tokenUsage: { inputTokens: i, outputTokens: 1 },
+        }));
         const { bodies } = stubFetchPages([
-            { totalUsageEventsCount: 1500, usageEventsDisplay: batch(1000) },
+            { totalUsageEventsCount: 1002, usageEventsDisplay: stuck },
+            // Same millisecond, same rows: every one is a repeat the inclusive
+            // endDate served again, so nothing is added and time cannot move.
+            { totalUsageEventsCount: 1002, usageEventsDisplay: stuck },
             {
-                totalUsageEventsCount: 1501,
-                usageEventsDisplay: batch(501, 1000),
+                totalUsageEventsCount: 1002,
+                usageEventsDisplay: [
+                    {
+                        timestamp: String(BASE),
+                        model: 'gpt-5',
+                        tokenUsage: { inputTokens: 9001, outputTokens: 1 },
+                    },
+                    {
+                        timestamp: String(BASE),
+                        model: 'gpt-5',
+                        tokenUsage: { inputTokens: 9002, outputTokens: 1 },
+                    },
+                ],
             },
         ]);
 
         const events = await cursorFetchEvents('user::jwt', 0);
-        expect(events).toBeNull();
-        expect(bodies).toHaveLength(2);
+        expect(events).toHaveLength(1002);
+        expect(bodies).toHaveLength(3);
+        // Re-anchored onto the millisecond, then forced onto the offset.
+        expect(bodies[1]?.page).toBe(1);
+        expect(bodies[1]?.endDate).toBe(String(BASE));
+        expect(bodies[2]?.page).toBe(2);
+        expect(bodies[2]?.endDate).toBe(String(BASE));
     });
 
-    it('freezes the query window for the whole pagination run', async () => {
-        const { bodies } = stubFetchPages([
-            { totalUsageEventsCount: 1003, usageEventsDisplay: batch(1000) },
-            {
-                totalUsageEventsCount: 1003,
-                usageEventsDisplay: batch(3, 2000),
-            },
-        ]);
+    it('aborts rather than looping forever on a stalled walk', async () => {
+        // Every page full and never advancing: the budget must end it.
+        const stuck = batch(1000, 5000);
+        const { bodies } = stubFetchPages(
+            Array.from({ length: 500 }, () => ({
+                totalUsageEventsCount: 99999,
+                usageEventsDisplay: stuck,
+            })),
+        );
 
-        await cursorFetchEvents('user::jwt', 0);
-        expect(bodies).toHaveLength(2);
-        const first = bodies[0] as { endDate?: string };
-        const second = bodies[1] as { endDate?: string };
-        expect(first.endDate).toBeDefined();
-        expect(second.endDate).toBe(first.endDate);
+        const events = await cursorFetchEvents('user::jwt', 0);
+        expect(events).toBeNull();
+        expect(bodies.length).toBeLessThanOrEqual(400);
     });
 });
 
