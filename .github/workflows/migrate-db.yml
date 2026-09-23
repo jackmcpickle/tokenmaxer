@@ -1,0 +1,37 @@
+name: Migrate DB
+
+on:
+  push:
+    branches: [main]
+    # Cloudflare Workers Builds deploys the worker but never applies D1
+    # migrations — run them here whenever a migration lands on main.
+    paths:
+      - "drizzle/**"
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-db
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Needs a token with D1:Edit on the account in wrangler.jsonc.
+      - name: Apply remote D1 migrations
+        run: pnpm db:migrate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 16a04bbc76ee5eccbcc1d6c39bc9a797
