@@ -350,7 +350,7 @@ export function parseIngestBody(
     if (!isSource(b.source)) {
         return {
             ok: false,
-            error: "source must be 'claude_code', 'codex', 'opencode', 'pi' or 'cursor'",
+            error: "source must be 'claude_code', 'codex', 'opencode', 'pi', 'cursor' or 'grok_bot'",
         };
     }
     const listed = ingestSessionList(b.sessions, maxSessions);

@@ -464,7 +464,7 @@ describe('parseCursorEvents field mapping', () => {
     const DAY = Date.UTC(2026, 6, 19); // 2026-07-19T00:00:00Z
 
     it('accepts string-encoded token counts', () => {
-        const rows = parseCursorEvents([
+        const { cursor: rows } = parseCursorEvents([
             {
                 timestamp: String(DAY + 1000),
                 model: 'claude-4.5-sonnet',
@@ -492,7 +492,7 @@ describe('parseCursorEvents field mapping', () => {
         // A day whose events were all zeroed (aborted/refunded) must still
         // upload a zero-total row — the replace-upsert can only correct a
         // stale non-zero day it receives.
-        const rows = parseCursorEvents([
+        const { cursor: rows } = parseCursorEvents([
             {
                 timestamp: String(DAY + 1000),
                 model: 'gpt-5',
@@ -512,6 +512,83 @@ describe('parseCursorEvents field mapping', () => {
             input_tokens: 0,
             output_tokens: 0,
         });
+    });
+
+    it('splits Grok Bot models into their own source rows', () => {
+        // Grok Bot shares the Cursor dashboard feed (it is billed through the
+        // Cursor account) but is its own product: its rows leave under their
+        // own session ids so each source's replace clears only its own day.
+        const usage = {
+            inputTokens: 1,
+            outputTokens: 2,
+            cacheReadTokens: 3,
+            cacheWriteTokens: 4,
+        };
+        const rows = parseCursorEvents([
+            {
+                timestamp: String(DAY + 1000),
+                model: 'grok-bot-default',
+                tokenUsage: usage,
+            },
+            {
+                timestamp: String(DAY + 2000),
+                model: 'grok-bot-automation',
+                tokenUsage: usage,
+            },
+            {
+                timestamp: String(DAY + 3000),
+                model: 'sand-default',
+                tokenUsage: usage,
+            },
+            // Grok models used inside the editor are ordinary Cursor usage.
+            {
+                timestamp: String(DAY + 4000),
+                model: 'grok-4.7-high',
+                tokenUsage: usage,
+            },
+            {
+                timestamp: String(DAY + 5000),
+                model: 'cursor-grok-4.6-high-fast',
+                tokenUsage: usage,
+            },
+            {
+                timestamp: String(DAY + 6000),
+                model: 'composer-2.5-fast',
+                tokenUsage: usage,
+            },
+        ]);
+        expect(rows.cursor.map((r) => r.model).sort()).toEqual([
+            'composer-2.5-fast',
+            'cursor-grok-4.6-high-fast',
+            'grok-4.7-high',
+        ]);
+        expect(rows.grokBot.map((r) => r.model).sort()).toEqual([
+            'grok-bot-automation',
+            'grok-bot-default',
+            'sand-default',
+        ]);
+        for (const r of rows.cursor)
+            expect(r.session_id).toBe('cursor-2026-07-19');
+        for (const r of rows.grokBot)
+            expect(r.session_id).toBe('grok-bot-2026-07-19');
+        expect(rows.grokBot[0]).toMatchObject({
+            input_tokens: 1,
+            output_tokens: 2,
+            cache_read_tokens: 3,
+            cache_creation_tokens: 4,
+        });
+    });
+
+    it('returns an empty Grok Bot set when the window has none', () => {
+        const rows = parseCursorEvents([
+            {
+                timestamp: String(DAY + 1000),
+                model: 'gpt-5',
+                tokenUsage: { inputTokens: 1, outputTokens: 1 },
+            },
+        ]);
+        expect(rows.cursor).toHaveLength(1);
+        expect(rows.grokBot).toEqual([]);
     });
 
     it('aborts on a network-level fetch rejection instead of throwing', async () => {

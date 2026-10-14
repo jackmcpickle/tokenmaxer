@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { localDay } from '../lib/day';
+import { isGrokBotModel } from '../lib/grok-bot';
 import { asObject } from '../lib/parse-utils';
 import { accumulateModelUsage, usageFromFields } from '../lib/totals';
 import type {
@@ -44,14 +45,17 @@ function cursorEventDayModel(e: JsonObject): {
     return { utcDay, day: localDay(ms), model, usage };
 }
 
-function cursorRowsFromDayMap(days: CursorDayMap): ReporterRow[] {
+function cursorRowsFromDayMap(
+    days: CursorDayMap,
+    sessionPrefix: string,
+): ReporterRow[] {
     const rows: ReporterRow[] = [];
     for (const [utcDay, byLocalDay] of days) {
         const startedAt = Date.parse(`${utcDay}T00:00:00Z`);
         for (const [day, byModel] of byLocalDay) {
             for (const [model, t] of byModel) {
                 rows.push({
-                    session_id: `cursor-${utcDay}`,
+                    session_id: `${sessionPrefix}-${utcDay}`,
                     model,
                     day,
                     started_at: startedAt,
@@ -63,6 +67,28 @@ function cursorRowsFromDayMap(days: CursorDayMap): ReporterRow[] {
     return rows;
 }
 
+function addToDayMap(
+    days: CursorDayMap,
+    parsed: NonNullable<ReturnType<typeof cursorEventDayModel>>,
+): void {
+    const byLocalDay =
+        days.get(parsed.utcDay) ??
+        new Map<number, Map<string, ReporterTotals>>();
+    const byModel =
+        byLocalDay.get(parsed.day) ?? new Map<string, ReporterTotals>();
+    accumulateModelUsage(byModel, parsed.model, parsed.usage);
+    byLocalDay.set(parsed.day, byModel);
+    days.set(parsed.utcDay, byLocalDay);
+}
+
+/** Rows from one dashboard window, split by the source they upload under. */
+export interface CursorParsedRows {
+    /** Editor and cloud-agent usage: source `cursor`, sessions `cursor-<UTC day>`. */
+    cursor: ReporterRow[];
+    /** Grok Bot turns: source `grok_bot`, sessions `grok-bot-<UTC day>`. */
+    grokBot: ReporterRow[];
+}
+
 /**
  * Bucket Cursor dashboard usage events by UTC day (the session id) and local
  * day (the usage day) per model. One synthetic session per UTC day
@@ -70,23 +96,29 @@ function cursorRowsFromDayMap(days: CursorDayMap): ReporterRow[] {
  * idempotent. The session id stays UTC-keyed because it is the unit the ingest
  * replace contract clears — re-keying it would orphan stored rows — while
  * `day` is local, like every other source.
+ *
+ * Grok Bot turns share the feed (it is billed through the Cursor account) but
+ * are a product of their own, so they leave here as a second row set under
+ * their own session ids. The replace contract is scoped per source, so each
+ * set clears only its own stored day: a day's Grok Bot rows can never erase
+ * its Cursor rows, or vice versa.
  */
-export function parseCursorEvents(events: unknown[]): ReporterRow[] {
-    const days: CursorDayMap = new Map();
+export function parseCursorEvents(events: unknown[]): CursorParsedRows {
+    const cursorDays: CursorDayMap = new Map();
+    const grokBotDays: CursorDayMap = new Map();
     for (const raw of Array.isArray(events) ? events : []) {
         if (!raw || typeof raw !== 'object') continue;
         const parsed = cursorEventDayModel(raw as JsonObject);
         if (!parsed) continue;
-        const byLocalDay =
-            days.get(parsed.utcDay) ??
-            new Map<number, Map<string, ReporterTotals>>();
-        const byModel =
-            byLocalDay.get(parsed.day) ?? new Map<string, ReporterTotals>();
-        accumulateModelUsage(byModel, parsed.model, parsed.usage);
-        byLocalDay.set(parsed.day, byModel);
-        days.set(parsed.utcDay, byLocalDay);
+        addToDayMap(
+            isGrokBotModel(parsed.model) ? grokBotDays : cursorDays,
+            parsed,
+        );
     }
-    return cursorRowsFromDayMap(days);
+    return {
+        cursor: cursorRowsFromDayMap(cursorDays, 'cursor'),
+        grokBot: cursorRowsFromDayMap(grokBotDays, 'grok-bot'),
+    };
 }
 
 // Cursor stores its auth JWT in the app's global state SQLite DB.

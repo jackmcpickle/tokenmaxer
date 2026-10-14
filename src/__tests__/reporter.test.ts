@@ -1001,7 +1001,7 @@ describe('parseCursorEvents', () => {
     const DAY = Date.UTC(2026, 6, 18); // 2026-07-18T00:00:00Z
 
     it('buckets events by UTC day and model', () => {
-        const rows = parseCursorEvents([
+        const { cursor: rows } = parseCursorEvents([
             ev(DAY + 1000, 'claude-4.5-sonnet', {
                 inputTokens: 10,
                 outputTokens: 20,
@@ -1036,7 +1036,7 @@ describe('parseCursorEvents', () => {
     });
 
     it('skips malformed events and empty input', () => {
-        expect(parseCursorEvents([])).toEqual([]);
+        expect(parseCursorEvents([])).toEqual({ cursor: [], grokBot: [] });
         expect(
             parseCursorEvents([
                 null,
@@ -1047,7 +1047,7 @@ describe('parseCursorEvents', () => {
                     tokenUsage: { inputTokens: 1 },
                 },
                 { timestamp: '123', tokenUsage: { inputTokens: 1 } }, // no model -> 'unknown'
-            ]),
+            ]).cursor,
         ).toHaveLength(1);
     });
 });

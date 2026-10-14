@@ -151,7 +151,9 @@ export const StartSetup: FC<{
                         machine. That login is sent{' '}
                         <strong>only to cursor.com</strong> — it never reaches
                         tokenmaxer servers, and only the resulting token counts
-                        are uploaded. Add this to{' '}
+                        are uploaded. The same sync picks up Grok Bot, which is
+                        billed through your Cursor account and reported as its
+                        own source. Add this to{' '}
                         <code>~/.cursor/hooks.json</code> so every session
                         triggers a sync:
                     </p>

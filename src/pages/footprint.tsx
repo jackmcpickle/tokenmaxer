@@ -199,6 +199,12 @@ export const Footprint: FC<FootprintProps> = (p) => (
                     >
                         Cursor
                     </option>
+                    <option
+                        value="grok_bot"
+                        selected={p.source === 'grok_bot'}
+                    >
+                        Grok Bot
+                    </option>
                 </Input>
             </label>
             <label

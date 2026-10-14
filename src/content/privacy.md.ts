@@ -7,7 +7,7 @@ We keep the bare minimum to run a token leaderboard, and nothing that could reve
 
 - **Username** — the public name you chose.
 - **Country** — an ISO 3166-1 alpha-2 code you pick at signup, shown on your profile and used for the country leaderboard filter.
-- **Per-session token counts** — input, output, cache read, cache write, and reasoning tokens, broken down by model and tool (Claude Code, Codex, opencode, pi, Cursor), plus the session id and timestamp.
+- **Per-session token counts** — input, output, cache read, cache write, and reasoning tokens, broken down by model and tool (Claude Code, Codex, opencode, pi, Cursor, Grok Bot), plus the session id and timestamp.
 - **Optional profile URL** — an \`https:\` link you may add; clearing it removes the link.
 - **A SHA-256 hash of your token** — never the token itself.
 - **A transient IP** — used only for short-lived rate limiting, not stored with your account.

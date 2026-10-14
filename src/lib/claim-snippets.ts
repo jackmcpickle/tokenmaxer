@@ -63,7 +63,7 @@ export function claimSnippets(
         'I already ran the one-time setup, so ~/.tokenmaxer/config.json holds my API token.\n' +
         `Read ${base}/start.md for the exact hook snippets, then:\n` +
         '1. Install the reporter: npm install -g tokenmaxer (a single zero-dependency script - review it first if you like).\n' +
-        '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from start.md.\n' +
+        '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor, which also covers Grok Bot) and configure the matching hooks from start.md.\n' +
         '3. Run "tokenmaxer backfill --dry-run" and show me a sample of what would be uploaded, then run "tokenmaxer backfill".\n' +
         `4. Confirm my sessions appear at ${base}/u/${username}`;
     return { setup, claude, codex, opencode, pi, cursor, agent };

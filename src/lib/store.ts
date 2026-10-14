@@ -1,3 +1,4 @@
+import { partitionGrokBot } from '@/lib/grok-bot';
 import type { SessionUsageInput, Source } from '@/types';
 
 // D1 caps how many statements a single batch may carry, so large payloads (a
@@ -19,6 +20,46 @@ const UPSERT_SQL = `INSERT INTO session_usage
    reasoning_tokens = excluded.reasoning_tokens,
    started_at = excluded.started_at,
    updated_at = excluded.updated_at`;
+
+/**
+ * Store one validated upload. The payload is first split per source (a Cursor
+ * upload from a reporter older than the Grok Bot split still carries Grok Bot
+ * rows), then each group is written with its own replace scope. A group with
+ * neither rows nor claims is a no-op.
+ *
+ * Returns the number of rows written.
+ */
+export async function upsertIngest(
+    db: D1Database,
+    userId: string,
+    payload: {
+        source: Source;
+        sessions: SessionUsageInput[];
+        replaceSessions: string[];
+    },
+    now: number,
+): Promise<number> {
+    let written = 0;
+    for (const group of partitionGrokBot(
+        payload.source,
+        payload.sessions,
+        payload.replaceSessions,
+    )) {
+        if (group.sessions.length === 0 && group.replaceSessions.length === 0) {
+            continue;
+        }
+        // eslint-disable-next-line no-await-in-loop -- groups write sequentially so a replace lands before later rows
+        written += await upsertSessions(
+            db,
+            userId,
+            group.source,
+            group.sessions,
+            now,
+            group.replaceSessions,
+        );
+    }
+    return written;
+}
 
 /**
  * Idempotently write per-(session, model, day) usage rows.

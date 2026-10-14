@@ -64,7 +64,8 @@ const USER_COMMANDS: CommandDoc[] = [
             'Walks every local session transcript for each supported tool and ' +
                 'uploads the cumulative per-session token totals. Cursor has ' +
                 'no local transcripts, so its usage is fetched from the ' +
-                'cursor.com dashboard API (at most 90 days back).',
+                'cursor.com dashboard API (at most 90 days back); that fetch ' +
+                'also covers Grok Bot, which is billed through Cursor.',
             'Name one source to limit the upload to that tool. Re-running is ' +
                 'safe: each session replaces its own rows on the server, so ' +
                 'nothing is double-counted.',
@@ -80,7 +81,9 @@ const USER_COMMANDS: CommandDoc[] = [
             'Reads your Cursor login from the local Cursor state database ' +
                 '(or the "cursorCookie" entry in config.json as a fallback), ' +
                 'fetches recent usage events from cursor.com, and uploads ' +
-                'them. The Cursor session token is sent only to cursor.com.',
+                'them. Grok Bot turns arrive in the same feed and are ' +
+                'uploaded as their own source. The Cursor session token is ' +
+                'sent only to cursor.com.',
             CATCHUP_WINDOW,
         ],
         needsToken: true,
