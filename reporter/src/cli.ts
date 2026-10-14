@@ -20,6 +20,8 @@ import { runWhoami } from './whoami';
 
 interface CommandDoc {
     name: string;
+    // Other spellings `main` accepts for the same command.
+    aliases?: string[];
     // One `[syntax, one-liner]` row per form; the first row is the canonical
     // form. All rows appear in the `help` listing.
     rows: Array<[string, string]>;
@@ -175,6 +177,7 @@ const HOOK_COMMANDS: CommandDoc[] = [
     },
     {
         name: 'codex-sessionstart',
+        aliases: ['codex-sessionend'],
         rows: [['codex-sessionstart', 'catch up recent Codex sessions']],
         details: [
             'Scans local Codex rollout files and uploads per-session totals ' +
@@ -186,6 +189,7 @@ const HOOK_COMMANDS: CommandDoc[] = [
     },
     {
         name: 'opencode-sessionstart',
+        aliases: ['opencode-sessionend'],
         rows: [['opencode-sessionstart', 'catch up recent opencode sessions']],
         details: [
             'Reads recent sessions from the local opencode database and ' +
@@ -198,6 +202,7 @@ const HOOK_COMMANDS: CommandDoc[] = [
     },
     {
         name: 'pi-sessionstart',
+        aliases: ['pi-sessionend'],
         rows: [['pi-sessionstart', 'catch up recent pi sessions']],
         details: [
             'Scans local pi session files and uploads per-session totals ' +
@@ -318,6 +323,11 @@ function printCommandHelp(doc: CommandDoc): void {
             `  tokenmaxer ${syntax}${doc.needsToken ? ' [--dry-run]' : ''}`,
         );
     }
+    if (doc.aliases?.length) {
+        out.push(
+            `  (also: ${doc.aliases.map((a) => `tokenmaxer ${a}`).join(', ')})`,
+        );
+    }
     for (const para of doc.details) {
         out.push('', ...wrap(para));
     }
@@ -354,7 +364,10 @@ const VERSION_FLAGS = new Set<string | undefined>([
 const COMMAND_HELP_FLAGS = new Set<string>(['--help', '-h']);
 
 function findCommand(name: string | undefined): CommandDoc | undefined {
-    return ALL_COMMANDS.find((doc) => doc.name === name);
+    return ALL_COMMANDS.find(
+        (doc) =>
+            doc.name === name || doc.aliases?.includes(name ?? '') === true,
+    );
 }
 
 // `tokenmaxer <command> --help|-h [anything…]` and `tokenmaxer help <command>`

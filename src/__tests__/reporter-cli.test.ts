@@ -263,9 +263,19 @@ describe('tokenmaxer CLI', () => {
         expect(res.stdout).toContain('tokenmaxer <command> --help');
     });
 
-    it.each(ALL_COMMANDS)(
+    // Aliases `main` accepts that must resolve to the canonical command's help.
+    const COMMAND_ALIASES: Array<[alias: string, canonical: string]> = [
+        ['codex-sessionend', 'codex-sessionstart'],
+        ['opencode-sessionend', 'opencode-sessionstart'],
+        ['pi-sessionend', 'pi-sessionstart'],
+    ];
+
+    it.each([
+        ...ALL_COMMANDS.map((name): [string, string] => [name, name]),
+        ...COMMAND_ALIASES,
+    ])(
         '%s: --help, -h and `help <command>` print command help without config',
-        (name) => {
+        (name, canonical) => {
             for (const args of [
                 [name, '--help'],
                 [name, '-h'],
@@ -277,11 +287,14 @@ describe('tokenmaxer CLI', () => {
                 expect(res.stderr).toBe('');
                 expect(res.stdout).toMatch(
                     new RegExp(
-                        `^tokenmaxer ${name} — .+\\n\\nUsage:\\n  tokenmaxer ${name}`,
+                        `^tokenmaxer ${canonical} — .+\\n\\nUsage:\\n  tokenmaxer ${canonical}`,
                         'u',
                     ),
                 );
                 expect(res.stdout).toMatch(/\nNeeds (a token|no token)/u);
+                if (name !== canonical) {
+                    expect(res.stdout).toContain(`(also: tokenmaxer ${name})`);
+                }
             }
         },
     );
