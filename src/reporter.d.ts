@@ -60,7 +60,11 @@ declare module '*/tokentally.mjs' {
         text: string,
         opts?: { sessionId?: string; fallbackStartedAt?: number },
     ): ParsedTranscript;
-    export function parseCursorEvents(events: unknown[]): ReporterRow[];
+    export interface CursorParsedRows {
+        cursor: ReporterRow[];
+        grokBot: ReporterRow[];
+    }
+    export function parseCursorEvents(events: unknown[]): CursorParsedRows;
     export function cursorFetchEvents(
         sessionToken: string,
         sinceMs: number,
