@@ -6,9 +6,11 @@
 -- Mirrors the model rule in src/lib/grok-bot.ts (LIKE is case-insensitive for
 -- ASCII, matching the /i flag there).
 
--- A reporter upgraded ahead of this migration may already have written the
--- grok_bot row for the same (session, model, day). That row is the fresher
--- re-sum of the same day, so the stale Cursor copy is dropped, not moved.
+-- A reporter upgraded ahead of this migration may already have re-summed the
+-- same `grok-bot-<UTC day>` session. Its rows are authoritative for that
+-- session and model, so the stale Cursor copies are dropped, not moved. `day`
+-- is deliberately not matched: the upgraded reporter attributes rows to the
+-- local day, which can differ from the day on the older Cursor copy.
 DELETE FROM session_usage
 WHERE source = 'cursor'
   AND session_id LIKE 'cursor-%'
@@ -22,7 +24,6 @@ WHERE source = 'cursor'
       AND g.source = 'grok_bot'
       AND g.session_id = 'grok-bot-' || substr(session_usage.session_id, length('cursor-') + 1)
       AND g.model = session_usage.model
-      AND g.day = session_usage.day
   );
 
 UPDATE session_usage
