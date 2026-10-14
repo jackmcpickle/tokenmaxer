@@ -88,17 +88,24 @@ describe('partitionGrokBot', () => {
         ]);
     });
 
-    it('passes a cursor upload without Grok Bot rows through untouched', () => {
+    it('claims the matching Grok Bot day even when the batch has no Bot rows', () => {
+        // A legacy reporter may send this day's Bot rows in a later, unclaimed
+        // batch; the claim must ride with the batch that claims the Cursor day.
         const groups = partitionGrokBot(
             'cursor',
             [row('composer-2.5-fast')],
-            ['cursor-2026-07-19'],
+            ['cursor-2026-07-19', 'other-id'],
         );
         expect(groups).toEqual([
             {
                 source: 'cursor',
                 sessions: [row('composer-2.5-fast')],
-                replaceSessions: ['cursor-2026-07-19'],
+                replaceSessions: ['cursor-2026-07-19', 'other-id'],
+            },
+            {
+                source: 'grok_bot',
+                sessions: [],
+                replaceSessions: ['grok-bot-2026-07-19'],
             },
         ]);
     });
@@ -123,15 +130,17 @@ describe('partitionGrokBot', () => {
                 'cursor-2026-07-21',
             ],
         });
-        // Only days this group has rows for are claimed: a bare delete would
-        // erase a day whose rows are still in flight in a later batch.
         expect(groups[1]).toEqual({
             source: 'grok_bot',
             sessions: [
                 row('grok-bot-default', 'grok-bot-2026-07-19'),
                 row('grok-bot-cua', 'grok-bot-2026-07-20'),
             ],
-            replaceSessions: ['grok-bot-2026-07-19', 'grok-bot-2026-07-20'],
+            replaceSessions: [
+                'grok-bot-2026-07-19',
+                'grok-bot-2026-07-20',
+                'grok-bot-2026-07-21',
+            ],
         });
     });
 

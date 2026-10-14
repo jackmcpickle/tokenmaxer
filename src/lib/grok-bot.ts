@@ -34,14 +34,19 @@ export interface IngestGroup {
 
 /**
  * Split one validated upload into the groups that are actually stored, one
- * per source. Only `cursor` payloads carrying Grok Bot models are touched:
- * those rows move to `grok_bot` under the matching `grok-bot-<day>` session.
+ * per source. Only `cursor` payloads are touched: Grok Bot rows move to
+ * `grok_bot` under the matching `grok-bot-<day>` session.
  *
- * A claimed `cursor-<day>` means the reporter re-summed that whole day, so the
- * moved rows claim `grok-bot-<day>` too — but only when the group has rows to
- * reinsert, never as a bare delete. The Cursor group keeps its claims even
- * when every row moved away: the day was fully re-reported and simply has no
- * editor usage left, so its stale Cursor rows must go.
+ * A claimed `cursor-<day>` means the reporter re-summed that whole day, Grok
+ * Bot included, so it also claims `grok-bot-<day>`, even when this batch
+ * carries none of that day's Bot rows. A legacy reporter may send them in a
+ * later, unclaimed batch, and without the claim the stale Bot rows would
+ * never be cleared. An upgraded reporter posts its Grok Bot rows (with their
+ * own claim) right after the Cursor post, so the brief gap self-heals.
+ *
+ * The Cursor group keeps its claims even when every row moved away: the day
+ * was fully re-reported and has no editor usage left, so its stale Cursor
+ * rows must go. Empty groups are dropped by the caller.
  */
 export function partitionGrokBot(
     source: Source,
@@ -66,12 +71,6 @@ export function partitionGrokBot(
             cursor.push(s);
         }
     }
-    if (grokBot.length === 0) {
-        return [
-            { source, sessions: cursor, replaceSessions: [...replaceSessions] },
-        ];
-    }
-    const moved = new Set(grokBot.map((s) => s.session_id));
     return [
         {
             source: 'cursor',
@@ -82,8 +81,8 @@ export function partitionGrokBot(
             source: 'grok_bot',
             sessions: grokBot,
             replaceSessions: replaceSessions
-                .map(grokBotSessionId)
-                .filter((id) => moved.has(id)),
+                .filter((id) => id.startsWith(CURSOR_SESSION_PREFIX))
+                .map(grokBotSessionId),
         },
     ];
 }
