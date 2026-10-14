@@ -223,14 +223,135 @@ describe('tokenmaxer CLI', () => {
         expect(res.stderr).toContain('backfill');
         expect(res.stderr).toContain('rotate');
         expect(res.stderr).toContain('whoami');
+        expect(res.stderr).toContain('version');
     });
 
-    it('lists rotate and whoami in help', () => {
+    it('lists rotate, whoami and version in help', () => {
         const res = runCli(['help'], { home });
         expect(res.status).toBe(0);
         expect(res.stdout).toMatch(/rotate\s+replace your token/u);
         expect(res.stdout).toMatch(/whoami\s+print the username/u);
+        expect(res.stdout).toMatch(/version\s+print the reporter version/u);
+        expect(res.stdout).toContain('--version');
     });
+
+    const ALL_COMMANDS = [
+        'login',
+        'backfill',
+        'cursor-sync',
+        'set-profile-url',
+        'rotate',
+        'whoami',
+        'version',
+        'help',
+        'claude-sessionend',
+        'claude-sessionstart',
+        'codex-sessionstart',
+        'opencode-sessionstart',
+        'pi-sessionstart',
+        'claude-report',
+        'codex-report',
+        'opencode-report',
+        'pi-report',
+    ];
+
+    it('help lists every documented command', () => {
+        const res = runCli(['help'], { home });
+        for (const name of ALL_COMMANDS) {
+            expect(res.stdout).toMatch(new RegExp(`^  ${name}\\b`, 'mu'));
+        }
+        expect(res.stdout).toContain('tokenmaxer <command> --help');
+    });
+
+    // Aliases `main` accepts that must resolve to the canonical command's help.
+    const COMMAND_ALIASES: Array<[alias: string, canonical: string]> = [
+        ['codex-sessionend', 'codex-sessionstart'],
+        ['opencode-sessionend', 'opencode-sessionstart'],
+        ['pi-sessionend', 'pi-sessionstart'],
+    ];
+
+    it.each([
+        ...ALL_COMMANDS.map((name): [string, string] => [name, name]),
+        ...COMMAND_ALIASES,
+    ])(
+        '%s: --help, -h and `help <command>` print command help without config',
+        (name, canonical) => {
+            for (const args of [
+                [name, '--help'],
+                [name, '-h'],
+                ['help', name],
+            ]) {
+                // No config written: help must never need (or touch) the API.
+                const res = runCli(args, { home });
+                expect(res.status).toBe(0);
+                expect(res.stderr).toBe('');
+                expect(res.stdout).toMatch(
+                    new RegExp(
+                        `^tokenmaxer ${canonical} — .+\\n\\nUsage:\\n  tokenmaxer ${canonical}`,
+                        'u',
+                    ),
+                );
+                expect(res.stdout).toMatch(/\nNeeds (a token|no token)/u);
+                if (name !== canonical) {
+                    expect(res.stdout).toContain(`(also: tokenmaxer ${name})`);
+                }
+            }
+        },
+    );
+
+    it('command help ignores any arguments after --help or -h', () => {
+        for (const args of [
+            ['backfill', '--help', 'claude', '--dry-run'],
+            ['backfill', 'claude', '-h', 'extra'],
+            ['set-profile-url', '-h', 'https://example.com'],
+            ['whoami', '--help', 'someone-else'],
+        ]) {
+            const res = runCli(args, { home });
+            expect(res.status).toBe(0);
+            expect(res.stderr).toBe('');
+            expect(res.stdout).toMatch(/^tokenmaxer \S+ — /u);
+        }
+    });
+
+    it('version --help describes the command instead of printing the version', () => {
+        const res = runCli(['version', '--help'], { home });
+        expect(res.status).toBe(0);
+        expect(res.stdout).toContain(
+            'tokenmaxer version — print the reporter version',
+        );
+        expect(res.stdout).toContain('--version and -v do the same');
+    });
+
+    it('--help on an unknown command names it and never loads config', () => {
+        for (const args of [
+            ['not-a-command', '--help'],
+            ['help', 'not-a-command'],
+        ]) {
+            const res = runCli(args, { home });
+            expect(res.status).toBe(0);
+            expect(res.stdout).toBe('');
+            expect(res.stderr).toContain('unknown command "not-a-command"');
+            expect(res.stderr).not.toContain('not configured');
+        }
+    });
+
+    it.each(['version', '--version', '-v'])(
+        '%s prints the reporter package version without config',
+        (arg) => {
+            const pkg = JSON.parse(
+                readFileSync(
+                    resolve(dirname(REPORTER), 'package.json'),
+                    'utf8',
+                ),
+            ) as { version: string };
+            expect(pkg.version).toMatch(/^\d+\.\d+\.\d+/u);
+            // No config written: version must not need (or touch) the API.
+            const res = runCli([arg], { home });
+            expect(res.status).toBe(0);
+            expect(res.stdout).toBe(`${pkg.version}\n`);
+            expect(res.stderr).toBe('');
+        },
+    );
 
     it('treats inherited object names as unknown commands', () => {
         writeConfig();

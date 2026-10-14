@@ -48,6 +48,8 @@ tokenmaxer set-profile-url <https-url> [--dry-run]
 tokenmaxer set-profile-url --clear [--dry-run]
 tokenmaxer rotate [--dry-run]
 tokenmaxer whoami [--dry-run]
+tokenmaxer version        # also --version / -v
+tokenmaxer <command> --help   # what one command does (also -h, or `tokenmaxer help <command>`)
 ```
 
 Each row is scoped to one user, tool, session, model, and calendar day, and
