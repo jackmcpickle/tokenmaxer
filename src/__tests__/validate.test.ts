@@ -69,6 +69,7 @@ describe('parseIngestBody', () => {
             'opencode',
             'pi',
             'cursor',
+            'grok_bot',
         ]) {
             const r = parseIngestBody({ ...good, source });
             expect(r.ok).toBe(true);

@@ -7,6 +7,7 @@ const SOURCE_LABELS: Record<string, string> = {
     opencode: 'opencode',
     pi: 'pi',
     cursor: 'Cursor',
+    grok_bot: 'Grok Bot',
 };
 
 function row(cols: string[]): string {

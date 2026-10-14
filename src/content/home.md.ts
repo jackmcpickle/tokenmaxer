@@ -8,6 +8,7 @@ const SOURCE_LABELS: Record<string, string> = {
     opencode: 'opencode',
     pi: 'pi',
     cursor: 'Cursor',
+    grok_bot: 'Grok Bot',
 };
 
 const WINDOW_LABELS: Record<TimeWindow, string> = {

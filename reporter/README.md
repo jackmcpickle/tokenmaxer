@@ -1,7 +1,7 @@
 # tokenmaxer
 
 Reporter for [tokenmaxer.quest](https://tokenmaxer.quest) — a public leaderboard of
-tokens burned with Claude Code, Codex, opencode, pi and Cursor.
+tokens burned with Claude Code, Codex, opencode, pi, Cursor and Grok Bot.
 
 A single zero-dependency Node script (`tokentally.mjs`, esbuild-bundled from
 strict TypeScript modules under `src/`). It parses your local session
@@ -92,6 +92,17 @@ rather than double-counting replayed parent history.
 Corrected sessions still report zero-total rows for models whose usage was
 all replay, so re-running `tokenmaxer backfill codex` overwrites any rows
 that older reporter versions inflated.
+
+## Grok Bot
+
+Grok Bot is a Cursor product billed through your Cursor account, so its turns
+arrive in the same dashboard feed `cursor-sync` already reads, as
+`grok-bot-default` / `grok-bot-automation` / `grok-bot-cua` model rows. The
+reporter uploads those rows as their own source (`grok_bot`, sessions
+`grok-bot-YYYY-MM-DD`) and everything else as Cursor. There is no separate
+command: `cursor-sync` and `backfill cursor` cover both. Grok models used
+inside the editor (`grok-4.7-high`) stay under Cursor, as do cloud agents a bot
+launches, which Cursor bills as ordinary usage.
 
 ## Cursor manual auth fallback
 

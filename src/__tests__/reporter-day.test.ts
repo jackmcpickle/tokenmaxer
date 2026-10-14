@@ -426,7 +426,7 @@ const CURSOR_USAGE = {
 describe('parseCursorEvents day buckets', () => {
     it('keeps the UTC-day session id but a local day per event', () => {
         // 02:00Z on the 7th is 11:30 on the 7th in Adelaide (UTC+9:30).
-        const rows = parseCursorEvents([
+        const { cursor: rows } = parseCursorEvents([
             {
                 timestamp: Date.parse('2026-08-07T02:00:00Z'),
                 model: 'claude-sonnet-5',
@@ -442,7 +442,7 @@ describe('parseCursorEvents day buckets', () => {
     it('splits one UTC day into two rows when it straddles local midnight', () => {
         // Both instants are inside UTC 2026-08-07, but 21:00Z is already
         // 06:30 on the 8th in Adelaide — one session, two local days.
-        const rows = parseCursorEvents([
+        const { cursor: rows } = parseCursorEvents([
             {
                 timestamp: Date.parse('2026-08-07T01:00:00Z'),
                 model: 'claude-sonnet-5',

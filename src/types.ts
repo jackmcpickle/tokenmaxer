@@ -7,7 +7,13 @@ export interface Env {
     INVITE_KEY?: string;
 }
 
-export type Source = 'claude_code' | 'codex' | 'opencode' | 'pi' | 'cursor';
+export type Source =
+    | 'claude_code'
+    | 'codex'
+    | 'opencode'
+    | 'pi'
+    | 'cursor'
+    | 'grok_bot';
 
 export const SOURCES: readonly Source[] = [
     'claude_code',
@@ -15,6 +21,7 @@ export const SOURCES: readonly Source[] = [
     'opencode',
     'pi',
     'cursor',
+    'grok_bot',
 ] as const;
 
 export function isSource(v: unknown): v is Source {
@@ -23,7 +30,8 @@ export function isSource(v: unknown): v is Source {
         v === 'codex' ||
         v === 'opencode' ||
         v === 'pi' ||
-        v === 'cursor'
+        v === 'cursor' ||
+        v === 'grok_bot'
     );
 }
 

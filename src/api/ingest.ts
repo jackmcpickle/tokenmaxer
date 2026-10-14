@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authenticate } from '@/lib/auth';
 import { invalidateProfileCache } from '@/lib/cached-aggregate';
 import { rateLimit } from '@/lib/ratelimit';
-import { upsertSessions } from '@/lib/store';
+import { upsertIngest } from '@/lib/store';
 import { parseIngestBody } from '@/lib/validate';
 import type { Env } from '@/types';
 
@@ -44,13 +44,11 @@ app.post('/ingest', async (c) => {
     // reinsert, which would destroy previously stored usage for a replaced
     // session — do not remove it just because replace_sessions is set.
     if (sessions.length > 0) {
-        await upsertSessions(
+        await upsertIngest(
             c.env.DB,
             user.id,
-            source,
-            sessions,
+            { source, sessions, replaceSessions },
             Date.now(),
-            replaceSessions,
         );
         await invalidateProfileCache(c.env.RATE_LIMIT, user.username);
     }

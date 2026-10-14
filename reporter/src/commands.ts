@@ -229,11 +229,23 @@ export async function cursorSync(
         return { problems: 0, aborted: true };
     }
     const rows = parseCursorEvents(events);
-    const result = await postSessions(cfg, 'cursor', rows, opts.post);
-    process.stderr.write(
-        `tokenmaxer: cursor synced ${result.accepted} row(s) from ${events.length} event(s)\n`,
+    // Grok Bot shares the feed but is its own source; each upload clears only
+    // its own day sessions, so the two cannot overwrite each other.
+    const cursor = await postSessions(cfg, 'cursor', rows.cursor, opts.post);
+    const grokBot = await postSessions(
+        cfg,
+        'grok_bot',
+        rows.grokBot,
+        opts.post,
     );
-    return { problems: result.rejected + result.failed, aborted: false };
+    process.stderr.write(
+        `tokenmaxer: cursor synced ${cursor.accepted} Cursor row(s) and ${grokBot.accepted} Grok Bot row(s) from ${events.length} event(s)\n`,
+    );
+    return {
+        problems:
+            cursor.rejected + cursor.failed + grokBot.rejected + grokBot.failed,
+        aborted: false,
+    };
 }
 
 // User-run cursor-sync command (not a hook): a lost upload must not exit 0.

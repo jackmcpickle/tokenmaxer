@@ -72,7 +72,7 @@ function snippets(base: string): {
         base +
         '/start.md for the exact hook snippets, then:\n' +
         '1. Install the reporter: npm install -g tokenmaxer (a single zero-dependency script — review it first if you like).\n' +
-        '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor) and configure the matching hooks from start.md.\n' +
+        '2. Detect which coding tools I use (Claude Code / Codex / opencode / pi / Cursor, which also covers Grok Bot) and configure the matching hooks from start.md.\n' +
         '3. Run `tokenmaxer backfill --dry-run` and show me a sample of what would be uploaded, then run `tokenmaxer backfill`.\n' +
         '4. Confirm my sessions appear at ' +
         base +
@@ -161,7 +161,7 @@ ${s.pi}
 
 ## Cursor
 
-Cursor doesn't expose token usage to hooks, so the reporter reads your own usage from Cursor's dashboard API using the Cursor login already on this machine. That login is sent **only to cursor.com** — it never reaches tokenmaxer servers, and only the resulting token counts are uploaded. Add this to \`~/.cursor/hooks.json\` so every session triggers a sync:
+Cursor doesn't expose token usage to hooks, so the reporter reads your own usage from Cursor's dashboard API using the Cursor login already on this machine. That login is sent **only to cursor.com** — it never reaches tokenmaxer servers, and only the resulting token counts are uploaded. The same sync picks up Grok Bot, which is billed through your Cursor account and reported as its own source. Add this to \`~/.cursor/hooks.json\` so every session triggers a sync:
 
 \`\`\`json
 ${s.cursor}
@@ -171,7 +171,7 @@ If auto-auth fails (Cursor not logged in on this machine), see the [reporter REA
 
 ## Backfill past history (optional)
 
-The hooks only report new sessions. To include sessions from before you installed tokenmaxer.quest, run this once — it computes token-count summaries from your local Claude Code, Codex, opencode, pi, and Cursor transcripts and uploads only those summaries (idempotent, so it's safe to re-run). Use \`--dry-run\` first to inspect the payload, and add \`claude\`, \`codex\`, \`opencode\`, \`pi\`, or \`cursor\` to limit it to one tool:
+The hooks only report new sessions. To include sessions from before you installed tokenmaxer.quest, run this once — it computes token-count summaries from your local Claude Code, Codex, opencode, pi, and Cursor (including Grok Bot) transcripts and uploads only those summaries (idempotent, so it's safe to re-run). Use \`--dry-run\` first to inspect the payload, and add \`claude\`, \`codex\`, \`opencode\`, \`pi\`, or \`cursor\` to limit it to one tool:
 
 \`\`\`shell
 tokenmaxer backfill --dry-run

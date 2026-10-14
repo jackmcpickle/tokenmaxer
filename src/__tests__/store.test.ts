@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { upsertSessions } from '@/lib/store';
+import { upsertIngest, upsertSessions } from '@/lib/store';
 import type { SessionUsageInput } from '@/types';
 
 interface Recorded {
@@ -159,5 +159,141 @@ describe('upsertSessions', () => {
         expect(
             log.flat().filter((s) => s.sql.startsWith('DELETE')),
         ).toHaveLength(1);
+    });
+});
+
+describe('upsertIngest', () => {
+    it('writes each partitioned group under its own source and replace scope', async () => {
+        const log: Recorded[][] = [];
+        const cursorRow = {
+            ...row(20260719, 'composer-2.5-fast'),
+            session_id: 'cursor-2026-07-19',
+        };
+        const grokRow = {
+            ...row(20260719, 'grok-bot-default'),
+            session_id: 'cursor-2026-07-19',
+        };
+        const written = await upsertIngest(
+            recordingDb(log),
+            'u1',
+            {
+                source: 'cursor',
+                sessions: [cursorRow, grokRow],
+                replaceSessions: ['cursor-2026-07-19'],
+            },
+            42,
+        );
+        expect(written).toBe(2);
+        const stmts = log.flat();
+        const deletes = stmts.filter((s) => s.sql.includes('DELETE'));
+        const inserts = stmts.filter((s) => s.sql.includes('INSERT'));
+        expect(deletes.map((s) => s.args)).toEqual([
+            ['u1', 'cursor', 'cursor-2026-07-19'],
+            ['u1', 'grok_bot', 'grok-bot-2026-07-19'],
+        ]);
+        expect(inserts.map((s) => s.args.slice(0, 4))).toEqual([
+            ['u1', 'cursor', 'cursor-2026-07-19', 'composer-2.5-fast'],
+            ['u1', 'grok_bot', 'grok-bot-2026-07-19', 'grok-bot-default'],
+        ]);
+    });
+
+    it('still clears a cursor day whose rows all moved to Grok Bot', async () => {
+        const log: Recorded[][] = [];
+        await upsertIngest(
+            recordingDb(log),
+            'u1',
+            {
+                source: 'cursor',
+                sessions: [
+                    {
+                        ...row(20260719, 'grok-bot-default'),
+                        session_id: 'cursor-2026-07-19',
+                    },
+                ],
+                replaceSessions: ['cursor-2026-07-19'],
+            },
+            42,
+        );
+        const stmts = log.flat();
+        expect(
+            stmts.filter((s) => s.sql.includes('DELETE')).map((s) => s.args),
+        ).toEqual([
+            ['u1', 'cursor', 'cursor-2026-07-19'],
+            ['u1', 'grok_bot', 'grok-bot-2026-07-19'],
+        ]);
+        expect(stmts.filter((s) => s.sql.includes('INSERT'))).toHaveLength(1);
+    });
+
+    it('writes every source group in ONE batch when it fits', async () => {
+        // One batch is one D1 transaction: a failure must not leave the Cursor
+        // day cleared while the Grok Bot rows were never written.
+        const log: Recorded[][] = [];
+        await upsertIngest(
+            recordingDb(log),
+            'u1',
+            {
+                source: 'cursor',
+                sessions: [
+                    {
+                        ...row(20260719, 'composer-2.5-fast'),
+                        session_id: 'cursor-2026-07-19',
+                    },
+                    {
+                        ...row(20260719, 'grok-bot-default'),
+                        session_id: 'cursor-2026-07-19',
+                    },
+                ],
+                replaceSessions: ['cursor-2026-07-19'],
+            },
+            42,
+        );
+        expect(log).toHaveLength(1);
+        const only = log[0] ?? [];
+        expect(only.map((s) => s.sql.startsWith('DELETE'))).toEqual([
+            true,
+            true,
+            false,
+            false,
+        ]);
+    });
+
+    it('clears the Grok Bot day for a cursor claim with no Bot rows', async () => {
+        const log: Recorded[][] = [];
+        await upsertIngest(
+            recordingDb(log),
+            'u1',
+            {
+                source: 'cursor',
+                sessions: [
+                    {
+                        ...row(20260719, 'composer-2.5-fast'),
+                        session_id: 'cursor-2026-07-19',
+                    },
+                ],
+                replaceSessions: ['cursor-2026-07-19'],
+            },
+            42,
+        );
+        expect(
+            log
+                .flat()
+                .filter((s) => s.sql.includes('DELETE'))
+                .map((s) => s.args),
+        ).toEqual([
+            ['u1', 'cursor', 'cursor-2026-07-19'],
+            ['u1', 'grok_bot', 'grok-bot-2026-07-19'],
+        ]);
+    });
+
+    it('writes nothing for an upload with no rows and no claims', async () => {
+        const log: Recorded[][] = [];
+        const written = await upsertIngest(
+            recordingDb(log),
+            'u1',
+            { source: 'cursor', sessions: [], replaceSessions: [] },
+            42,
+        );
+        expect(written).toBe(0);
+        expect(log).toHaveLength(0);
     });
 });

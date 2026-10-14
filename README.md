@@ -1,7 +1,7 @@
 # tokenmaxer.quest
 
 A public leaderboard of the tokens AI builders burn with **Claude Code**, **Codex**,
-**opencode**, **pi** and **Cursor**. Pick a username, paste a couple of snippets, and your coding
+**opencode**, **pi**, **Cursor** and **Grok Bot**. Pick a username, paste a couple of snippets, and your coding
 sessions self-report their token usage to the board. No email, no PII — just token
 counts.
 
@@ -29,6 +29,7 @@ sending them.
 - **pi** — `~/.pi/agent/sessions/**/*.jsonl` → `usage` on each assistant record
   (deduped by `id`, since pi stores a branching tree)
 - **Cursor** — dashboard API fetch via local auth (reporter calls `cursor-sync`)
+- **Grok Bot** — same Cursor dashboard fetch; its `grok-bot-*` rows are stored as their own source
 
 Each row is your usage for one tool, session, model and day, where `day` is the
 calendar day **on the machine that reported it**. Leaderboard windows are whole
@@ -76,7 +77,7 @@ reporter/src/        # reporter modules (strict TS; esbuild → tokentally.mjs f
 | GET    | `/api/u/:username`  | —      | profile totals + breakdown                                             |
 | GET    | `/api/health`       | —      | `{name, version}`                                                      |
 
-`window` ∈ `today|7d|30d|all`, `metric` ∈ `total|input|output|cached|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor`.
+`window` ∈ `today|7d|30d|all`, `metric` ∈ `total|input|output|cached|cost`, `source` ∈ `claude_code|codex|opencode|pi|cursor|grok_bot`.
 
 ## Agent-readable pages
 

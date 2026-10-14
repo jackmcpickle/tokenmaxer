@@ -6,6 +6,7 @@ export const SOURCE_LABELS: Record<Source, string> = {
     opencode: 'opencode',
     pi: 'pi',
     cursor: 'Cursor',
+    grok_bot: 'Grok Bot',
 };
 
 export function boardHref(opts: {
