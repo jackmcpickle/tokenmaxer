@@ -4,8 +4,31 @@ import { estimateCost, listPrices, priceFor } from '@/lib/pricing';
 describe('priceFor', () => {
     it('matches the longest substring for versioned model ids', () => {
         expect(priceFor('claude-opus-4-8-20260101').output).toBe(25);
-        expect(priceFor('claude-sonnet-5-20260101').output).toBe(15);
+        expect(priceFor('claude-sonnet-5-20260101').output).toBe(10);
         expect(priceFor('gpt-5-codex').input).toBe(1.25);
+    });
+
+    it('prefers the most specific key when a family fallback also matches', () => {
+        // grok-4.7 > grok-4 > grok; the Cursor Fast tier is longer still.
+        expect(priceFor('grok-4.7').cacheRead).toBe(0.5);
+        expect(priceFor('cursor-grok-4.6-high-fast')).toEqual(
+            priceFor('grok-4.6'),
+        );
+        expect(priceFor('grok-4.7-fast').output).toBe(12);
+        expect(priceFor('grok-4.1-fast-reasoning').input).toBe(0.2);
+        expect(priceFor('grok-code-fast-1')).toEqual(
+            priceFor('grok-build-0.1'),
+        );
+        // muse-spark-1.3-contributor must not fall through to muse-spark.
+        expect(priceFor('muse-spark-1.3-contributor').input).toBe(0.1);
+        expect(priceFor('muse-spark-1.3').output).toBe(4.25);
+        expect(priceFor('muse-wonder-1.0').output).toBe(20);
+        expect(priceFor('composer-2.5-fast').output).toBe(15);
+        expect(priceFor('composer-2.5').output).toBe(2.5);
+        expect(priceFor('glm-5.3-flashx').input).toBe(0.37);
+        expect(priceFor('deepseek-v4-pro').output).toBe(3.96);
+        expect(priceFor('kimi-k3').cacheWrite).toBe(3);
+        expect(priceFor('gemini-4-argon').output).toBe(10);
     });
 
     it('prices the gpt-5.x family from the CodexBar tables', () => {
@@ -19,13 +42,16 @@ describe('priceFor', () => {
         expect(priceFor('gpt-5.5').output).toBe(30);
         expect(priceFor('gpt-5.5-pro').output).toBe(180);
         expect(priceFor('gpt-5.6-sol')).toEqual({
-            input: 5,
-            output: 30,
-            cacheRead: 0.5,
-            cacheWrite: 6.25,
+            input: 4,
+            output: 20,
+            cacheRead: 0.4,
+            cacheWrite: 5,
         });
-        expect(priceFor('gpt-5.6-terra').cacheWrite).toBe(3.125);
-        expect(priceFor('gpt-5.6-luna').input).toBe(1);
+        expect(priceFor('gpt-5.6-terra').cacheWrite).toBe(2.5);
+        expect(priceFor('gpt-5.6-luna').input).toBe(0.2);
+        expect(priceFor('gpt-6-astra').output).toBe(50);
+        expect(priceFor('gpt-6.1-sol').cacheRead).toBe(0.1);
+        expect(priceFor('gpt-6-high')).toEqual(priceFor('gpt-6-sol'));
     });
 
     it('prices current Claude models from the CodexBar tables', () => {
@@ -35,6 +61,16 @@ describe('priceFor', () => {
             cacheRead: 1,
             cacheWrite: 12.5,
         });
+        expect(priceFor('claude-fable-5-1').cacheRead).toBe(0.25);
+        expect(priceFor('claude-opus-5-5')).toEqual({
+            input: 4,
+            output: 20,
+            cacheRead: 0.2,
+            cacheWrite: 5,
+        });
+        expect(priceFor('claude-opus-5-5-fast').input).toBe(8);
+        expect(priceFor('claude-sonnet-5-5').cacheRead).toBe(0.1);
+        expect(priceFor('claude-haiku-5-5').output).toBe(0.5);
         expect(priceFor('claude-opus-4-8').input).toBe(5);
         expect(priceFor('claude-haiku-4-5').input).toBe(1);
         // Older opus generations keep their original rates.
@@ -83,10 +119,10 @@ describe('listPrices', () => {
         const sonnet = prices.find((p) => p.id === 'claude-sonnet-5');
         expect(sonnet).toEqual({
             id: 'claude-sonnet-5',
-            input: 3,
-            output: 15,
-            cacheRead: 0.3,
-            cacheWrite: 3.75,
+            input: 2,
+            output: 10,
+            cacheRead: 0.2,
+            cacheWrite: 2.5,
         });
     });
 });
@@ -105,12 +141,12 @@ describe('estimateCost', () => {
 
     it('adds all categories', () => {
         const cost = estimateCost('claude-sonnet-5', {
-            input_tokens: 1_000_000, // $3
-            output_tokens: 1_000_000, // $15
-            cache_read_tokens: 1_000_000, // $0.30
-            cache_creation_tokens: 1_000_000, // $3.75
+            input_tokens: 1_000_000, // $2
+            output_tokens: 1_000_000, // $10
+            cache_read_tokens: 1_000_000, // $0.20
+            cache_creation_tokens: 1_000_000, // $2.50
         });
-        expect(cost).toBeCloseTo(22.05, 4);
+        expect(cost).toBeCloseTo(14.7, 4);
     });
 
     it('claude_code source stays additive (cache buckets are distinct)', () => {
