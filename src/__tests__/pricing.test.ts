@@ -222,3 +222,18 @@ describe('estimateCost', () => {
         );
     });
 });
+
+describe('Grok Bot pricing', () => {
+    it('pins grok-bot-* ids to the generic fallback, not xAI editor rates', () => {
+        const fallback = priceFor('some-unknown-model');
+        for (const id of [
+            'grok-bot-default',
+            'grok-bot-automation',
+            'grok-bot-cua',
+            'sand-default',
+        ]) {
+            expect(priceFor(id)).toEqual(fallback);
+        }
+        expect(priceFor('grok-4.7-high').output).toBe(6);
+    });
+});

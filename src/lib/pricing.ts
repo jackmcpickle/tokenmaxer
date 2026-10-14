@@ -334,6 +334,10 @@ const PRICES: Record<string, ModelPrice> = {
         cacheWrite: 0.2,
     },
     'grok-4': { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 2 },
+    // Grok Bot (Cursor's cloud bot) has no published per-token rate; pin it to
+    // the generic fallback so it does not inherit xAI's editor rates via the
+    // shorter `grok` key.
+    'grok-bot': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
     grok: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 2 },
 
     // Cursor — Composer (cursor.com/docs/models). Composer 2 rates are the
