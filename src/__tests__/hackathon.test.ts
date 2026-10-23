@@ -101,7 +101,7 @@ describe('getHackathonLeaderboard', () => {
 describe('hackathon cache', () => {
     it('key is namespaced by slug and metric', () => {
         expect(hackathonLeaderboardCacheKey('Spring-Sprint', 'cost')).toBe(
-            'agg:hack:v1:spring-sprint:cost',
+            'agg:hack:v2:spring-sprint:cost',
         );
     });
 

@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
-import { getDistinctModelFamilies } from '@/lib/aggregate';
-import { invalidateHackathonCache } from '@/lib/cached-aggregate';
+import {
+    cachedDistinctModelFamilies,
+    invalidateHackathonCache,
+} from '@/lib/cached-aggregate';
 import {
     addMember,
     createHackathon,
@@ -32,7 +34,10 @@ app.post('/hackathons', async (c) => {
     if (!name.ok) return c.json({ error: name.error }, 400);
     const range = validateHackathonRange(body.startAt, body.endAt);
     if (!range.ok) return c.json({ error: range.error }, 400);
-    const families = await getDistinctModelFamilies(c.env.DB);
+    const families = await cachedDistinctModelFamilies(
+        c.env.DB,
+        c.env.RATE_LIMIT,
+    );
     const family = validateModelFamily(body.modelFamily, families);
     if (!family.ok) return c.json({ error: family.error }, 400);
 
@@ -99,7 +104,10 @@ app.patch('/hackathons/:slug', async (c) => {
     if (!name.ok) return c.json({ error: name.error }, 400);
     const range = validateHackathonRange(body.startAt, body.endAt);
     if (!range.ok) return c.json({ error: range.error }, 400);
-    const families = await getDistinctModelFamilies(c.env.DB);
+    const families = await cachedDistinctModelFamilies(
+        c.env.DB,
+        c.env.RATE_LIMIT,
+    );
     const family = validateModelFamily(body.modelFamily, families);
     if (!family.ok) return c.json({ error: family.error }, 400);
 

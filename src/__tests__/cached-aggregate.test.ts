@@ -11,7 +11,7 @@ import {
 } from '@/lib/cached-aggregate';
 
 describe('cache keys', () => {
-    it('leaderboard key includes filters and limit', () => {
+    it('leaderboard key includes only SQL filters', () => {
         expect(
             leaderboardCacheKey({
                 window: '7d',
@@ -21,7 +21,7 @@ describe('cache keys', () => {
                 model: 'sonnet',
                 limit: 100,
             }),
-        ).toBe('agg:lb:v2:7d:20260807:total:claude_code:sonnet::100');
+        ).toBe('agg:lb-rows:v3:20260807:claude_code:');
     });
 
     it('leaderboard key separates by country', () => {
@@ -32,7 +32,7 @@ describe('cache keys', () => {
             limit: 100,
         };
         expect(leaderboardCacheKey({ ...base, country: 'AU' })).toBe(
-            'agg:lb:v2:7d:20260807:total:::AU:100',
+            'agg:lb-rows:v3:20260807::AU',
         );
         expect(leaderboardCacheKey({ ...base, country: 'US' })).not.toBe(
             leaderboardCacheKey({ ...base, country: 'AU' }),
@@ -40,12 +40,12 @@ describe('cache keys', () => {
     });
 
     it('profile key is lowercased', () => {
-        expect(profileCacheKey('Ada')).toBe('agg:profile:v2:ada');
+        expect(profileCacheKey('Ada')).toBe('agg:profile:v3:ada');
     });
 
     it('profile window key includes the window', () => {
         expect(profileWindowCacheKey('Ada', '7d', 20260807)).toBe(
-            'agg:profile7d:v2:ada:20260807',
+            'agg:profile7d:v3:ada:20260807',
         );
     });
 });
@@ -156,13 +156,13 @@ describe('cachedDistinctModelFamilies', () => {
 });
 
 describe('cache keys pin the resolved day', () => {
-    it('leaderboard keys include the start day and are v2', () => {
+    it('leaderboard keys include the start day and are versioned', () => {
         const key = leaderboardCacheKey({
             window: 'today',
             startDay: 20260807,
             metric: 'total',
         });
-        expect(key).toContain('agg:lb:v2');
+        expect(key).toContain('agg:lb-rows:v3');
         expect(key).toContain('20260807');
     });
 

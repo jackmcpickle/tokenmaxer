@@ -46,7 +46,7 @@ export interface ProfileWindowTotals {
     sessions: number;
 }
 
-interface GroupedRow {
+export interface GroupedRow {
     username: string;
     user_id: string;
     source: string;
@@ -115,13 +115,13 @@ const GROUP_SELECT = `
          SUM(su.cache_read_tokens) AS cache_read_tokens,
          SUM(su.cache_creation_tokens) AS cache_creation_tokens,
          SUM(su.reasoning_tokens) AS reasoning_tokens,
-         COUNT(DISTINCT su.session_id) AS sessions
-  FROM session_usage su
+         SUM(su.sessions) AS sessions
+  FROM usage_daily su
   JOIN users u ON u.id = su.user_id
 `;
 
 export interface LeaderboardQuery {
-    /** Echoed back to clients and used as a cache-key label. */
+    /** Echoed back to clients; the resolved startDay controls data caching. */
     window: TimeWindow;
     /**
      * Inclusive lower bound as a YYYYMMDD calendar day, already resolved in the
@@ -162,7 +162,7 @@ function foldGroupedRows(
             byUser.set(r.user_id, entry);
         }
         addRow(entry.totals, r);
-        // Approximate: a session spanning multiple models is counted per model.
+        // Approximate: sessions are counted once per model and calendar day.
         entry.sessions += r.sessions;
     }
     return byUser;
@@ -191,10 +191,26 @@ function rankFolded(
     return limited;
 }
 
+/** Apply presentation choices to shared, unranked database rows. */
+export function leaderboardFromRows(
+    rows: readonly GroupedRow[],
+    q: Pick<LeaderboardQuery, 'model' | 'metric' | 'limit'>,
+): LeaderboardEntry[] {
+    return rankFolded(foldGroupedRows(rows, q.model), q.metric, q.limit);
+}
+
 export async function getLeaderboard(
     db: D1Database,
     q: LeaderboardQuery,
 ): Promise<LeaderboardEntry[]> {
+    return leaderboardFromRows(await getLeaderboardRows(db, q), q);
+}
+
+/** Only these filters change the SQL; metric, family and limit are applied later. */
+export async function getLeaderboardRows(
+    db: D1Database,
+    q: Pick<LeaderboardQuery, 'startDay' | 'source' | 'country'>,
+): Promise<GroupedRow[]> {
     const conditions = ['su.day >= ?'];
     const binds: (string | number)[] = [q.startDay];
     if (q.source) {
@@ -212,7 +228,7 @@ export async function getLeaderboard(
         .prepare(sql)
         .bind(...binds)
         .all<GroupedRow>();
-    return rankFolded(foldGroupedRows(res.results, q.model), q.metric, q.limit);
+    return res.results;
 }
 
 export interface HackathonLeaderboardQuery {
@@ -251,7 +267,13 @@ export async function getHackathonLeaderboard(
 
 export async function getDistinctModels(db: D1Database): Promise<string[]> {
     const res = await db
-        .prepare('SELECT DISTINCT model FROM session_usage ORDER BY model')
+        // Seek to the next indexed model instead of visiting every row of each model.
+        .prepare(`WITH RECURSIVE models(model) AS (
+            SELECT MIN(model) FROM usage_daily
+            UNION ALL
+            SELECT (SELECT MIN(model) FROM usage_daily WHERE model > models.model)
+            FROM models WHERE model IS NOT NULL
+        ) SELECT model FROM models WHERE model IS NOT NULL ORDER BY model`)
         .all<{ model: string }>();
     return res.results.map((r) => r.model);
 }
@@ -263,9 +285,30 @@ export async function getDistinctModelFamilies(
     return distinctFamilies(await getDistinctModels(db));
 }
 
+/** Competition rank is one plus the number of users strictly above this total. */
+export function profileRankFromRows(
+    rows: readonly GroupedRow[],
+    total: number,
+): number {
+    const totals = [...foldGroupedRows(rows, undefined).values()]
+        .map((user) => grandTotal(user.totals))
+        .sort((a, b) => b - a);
+    let low = 0;
+    let high = totals.length;
+    while (low < high) {
+        const middle = Math.floor((low + high) / 2);
+        const middleTotal = totals[middle];
+        if (middleTotal !== undefined && middleTotal > total) low = middle + 1;
+        else high = middle;
+    }
+    return low + 1;
+}
+
 export async function getProfile(
     db: D1Database,
     username: string,
+    loadRankRows: () => Promise<readonly GroupedRow[]> = () =>
+        getLeaderboardRows(db, { startDay: 0 }),
 ): Promise<Profile | null> {
     const user = await db
         .prepare(
@@ -302,23 +345,12 @@ export async function getProfile(
     breakdown.sort((a, b) => grandTotal(b) - grandTotal(a));
 
     const myTotal = grandTotal(totals);
-    // Exclude Claude Code `<synthetic>` rows so rank matches filtered totals.
-    const rankRes = await db
-        .prepare(
-            `SELECT COUNT(*) AS ahead FROM (
-               SELECT user_id, SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens + reasoning_tokens) AS t
-               FROM session_usage
-               WHERE LOWER(TRIM(model, '<>')) != 'synthetic'
-               GROUP BY user_id HAVING t > ?
-             )`,
-        )
-        .bind(myTotal)
-        .first<{ ahead: number }>();
+    const rank = profileRankFromRows(await loadRankRows(), myTotal);
 
     return {
         username: user.username,
         created_at: user.created_at,
-        rank: (rankRes?.ahead ?? 0) + 1,
+        rank,
         sessions,
         grand_total: myTotal,
         breakdown,
@@ -337,7 +369,7 @@ export async function getDistinctCountries(db: D1Database): Promise<string[]> {
         .prepare(
             `SELECT DISTINCT u.country AS country
              FROM users u
-             JOIN session_usage su ON su.user_id = u.id
+             WHERE EXISTS (SELECT 1 FROM usage_daily su WHERE su.user_id = u.id)
              ORDER BY u.country`,
         )
         .all<{ country: string }>();
