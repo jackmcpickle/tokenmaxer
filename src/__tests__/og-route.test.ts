@@ -40,13 +40,10 @@ function profileDb(): D1Database {
                         }
                         return null;
                     }
-                    if (sql.includes('COUNT(*) AS ahead')) {
-                        return { ahead: 2 } as T;
-                    }
                     return null;
                 },
                 async all() {
-                    if (sql.includes('FROM session_usage')) {
+                    if (sql.includes('FROM usage_daily')) {
                         return {
                             results: [
                                 {

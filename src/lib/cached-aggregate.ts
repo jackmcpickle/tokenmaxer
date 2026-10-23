@@ -3,9 +3,11 @@ import {
     getDistinctModelFamilies,
     getHackathonLeaderboard,
     type HackathonLeaderboardQuery,
-    getLeaderboard,
+    getLeaderboardRows,
+    leaderboardFromRows,
     getProfile,
     getProfileWindowTotals,
+    type GroupedRow,
     type LeaderboardEntry,
     type LeaderboardQuery,
     type Profile,
@@ -21,20 +23,15 @@ import type { Metric, TimeWindow } from '@/types';
 
 export function leaderboardCacheKey(query: LeaderboardQuery): string {
     return [
-        'agg:lb:v2',
-        query.window,
-        // The resolved day, so viewers in different zones never share a board.
+        'agg:lb-rows:v3',
         String(query.startDay),
-        query.metric,
         query.source ?? '',
-        query.model ?? '',
         query.country ?? '',
-        String(query.limit ?? 100),
     ].join(':');
 }
 
 export function profileCacheKey(username: string): string {
-    return `agg:profile:v2:${username.toLowerCase()}`;
+    return `agg:profile:v3:${username.toLowerCase()}`;
 }
 
 export function profileWindowCacheKey(
@@ -42,7 +39,7 @@ export function profileWindowCacheKey(
     window: TimeWindow,
     startDay: number,
 ): string {
-    return `agg:profile${window}:v2:${username.toLowerCase()}:${startDay}`;
+    return `agg:profile${window}:v3:${username.toLowerCase()}:${startDay}`;
 }
 
 /**
@@ -73,8 +70,8 @@ export async function invalidateProfileCache(
     ]);
 }
 
-const MODELS_CACHE_KEY = 'agg:models:v1';
-const COUNTRIES_CACHE_KEY = 'agg:countries:v1';
+const MODELS_CACHE_KEY = 'agg:models:v2';
+const COUNTRIES_CACHE_KEY = 'agg:countries:v2';
 
 function withReadCache<T>(
     kv: KVNamespace,
@@ -84,14 +81,23 @@ function withReadCache<T>(
     return getOrSet(kv, key, READ_CACHE_TTL_SECONDS, load);
 }
 
+function cachedLeaderboardRows(
+    db: D1Database,
+    kv: KVNamespace,
+    query: LeaderboardQuery,
+): Promise<GroupedRow[]> {
+    return withReadCache(kv, leaderboardCacheKey(query), () =>
+        getLeaderboardRows(db, query),
+    );
+}
+
 export async function cachedLeaderboard(
     db: D1Database,
     kv: KVNamespace,
     query: LeaderboardQuery,
 ): Promise<LeaderboardEntry[]> {
-    return withReadCache(kv, leaderboardCacheKey(query), () =>
-        getLeaderboard(db, query),
-    );
+    const rows = await cachedLeaderboardRows(db, kv, query);
+    return leaderboardFromRows(rows, query);
 }
 
 export async function cachedProfile(
@@ -100,7 +106,13 @@ export async function cachedProfile(
     username: string,
 ): Promise<Profile | null> {
     return withReadCache(kv, profileCacheKey(username), () =>
-        getProfile(db, username),
+        getProfile(db, username, () =>
+            cachedLeaderboardRows(db, kv, {
+                window: 'all',
+                startDay: 0,
+                metric: 'total',
+            }),
+        ),
     );
 }
 
@@ -122,7 +134,7 @@ export function hackathonLeaderboardCacheKey(
     slug: string,
     metric: Metric,
 ): string {
-    return `agg:hack:v1:${slug.toLowerCase()}:${metric}`;
+    return `agg:hack:v2:${slug.toLowerCase()}:${metric}`;
 }
 
 /** Drop all cached metric variants for a hackathon after a membership/edit change. */
