@@ -32,7 +32,7 @@
         "@cf-wasm/resvg": "0.4.0",
         "@tanstack/react-query": "5.103.1",
         "@tanstack/react-router": "1.170.38",
-        "@tanstack/react-start": "1.168.56",
+        "@tanstack/react-start": "1.168.60",
         "hono": "^4.13.8",
         "react": "19.3.0",
         "react-dom": "19.3.0"
